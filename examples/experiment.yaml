@@ -1,0 +1,10 @@
+experiment:
+  name: experiment-experiment-definition-xyz
+  description: ...
+  simulation_start_time: 2024-01-01T00:00:00Z # Physical time when the simulation starts
+  spec:
+    experiment_definition_ref: experiment-definition-0  # experiment-definition name
+  state:
+  #....
+  events:
+  #....

@@ -1,0 +1,44 @@
+layout:
+  name: example-layout
+  description: Example layout experiment configuration
+  nodes:
+    - name: sentinel-node-1
+      orbit:
+        radius:
+        inclination:
+        period:
+        raan:
+        arg_perigee:
+        true_anomaly:
+      rotation_speeds: [0.1, 0, 0]  # radians per second
+      nodeTemplateRef:
+        name: node-template-0
+      engine: # engine override from node template (optional)
+        image: ghcr.io/satlab/edfs:latest
+        configuration: "some-configuration"  # ConfigMap
+    - name: sentinel-node-2
+      orbit:
+        radius:
+        inclination:
+        period:
+        raan:
+        arg_perigee:
+        true_anomaly:
+      rotation_speeds: [0.1, 0, 0]  # radians per second
+      nodeTemplateRef:
+        name: node-template-0
+    - name: ground-station-1
+      orbit:
+        radius:
+        inclination:
+        period:
+        raan:
+        arg_perigee:
+        true_anomaly:
+      rotation_speeds: [0.1, 0, 0]  # radians per second
+      nodeTemplateRef:
+        name: ground-station-template-0
+      engine: # engine override from node template (optional)
+        configuration: "some-ground-configuration"  # ConfigMap
+
+# TODO add 'custom_agent_image_node'

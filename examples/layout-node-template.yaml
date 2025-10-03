@@ -1,0 +1,34 @@
+nodeTemplate:
+  name: node-template-0
+  description: Example node hardware and basic software configuration
+  engine:
+    image: ghcr.io/satlab/edfs:1.2.3
+    configuration: "some-edfs-configuration"  # ConfigMap
+  resources:
+    cpu: 3
+    memory: 12GB
+    storage: 2TB
+    network_interfaces:
+      - name: "Ka-Band Interface 0"  # 27-40 GHz
+        max_bandwidth: 100Mbps
+        min_latency: 10ms
+  energy:
+    solar_panels:
+      max_power: 500W
+    battery:
+      capacity: 100Wh
+      charge_rate: 20W
+    consumption:
+      normal:
+        idle: 5W
+        transmit: 50W
+        receive: 20W
+        storage_read: 5W
+        storage_write: 10W
+      low_power:
+        idle: 2W
+        transmit: 20W
+        receive: 10W
+        storage_read: 5W
+        storage_write: 10W
+
