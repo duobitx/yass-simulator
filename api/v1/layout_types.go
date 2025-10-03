@@ -5,19 +5,17 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&ExperimentDef{}, &ExperimentDefList{})
+	SchemeBuilder.Register(&Layout{}, &LayoutList{})
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Model",type=string,JSONPath=`.spec.model`
-// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
-// +kubebuilder:printcolumn:name="Endpoint",type=string,JSONPath=`.status.endpoint`
+// +kubebuilder:resource:scope=Cluster
 type Layout struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Description       string     `json:"description,omitempty"`
-	Spec              LayoutSpec `json:"spec,omitempty"`
+	Description       string          `json:"description,omitempty"`
+	Spec              []LayoutSatSpec `json:"spec,omitempty"`
 }
 
 // +kubebuilder:object:root=true
@@ -27,6 +25,13 @@ type LayoutList struct {
 	Items           []Layout `json:"items"`
 }
 
-type LayoutSpec struct {
-	Nodes           []Node `json:"nodes"`
+// +kubebuilder:validation:XValidation:rule="(has(self.hardwareSpecRef) && !has(self.hardwareSpec)) || (!has(self.hardwareSpecRef) && has(self.hardwareSpec))",message="Exactly one of spec.hardwareSpecRef or spec.hardwareSpec must be set"
+type LayoutSatSpec struct {
+	SatName string `json:"satName"`
+	// +kubebuilder:validation:Optional
+	HardwareSpec HardwareSpec `json:"hardwareSpec"`
+	// +kubebuilder:validation:Optional
+	HardwareSpecRef string   `json:"hardwareSpecRef"`
+	Orbit           Orbit    `json:"orbit"`
+	Rotation        Rotation `json:"rotation,omitempty"`
 }

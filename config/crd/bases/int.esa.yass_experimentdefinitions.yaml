@@ -1,0 +1,95 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: experimentdefinitions.int.esa.yass
+spec:
+  group: int.esa.yass
+  names:
+    kind: ExperimentDefinition
+    listKind: ExperimentDefinitionList
+    plural: experimentdefinitions
+    singular: experimentdefinition
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.model
+      name: Model
+      type: string
+    - jsonPath: .spec.maxDuration
+      name: MaxDuration
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: ExperimentDef is the Schema for the Experiment Definition
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          description:
+            description: Description - description of the experiment
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: ExperimentDefinitionSpec defines the desired state of an
+              ExperimentDefinition
+            properties:
+              HardwareEvents:
+                items:
+                  type: object
+                type: array
+              maxDuration:
+                description: |-
+                  A Duration represents the elapsed time between two instants
+                  as an int64 nanosecond count. The representation limits the
+                  largest representable duration to approximately 290 years.
+                format: int64
+                type: integer
+              satBehaviours:
+                items:
+                  properties:
+                    agent:
+                      properties:
+                        image:
+                          type: string
+                        parameters:
+                          x-kubernetes-preserve-unknown-fields: true
+                      required:
+                      - image
+                      type: object
+                    hardwareEvents:
+                      items:
+                        type: object
+                      type: array
+                    satName:
+                      type: string
+                  required:
+                  - agent
+                  - satName
+                  type: object
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

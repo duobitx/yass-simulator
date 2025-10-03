@@ -7,66 +7,45 @@ import (
 )
 
 func init() {
-	SchemeBuilder.Register(&ExperimentDef{}, &ExperimentDefList{})
+	SchemeBuilder.Register(&ExperimentDefinition{}, &ExperimentDefinitionList{})
 }
 
 //+kubebuilder:object:root=true
+//+kubebuilder:resource:scope=Cluster
 //+kubebuilder:subresource:status
 //+kubebuilder:printcolumn:name="Model",type=string,JSONPath=`.spec.model`
+// +kubebuilder:printcolumn:name="MaxDuration",type=string,JSONPath=`.spec.maxDuration`
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // ExperimentDef is the Schema for the Experiment Definition
-type ExperimentDef struct {
+type ExperimentDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Description       string            `json:"description,omitempty"`
-	Spec              ExperimentDefSpec `json:"spec,omitempty"`
+	// Description - description of the experiment
+	Description string                   `json:"description,omitempty"`
+	Spec        ExperimentDefinitionSpec `json:"spec,omitempty"`
 }
 
 // +kubebuilder:object:root=true
-type ExperimentDefList struct {
+type ExperimentDefinitionList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ExperimentDef `json:"items"`
+	Items           []ExperimentDefinition `json:"items"`
 }
 
-// ExperimentDefSpec defines the desired state of an ExperimentDef
-type ExperimentDefSpec struct {
-	MaxDuration *time.Duration `json:"max_duration,omitempty"`
-	//max_duration: 2h # Optional
-	//nodes_behavior:
-	//- node: sentinel-node-1
-	//agent-image: ghcr.io/satlab/tasks-based-simulation-agent:latest
-	//agent_parameters:   # map[string]any
-	//tasks:  # image can support it or not, parameters specific to the image
-	//- name: data-collection
-	//start_time: 0s
-	//duration: 30m
-	//parallel_tasks:
-	//- type: make_photo
-	//parameters:
-	//data_size: 2MB
-	//frequency: 2
-	//- node: sentinel-node-1
-	//agent-image: ghcr.io/satlab/position-based-simulation-agent:latest
-	//agent_parameters:   # map[string]any
-	//rules:  # image can support it or not, parameters specific to the image
-	//- position: # any position definition that is supported by the image
-	//action:
-	//- type: make_photo
-	//parameters:
-	//data_size: 2MB
-	//frequency: 2
-	//hardware_events:
-	//- name: "network_interface_failure"
-	//type: "network_interface_down"
-	//start_time: 15m
-	//duration: 1m
-	//parameters:
-	//interface_name: "Ka-Band Interface 0"
-	//- node: "custom_agent_image_node"
-	//agent-image: ghcr.io/satlab/custom-agent:latest
-	//evaluation:
-	//image: ghcr.io/satlab/experiment-evaluator:latest
-	//configuration: "evaluator-configuration"  # ConfigMap
+// ExperimentDefinitionSpec defines the desired state of an ExperimentDefinition
+type ExperimentDefinitionSpec struct {
+	MaxDuration    *time.Duration  `json:"maxDuration,omitempty"`
+	SatBehaviours  []SatBehaviour  `json:"satBehaviours,omitempty"`
+	HardwareEvents []HardwareEvent `json:"HardwareEvents,omitempty"`
+}
 
+type SatBehaviour struct {
+	SatName string                `json:"satName"`
+	Agent   SimpleSatContainerDef `json:"agent"`
+	// +kubebuilder:validation:Optional
+	HardwareEvents []HardwareEvent `json:"hardwareEvents"`
+}
+type HardwareEvent struct {
+	// TODO
 }
