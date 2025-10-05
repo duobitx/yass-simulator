@@ -62,7 +62,6 @@ spec:
                       x-kubernetes-int-or-string: true
                   required:
                   - CPU
-                  - DiskSpace
                   - Memory
                   type: object
                 hardwareSpecRef:

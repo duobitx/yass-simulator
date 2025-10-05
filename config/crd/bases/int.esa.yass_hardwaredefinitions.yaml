@@ -21,6 +21,9 @@ spec:
     - jsonPath: .spec.Memory
       name: Memory
       type: string
+    - jsonPath: .spec.DiskSpace
+      name: DiskSpace
+      type: string
     name: v1
     schema:
       openAPIV3Schema:
@@ -66,7 +69,6 @@ spec:
                 x-kubernetes-int-or-string: true
             required:
             - CPU
-            - DiskSpace
             - Memory
             type: object
         type: object

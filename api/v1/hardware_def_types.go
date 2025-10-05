@@ -14,7 +14,7 @@ func init() {
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="CPU",type=string,JSONPath=`.spec.CPU`
 // +kubebuilder:printcolumn:name="Memory",type=string,JSONPath=`.spec.Memory`
-
+// +kubebuilder:printcolumn:name="DiskSpace",type=string,JSONPath=`.spec.DiskSpace`
 type HardwareDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -30,7 +30,8 @@ type HardwareDefinitionList struct {
 }
 
 type HardwareSpec struct {
-	CPU       *resource.Quantity `json:"CPU"`
-	Memory    *resource.Quantity `json:"Memory"`
+	CPU    *resource.Quantity `json:"CPU"`
+	Memory *resource.Quantity `json:"Memory"`
+	// +kubebuilder:validation:Optional
 	DiskSpace *resource.Quantity `json:"DiskSpace"`
 }
