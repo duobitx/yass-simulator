@@ -42,7 +42,7 @@ spec:
               properties:
                 earthPosition:
                   properties:
-                    HeightOverSeaLevel:
+                    heightOverSeaLevel:
                       type: number
                     lat:
                       type: number

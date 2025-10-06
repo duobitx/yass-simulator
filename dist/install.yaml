@@ -118,9 +118,15 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.started
+    - jsonPath: .spec.ready
+      name: Ready
+      type: boolean
+    - jsonPath: .spec.start
+      name: Start
+      type: boolean
+    - jsonPath: .status.started
       name: Started
-      type: string
+      type: date
     name: v1
     schema:
       openAPIV3Schema:
@@ -158,12 +164,16 @@ spec:
                 type: string
               layoutDefRef:
                 type: string
-              started:
+              simulationStartTime:
+                format: date-time
+                type: string
+              start:
                 type: boolean
             required:
             - experimentDefRef
             - layoutDefRef
-            - started
+            - simulationStartTime
+            - start
             type: object
           status:
             description: ExperimentStatus defines the desired state of an Experiment
@@ -230,6 +240,11 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              ready:
+                description: Ready - ready to be started
+                type: boolean
+            required:
+            - ready
             type: object
         type: object
     served: true
@@ -258,6 +273,9 @@ spec:
       type: string
     - jsonPath: .spec.Memory
       name: Memory
+      type: string
+    - jsonPath: .spec.DiskSpace
+      name: DiskSpace
       type: string
     name: v1
     schema:
@@ -304,7 +322,6 @@ spec:
                 x-kubernetes-int-or-string: true
             required:
             - CPU
-            - DiskSpace
             - Memory
             type: object
         type: object
@@ -354,6 +371,18 @@ spec:
           spec:
             items:
               properties:
+                earthPosition:
+                  properties:
+                    heightOverSeaLevel:
+                      type: number
+                    lat:
+                      type: number
+                    lng:
+                      type: number
+                  required:
+                  - lat
+                  - lng
+                  type: object
                 hardwareSpec:
                   properties:
                     CPU:
@@ -376,32 +405,18 @@ spec:
                       x-kubernetes-int-or-string: true
                   required:
                   - CPU
-                  - DiskSpace
                   - Memory
                   type: object
                 hardwareSpecRef:
                   type: string
                 orbit:
                   properties:
-                    argPerigee:
-                      type: number
-                    inclination:
-                      type: number
-                    period:
-                      type: number
-                    raan:
-                      type: number
-                    radius:
-                      type: number
-                    trueAnomaly:
-                      type: number
+                    tle:
+                      items:
+                        type: string
+                      type: array
                   required:
-                  - argPerigee
-                  - inclination
-                  - period
-                  - raan
-                  - radius
-                  - trueAnomaly
+                  - tle
                   type: object
                 rotation:
                   description: Rotation - to be inlined
@@ -416,7 +431,6 @@ spec:
                 satName:
                   type: string
               required:
-              - orbit
               - satName
               type: object
               x-kubernetes-validations:
@@ -424,6 +438,9 @@ spec:
                   must be set
                 rule: (has(self.hardwareSpecRef) && !has(self.hardwareSpec)) || (!has(self.hardwareSpecRef)
                   && has(self.hardwareSpec))
+              - message: Exactly one of spec.orbit or spec.earthPosition must be set
+                rule: (has(self.orbit) && !has(self.earthPosition)) || (!has(self.orbit)
+                  && has(self.earthPosition))
             type: array
         type: object
     served: true
@@ -446,10 +463,23 @@ spec:
     singular: sat
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.batteryChargeLevel
+      name: BatLev
+      type: string
+    - jsonPath: .spec.batteryChargeRate
+      name: BatCharge
+      type: string
+    - jsonPath: .spec.lowPower
+      name: LowPower
+      type: boolean
+    - jsonPath: .spec.posStr
+      name: PosOverEarth
+      type: boolean
+    name: v1
     schema:
       openAPIV3Schema:
-        description: Sat is the Schema for the sats API
+        description: Sat is the Schema for the SATs API
         properties:
           apiVersion:
             description: |-
@@ -489,8 +519,6 @@ spec:
                 required:
                 - image
                 type: object
-              hardwareDefinitionRef:
-                type: string
               hardwareSpec:
                 properties:
                   CPU:
@@ -513,30 +541,18 @@ spec:
                     x-kubernetes-int-or-string: true
                 required:
                 - CPU
-                - DiskSpace
                 - Memory
                 type: object
+              hardwareSpecRef:
+                type: string
               orbit:
                 properties:
-                  argPerigee:
-                    type: number
-                  inclination:
-                    type: number
-                  period:
-                    type: number
-                  raan:
-                    type: number
-                  radius:
-                    type: number
-                  trueAnomaly:
-                    type: number
+                  tle:
+                    items:
+                      type: string
+                    type: array
                 required:
-                - argPerigee
-                - inclination
-                - period
-                - raan
-                - radius
-                - trueAnomaly
+                - tle
                 type: object
               rotation:
                 description: Rotation - to be inlined
@@ -551,20 +567,21 @@ spec:
             required:
             - orbit
             type: object
+            x-kubernetes-validations:
+            - message: Exactly one of spec.hardwareSpecRef or spec.hardwareSpec must
+                be set
+              rule: (has(self.hardwareSpecRef) && !has(self.hardwareSpec)) || (!has(self.hardwareSpecRef)
+                && has(self.hardwareSpec))
           status:
             description: status defines the observed state of Sat
             properties:
+              batteryChargeLevel:
+                type: string
+              batteryChargeRate:
+                type: string
               conditions:
-                description: |-
-                  conditions represent the current state of the Sat resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                description: The status of each condition is one of True, False, or
+                  Unknown.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -628,6 +645,8 @@ spec:
               posStr:
                 type: string
             required:
+            - batteryChargeLevel
+            - batteryChargeRate
             - lowPower
             - posStr
             type: object
