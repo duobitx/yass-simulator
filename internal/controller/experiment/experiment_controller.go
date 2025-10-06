@@ -18,27 +18,33 @@ package experiment
 
 import (
 	"context"
-	errors2 "errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	yassv1 "github.com/ESA-PhiLab/yass-experiment-operator/api/v1"
 	"github.com/ESA-PhiLab/yass-experiment-operator/internal/controller"
+	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
+	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-const componentSelectorLabel = "component"
+const (
+	experimentKind = "Experiment"
+)
 
 // ExperimentReconciler reconciles an Experiment object
 type ExperimentReconciler struct {
@@ -72,21 +78,10 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			// 🔴 Resource was deleted
+			// Resource experiment was deleted
 			logger.Info("Experiment deleted", "name", req.NamespacedName)
-			var errs []error
-			err = r.deleteSatellites(ctx, req.NamespacedName.Namespace, req.Name)
-			if err != nil {
-				errs = append(errs, err)
-			}
-			err = r.deleteExperimentComponents(ctx, req.NamespacedName.Namespace, req.Name)
-			if err != nil {
-				errs = append(errs, err)
-			}
-			if len(errs) > 0 {
-				return ctrl.Result{}, errors2.Join(errs...)
-			}
-			return ctrl.Result{}, nil
+			err = r.deleteExperimentObjects(ctx, req.NamespacedName.Namespace, req.Name)
+			return ctrl.Result{}, err
 		}
 		return ctrl.Result{}, err
 	} else {
@@ -100,7 +95,7 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ExperimentReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.recorder = mgr.GetEventRecorderFor("my-controller")
+	r.recorder = mgr.GetEventRecorderFor("experiment-controller")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&yassv1.Experiment{}).
 		Named("experiment").
@@ -108,13 +103,6 @@ func (r *ExperimentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req ctrl.Request, experiment *yassv1.Experiment) error {
-	experimentComponentsToCreate := experimentComponents()
-	for _, expComp := range experimentComponentsToCreate {
-		err := r.shouldHaveComponent(ctx, req.Namespace, &expComp, experiment)
-		if err != nil {
-			return errors.Wrap(err, fmt.Sprintf("error creating component pod %s for experiment %s", expComp.name, experiment.Name))
-		}
-	}
 	if experiment.Spec.ExperimentDefRef == "" {
 		r.recorder.Eventf(experiment, v1.EventTypeWarning, "experimentDefRef not defined", ".spec.experimentDefRef is empty")
 		return fmt.Errorf("experiment.spec.experimentDefRef must not be empty")
@@ -145,6 +133,32 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 		return err
 	}
 	r.recorder.Eventf(experiment, v1.EventTypeNormal, "layoutDefRef found", "layout %s found", experiment.Spec.LayoutDefRef)
+
+	componentDefs := []struct {
+		fName    string
+		compName string
+		objSrc   client.Object
+		mod      func(object client.Object)
+	}{
+		{"messaging-statefulSet.yaml", "messaging", &appsv1.StatefulSet{}, nil},
+		{"messaging-service.yaml", "messaging", &v1.Service{}, nil},
+		//{"executor-statefulSet.yaml", "executor", &appsv1.StatefulSet{}, nil},
+		//{"executor-service.yaml", "executor", &v1.Service{}, nil},
+	}
+	joinErrHelper := &goutils.JoinErrorHelper{}
+	for _, cDef := range componentDefs {
+		objCopy := cDef.objSrc.DeepCopyObject()
+		obj := objCopy.(client.Object)
+		objErr := r.createExperimentObjectIfRequired(ctx, req.Namespace, experiment, cDef.fName, cDef.compName, obj, cDef.mod)
+		if objErr != nil {
+			joinErrHelper.Append(errors.Wrap(objErr, fmt.Sprintf("error creating experiment component %s/%s for %s from template %s", cDef.objSrc.GetObjectKind().GroupVersionKind(), cDef.compName, experiment.Name, cDef.fName)))
+		}
+	}
+	err := joinErrHelper.AsError()
+	if err != nil {
+		return err
+	}
+
 	for _, satItem := range layoutDef.Spec {
 		err := r.createSatelliteResource(ctx, req.NamespacedName.Namespace, experiment, expDef, &satItem)
 		_ = r.updateStatusCondition(ctx, experiment, fmt.Sprintf("sat_creation_%s", satItem.SatName), "", err)
@@ -152,7 +166,7 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 			return err
 		}
 	}
-	if experiment.Spec.Started {
+	if experiment.Spec.Start {
 		err := r.startExperiment(ctx, experiment)
 		if err != nil {
 			return errors.Wrap(err, "unable to start experiment")
@@ -167,195 +181,98 @@ type expComponent struct {
 	servicePorts []int
 }
 
-func experimentComponents() []expComponent {
-	return []expComponent{
-		{
-			name:         "messaging",
-			servicePorts: []int{1883},
-			podSpec: func(podSpec *v1.PodSpec) {
-				podSpec.Containers = []v1.Container{
-					{
-						Name:            "main",
-						Image:           "ghcr.io/esa-philab/yass/eclipse-mosquitto:latest",
-						Ports:           []v1.ContainerPort{{ContainerPort: 1883}},
-						ImagePullPolicy: "Always",
-					},
-				}
-			},
-		},
-		{
-			name:         "messaging-gw",
-			servicePorts: []int{8080},
-			podSpec: func(podSpec *v1.PodSpec) {
-				probe := &v1.Probe{
-					ProbeHandler: v1.ProbeHandler{
-						HTTPGet: &v1.HTTPGetAction{
-							Path: "/health-check",
-							Port: intstr.IntOrString{Type: intstr.Int, IntVal: 8080},
-						},
-					},
-					InitialDelaySeconds: 3,
-					TimeoutSeconds:      3,
-					PeriodSeconds:       20,
-				}
-				podSpec.Containers = []v1.Container{
-					{
-						Name:            "main",
-						Image:           "ghcr.io/esa-philab/yass/gateway:latest",
-						Ports:           []v1.ContainerPort{{ContainerPort: 8080}},
-						Env:             []v1.EnvVar{{Name: "HANDLERS", Value: "mqtt:messaging:1883:::"}},
-						ImagePullPolicy: "Always",
-						LivenessProbe:   probe,
-						ReadinessProbe:  probe,
-					},
-				}
-			},
-		},
-	}
-}
-
-func (r *ExperimentReconciler) deleteSatellites(ctx context.Context, namespace, experimentName string) error {
+func (r *ExperimentReconciler) deleteExperimentObjects(ctx context.Context, namespace, experimentName string) error {
 	logger := logf.FromContext(ctx)
-	satList := &yassv1.SatList{}
-	if err := r.List(ctx, satList,
-		client.InNamespace(namespace),
-		client.MatchingLabels{controller.LabelExperiment: experimentName},
-	); err != nil {
-		return err
+	gvks := []schema.GroupVersionKind{
+		{Group: "int.esa.yass", Version: "v1", Kind: "Sat"},
+		{Group: "", Version: "v1", Kind: "Pod"},
+		{Group: "", Version: "v1", Kind: "Service"},
+		{Group: "", Version: "v1", Kind: "ConfigMap"},
+		{Group: "apps", Version: "v1", Kind: "Deployment"},
+		{Group: "apps", Version: "v1", Kind: "StatefulSet"},
 	}
-	for _, sat := range satList.Items {
-		if err := r.Delete(ctx, &sat); err != nil && !apierrors.IsNotFound(err) {
+	for _, gvk := range gvks {
+		listObj, err := r.Scheme.New(gvk)
+		if err != nil {
+			return fmt.Errorf("failed to create list for %v: %w", gvk, err)
+		}
+		objList, ok := listObj.(client.ObjectList)
+		if !ok {
+			return fmt.Errorf("GVK %v is not a valid client.ObjectList", gvk)
+		}
+		if err := r.List(ctx, objList,
+			client.InNamespace(namespace),
+			client.MatchingLabels(map[string]string{controller.LabelExperiment: experimentName}),
+		); err != nil {
 			return err
 		}
-		logger.Info("Deleted Sat for Experiment", "experiment", experimentName, "sat", sat.Name, "namespace", sat.Namespace)
+		accessor := meta.NewAccessor()
+		items, err := meta.ExtractList(objList)
+		if err != nil {
+			return err
+		}
+		for _, item := range items {
+			obj, ok := item.(client.Object)
+			if !ok {
+				continue
+			}
+			ownedByExperiment := false
+			for _, ownerRef := range obj.GetOwnerReferences() {
+				if ownerRef.Kind == experimentKind && ownerRef.Name == experimentName {
+					ownedByExperiment = true
+					break
+				}
+			}
+			if ownedByExperiment {
+				if err := r.Delete(ctx, obj); err != nil && !apierrors.IsNotFound(err) {
+					return err
+				}
+				name, _ := accessor.Name(obj)
+				ns, _ := accessor.Namespace(obj)
+				logger.Info("Deleted resource", "kind", gvk.Kind, "name", name, "namespace", ns)
+			}
+		}
 	}
 	return nil
 }
 
-func (r *ExperimentReconciler) deleteExperimentComponents(ctx context.Context, namespace string, experimentName string) error {
+func (r *ExperimentReconciler) createExperimentObjectIfRequired(ctx context.Context, namespace string, experiment *yassv1.Experiment, fName string, objName string, obj client.Object, modifier func(o client.Object)) error {
 	logger := logf.FromContext(ctx)
-	podList := &v1.PodList{}
-	if err := r.List(ctx, podList,
-		client.InNamespace(namespace),
-		client.MatchingLabels{controller.LabelExperiment: experimentName},
-	); err != nil {
-		return err
-	}
-	for _, pod := range podList.Items {
-		err := r.Delete(ctx, &pod)
-		if err != nil {
-			logger.Error(err, fmt.Sprintf("error deleting pod %s.%s", namespace, pod.Name))
-		} else {
-			logger.Info(fmt.Sprintf("Pod %s.%s deleted", namespace, pod.Name))
-		}
-	}
-
-	serviceList := &v1.ServiceList{}
-	if err := r.List(ctx, serviceList,
-		client.InNamespace(namespace),
-		client.MatchingLabels{controller.LabelExperiment: experimentName},
-	); err != nil {
-		return err
-	}
-	for _, svc := range serviceList.Items {
-		err := r.Delete(ctx, &svc)
-		if err != nil {
-			logger.Error(err, fmt.Sprintf("error deleting service %s.%s", namespace, svc.Name))
-		} else {
-			logger.Info(fmt.Sprintf("Service %s.%s deleted", namespace, svc.Name))
-		}
-	}
-	return nil
-}
-
-func (r *ExperimentReconciler) shouldHaveComponent(ctx context.Context, namespace string, componentSpec *expComponent, experiment *yassv1.Experiment) error {
-	pod := &v1.Pod{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: componentSpec.name}, pod)
+	componentFullName := fmt.Sprintf("component-%s-%s", obj.GetObjectKind(), objName)
+	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: objName}, obj)
 	if err == nil {
-		// pod exists
 		return nil
 	}
 	if !apierrors.IsNotFound(err) {
 		return err
 	}
-	restartPolicy := v1.RestartPolicyOnFailure
-	pod = &v1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      componentSpec.name,
-			Namespace: namespace,
-			Labels: map[string]string{
-				controller.LabelExperiment: experiment.Name,
-				componentSelectorLabel:     componentSpec.name,
-			},
-			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(experiment, v1.SchemeGroupVersion.WithKind("Experiment")),
-			},
-		},
-		Spec: v1.PodSpec{
-			ServiceAccountName: "",
-			RestartPolicy:      restartPolicy,
-		},
-	}
-	componentSpec.podSpec(&pod.Spec)
-	err = r.Create(ctx, pod)
-	_ = r.updateStatusCondition(ctx, experiment, fmt.Sprintf("%s-pod", componentSpec.name), "creating", err)
-	err2 := r.updateStatusCondition(ctx, experiment, fmt.Sprintf("%s-pod", componentSpec.name), pod.Status.Message, nil)
-	if err2 != nil {
-		logf.FromContext(ctx).Error(err, "cannot update status.condition for pod")
-	}
+	fn := fmt.Sprintf("obj-templates/%s", fName)
+	buff, err := os.ReadFile(fn)
 	if err != nil {
-		r.recorder.Eventf(experiment, v1.EventTypeWarning, "ExperimentComponentCreation", "Component pod %s create error: %s", componentSpec.name, err.Error())
+		return errors.Wrap(err, fmt.Sprintf("cannot read file %s", fn))
+	}
+	err = yaml.Unmarshal(buff, obj)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("cannot unmarshall file %s", fn))
+	}
+	obj.SetName(objName)
+	labels := obj.GetLabels()
+	labels[controller.LabelExperiment] = experiment.Name
+	obj.SetLabels(labels)
+	annotations := obj.GetAnnotations()
+	labels["component-source"] = fName
+	obj.SetAnnotations(annotations)
+	obj.SetOwnerReferences([]metav1.OwnerReference{*metav1.NewControllerRef(experiment, v1.SchemeGroupVersion.WithKind(experiment.Kind))})
+	if modifier != nil {
+		modifier(obj)
+	}
+	err = r.Create(ctx, obj)
+	if err != nil {
+		r.recorder.Eventf(experiment, v1.EventTypeWarning, componentFullName, fmt.Sprintf("creation error: %s", err.Error()))
 		return err
 	}
-	r.recorder.Eventf(experiment, v1.EventTypeNormal, "ExperimentComponentCreation", "Component pod %s created", componentSpec.name)
-	if len(componentSpec.servicePorts) > 0 {
-		ports := []v1.ServicePort{}
-		for _, port := range componentSpec.servicePorts {
-			ports = append(ports, v1.ServicePort{
-				Port: int32(port),
-				TargetPort: intstr.IntOrString{
-					Type:   intstr.Int,
-					IntVal: int32(port),
-				},
-			})
-		}
-		service := v1.Service{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      componentSpec.name,
-				Namespace: pod.Namespace,
-				Labels:    pod.Labels,
-				OwnerReferences: []metav1.OwnerReference{
-					*metav1.NewControllerRef(experiment, v1.SchemeGroupVersion.WithKind("Experiment")),
-				},
-			},
-			Spec: v1.ServiceSpec{
-				Ports: ports,
-				Selector: map[string]string{
-					componentSelectorLabel: componentSpec.name,
-				},
-			},
-		}
-		instance := &v1.Service{}
-		err = r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: service.Name}, instance)
-		if err == nil {
-			// service exists
-			return nil
-		}
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
-		err = r.Create(ctx, &service)
-		err2 := r.updateStatusCondition(ctx, experiment, fmt.Sprintf("%s-service", componentSpec.name), "", err)
-		if err2 != nil {
-			logf.FromContext(ctx).Error(err, "cannot update status.condition for service")
-		}
-		if err != nil {
-			r.recorder.Eventf(experiment, v1.EventTypeWarning, "ExperimentComponentCreation", "Component service %s create error: %s", componentSpec.name, err.Error())
-			return err
-		}
-		r.recorder.Eventf(experiment, v1.EventTypeNormal, "ExperimentComponentCreation", "Component service %s created", componentSpec.name)
-		return nil
-	}
+	r.recorder.Eventf(experiment, v1.EventTypeNormal, componentFullName, "component created")
+	logger.Info(fmt.Sprintf("object %s of type %T created", objName, obj))
 	return nil
 }
 
@@ -389,6 +306,18 @@ func (r *ExperimentReconciler) updateStatusCondition(ctx context.Context, exp *y
 	if !found {
 		exp.Status.Conditions = append(exp.Status.Conditions, *condition)
 	}
+	ready := false
+	if len(exp.Status.Conditions) > 0 {
+		allOk := false
+		for _, cond := range exp.Status.Conditions {
+			if string(cond.Status) == string(v1.ConditionFalse) {
+				allOk = false
+				break
+			}
+		}
+		ready = allOk
+	}
+	exp.Status.Ready = ready
 	err := r.Status().Update(ctx, exp)
 	if err != nil {
 		logf.FromContext(ctx).Error(err, fmt.Sprintf("cannot update experiment %s status", exp.Name))
@@ -418,7 +347,7 @@ func (r *ExperimentReconciler) createSatelliteResource(ctx context.Context, name
 					controller.LabelExperiment: experiment.Name,
 				},
 				OwnerReferences: []metav1.OwnerReference{
-					*metav1.NewControllerRef(experiment, v1.SchemeGroupVersion.WithKind("Experiment")),
+					*metav1.NewControllerRef(experiment, v1.SchemeGroupVersion.WithKind(experimentKind)),
 				},
 			},
 			Spec: yassv1.SatSpec{

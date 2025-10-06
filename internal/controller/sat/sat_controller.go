@@ -259,14 +259,14 @@ func (r *SatReconciler) createSatelliteContainer(sat *yassv1.Sat, cs containerSp
 }
 
 func (r *SatReconciler) updateHardwareSpec(ctx context.Context, sat *yassv1.Sat) (bool, error) {
-	if sat.Spec.HardwareSpec == nil && sat.Spec.HardwareDefinitionRef != "" {
+	if sat.Spec.HardwareSpec == nil && sat.Spec.HardwareSpecRef != "" {
 		hardwareDef := &yassv1.HardwareDefinition{}
-		err := r.Get(ctx, types.NamespacedName{Name: sat.Spec.HardwareDefinitionRef}, hardwareDef)
+		err := r.Get(ctx, types.NamespacedName{Name: sat.Spec.HardwareSpecRef}, hardwareDef)
 		if apierrors.IsNotFound(err) {
-			return false, fmt.Errorf("HardwareDefiniotn '%s' not found", sat.Spec.HardwareDefinitionRef)
+			return false, fmt.Errorf("HardwareSpecRef '%s' not found", sat.Spec.HardwareSpecRef)
 		}
 		if err != nil {
-			return false, errors.Wrap(err, "cannot fetch HardwareDefinition")
+			return false, errors.Wrap(err, "cannot fetch HardwareSpecRef")
 		}
 		sat.Spec.HardwareSpec = &hardwareDef.Spec
 		err = r.Update(ctx, sat)

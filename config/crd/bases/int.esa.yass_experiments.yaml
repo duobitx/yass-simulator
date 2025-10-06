@@ -15,9 +15,15 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.started
+    - jsonPath: .spec.ready
+      name: Ready
+      type: boolean
+    - jsonPath: .spec.start
+      name: Start
+      type: boolean
+    - jsonPath: .status.started
       name: Started
-      type: string
+      type: date
     name: v1
     schema:
       openAPIV3Schema:
@@ -55,12 +61,16 @@ spec:
                 type: string
               layoutDefRef:
                 type: string
-              started:
+              simulationStartTime:
+                format: date-time
+                type: string
+              start:
                 type: boolean
             required:
             - experimentDefRef
             - layoutDefRef
-            - started
+            - simulationStartTime
+            - start
             type: object
           status:
             description: ExperimentStatus defines the desired state of an Experiment
@@ -127,6 +137,11 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              ready:
+                description: Ready - ready to be started
+                type: boolean
+            required:
+            - ready
             type: object
         type: object
     served: true

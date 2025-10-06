@@ -25,17 +25,17 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // SatSpec defines the desired state of Sat
+// +kubebuilder:validation:XValidation:rule="(has(self.hardwareSpecRef) && !has(self.hardwareSpec)) || (!has(self.hardwareSpecRef) && has(self.hardwareSpec))",message="Exactly one of spec.hardwareSpecRef or spec.hardwareSpec must be set"
 type SatSpec struct {
-	HardwareSpec          *HardwareSpec         `json:"hardwareSpec,omitempty"`
-	HardwareDefinitionRef string                `json:"hardwareDefinitionRef,omitempty"`
-	Orbit                 Orbit                 `json:"orbit"`
-	Rotation              Rotation              `json:"rotation,omitempty"`
-	Engine                SimpleSatContainerDef `json:"engine,omitempty"`
-	Agent                 SimpleSatContainerDef `json:"agent,omitempty"`
+	// +kubebuilder:validation:Optional
+	HardwareSpec *HardwareSpec `json:"hardwareSpec,omitempty"`
+	// +kubebuilder:validation:Optional
+	HardwareSpecRef string                `json:"hardwareSpecRef,omitempty"`
+	Orbit           Orbit                 `json:"orbit"`
+	Rotation        Rotation              `json:"rotation,omitempty"`
+	Engine          SimpleSatContainerDef `json:"engine,omitempty"`
+	Agent           SimpleSatContainerDef `json:"agent,omitempty"`
 }
 
 // SatStatus defines the observed state of Sat.
@@ -55,8 +55,8 @@ type SatStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="BatLev",type=string,JSONPath=`.spec.batteryChargeLevel`
 // +kubebuilder:printcolumn:name="BatCharge",type=string,JSONPath=`.spec.batteryChargeRate`
-// +kubebuilder:printcolumn:name="LowPower",type=bool,JSONPath=`.spec.lowPower`
-// +kubebuilder:printcolumn:name="PosOverEarth",type=bool,JSONPath=`.spec.posStr`
+// +kubebuilder:printcolumn:name="LowPower",type=boolean,JSONPath=`.spec.lowPower`
+// +kubebuilder:printcolumn:name="PosOverEarth",type=boolean,JSONPath=`.spec.posStr`
 // Sat is the Schema for the SATs API
 type Sat struct {
 	metav1.TypeMeta `json:",inline"`
@@ -84,12 +84,14 @@ type SatList struct {
 }
 
 type Orbit struct {
-	Radius      float32 `json:"radius"`
-	Inclination float32 `json:"inclination"`
-	Period      float32 `json:"period"`
-	Raan        float32 `json:"raan"`
-	ArgPerigee  float32 `json:"argPerigee"`
-	TrueAnomaly float32 `json:"trueAnomaly"`
+	TLE []string `json:"tle"`
+}
+
+type EarthPosition struct {
+	Lat float32 `json:"lat"`
+	Lng float32 `json:"lng"`
+	// +kubebuilder:validation:Optional
+	HeightOverSeaLevel float32 `json:"heightOverSeaLevel,omitempty"`
 }
 
 // Rotation - to be inlined

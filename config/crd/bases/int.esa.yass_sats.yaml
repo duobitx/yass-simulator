@@ -14,10 +14,23 @@ spec:
     singular: sat
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.batteryChargeLevel
+      name: BatLev
+      type: string
+    - jsonPath: .spec.batteryChargeRate
+      name: BatCharge
+      type: string
+    - jsonPath: .spec.lowPower
+      name: LowPower
+      type: boolean
+    - jsonPath: .spec.posStr
+      name: PosOverEarth
+      type: boolean
+    name: v1
     schema:
       openAPIV3Schema:
-        description: Sat is the Schema for the sats API
+        description: Sat is the Schema for the SATs API
         properties:
           apiVersion:
             description: |-
@@ -57,8 +70,6 @@ spec:
                 required:
                 - image
                 type: object
-              hardwareDefinitionRef:
-                type: string
               hardwareSpec:
                 properties:
                   CPU:
@@ -83,27 +94,16 @@ spec:
                 - CPU
                 - Memory
                 type: object
+              hardwareSpecRef:
+                type: string
               orbit:
                 properties:
-                  argPerigee:
-                    type: number
-                  inclination:
-                    type: number
-                  period:
-                    type: number
-                  raan:
-                    type: number
-                  radius:
-                    type: number
-                  trueAnomaly:
-                    type: number
+                  tle:
+                    items:
+                      type: string
+                    type: array
                 required:
-                - argPerigee
-                - inclination
-                - period
-                - raan
-                - radius
-                - trueAnomaly
+                - tle
                 type: object
               rotation:
                 description: Rotation - to be inlined
@@ -118,20 +118,21 @@ spec:
             required:
             - orbit
             type: object
+            x-kubernetes-validations:
+            - message: Exactly one of spec.hardwareSpecRef or spec.hardwareSpec must
+                be set
+              rule: (has(self.hardwareSpecRef) && !has(self.hardwareSpec)) || (!has(self.hardwareSpecRef)
+                && has(self.hardwareSpec))
           status:
             description: status defines the observed state of Sat
             properties:
+              batteryChargeLevel:
+                type: string
+              batteryChargeRate:
+                type: string
               conditions:
-                description: |-
-                  conditions represent the current state of the Sat resource.
-                  Each condition has a unique type and reflects the status of a specific aspect of the resource.
-
-                  Standard condition types include:
-                  - "Available": the resource is fully functional
-                  - "Progressing": the resource is being created or updated
-                  - "Degraded": the resource failed to reach or maintain its desired state
-
-                  The status of each condition is one of True, False, or Unknown.
+                description: The status of each condition is one of True, False, or
+                  Unknown.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -195,6 +196,8 @@ spec:
               posStr:
                 type: string
             required:
+            - batteryChargeLevel
+            - batteryChargeRate
             - lowPower
             - posStr
             type: object

@@ -26,12 +26,16 @@ type LayoutList struct {
 }
 
 // +kubebuilder:validation:XValidation:rule="(has(self.hardwareSpecRef) && !has(self.hardwareSpec)) || (!has(self.hardwareSpecRef) && has(self.hardwareSpec))",message="Exactly one of spec.hardwareSpecRef or spec.hardwareSpec must be set"
+// +kubebuilder:validation:XValidation:rule="(has(self.orbit) && !has(self.earthPosition)) || (!has(self.orbit) && has(self.earthPosition))",message="Exactly one of spec.orbit or spec.earthPosition must be set"
 type LayoutSatSpec struct {
 	SatName string `json:"satName"`
 	// +kubebuilder:validation:Optional
-	HardwareSpec HardwareSpec `json:"hardwareSpec"`
+	HardwareSpec HardwareSpec `json:"hardwareSpec,omitempty"`
 	// +kubebuilder:validation:Optional
-	HardwareSpecRef string   `json:"hardwareSpecRef"`
-	Orbit           Orbit    `json:"orbit"`
-	Rotation        Rotation `json:"rotation,omitempty"`
+	HardwareSpecRef string `json:"hardwareSpecRef,omitempty"`
+	// +kubebuilder:validation:Optional
+	Orbit Orbit `json:"orbit,omitempty"`
+	// +kubebuilder:validation:Optional
+	EarthPosition EarthPosition `json:"earthPosition,omitempty"`
+	Rotation      Rotation      `json:"rotation,omitempty"`
 }

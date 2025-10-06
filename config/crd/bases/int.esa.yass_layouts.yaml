@@ -40,6 +40,18 @@ spec:
           spec:
             items:
               properties:
+                earthPosition:
+                  properties:
+                    HeightOverSeaLevel:
+                      type: number
+                    lat:
+                      type: number
+                    lng:
+                      type: number
+                  required:
+                  - lat
+                  - lng
+                  type: object
                 hardwareSpec:
                   properties:
                     CPU:
@@ -68,25 +80,12 @@ spec:
                   type: string
                 orbit:
                   properties:
-                    argPerigee:
-                      type: number
-                    inclination:
-                      type: number
-                    period:
-                      type: number
-                    raan:
-                      type: number
-                    radius:
-                      type: number
-                    trueAnomaly:
-                      type: number
+                    tle:
+                      items:
+                        type: string
+                      type: array
                   required:
-                  - argPerigee
-                  - inclination
-                  - period
-                  - raan
-                  - radius
-                  - trueAnomaly
+                  - tle
                   type: object
                 rotation:
                   description: Rotation - to be inlined
@@ -101,7 +100,6 @@ spec:
                 satName:
                   type: string
               required:
-              - orbit
               - satName
               type: object
               x-kubernetes-validations:
@@ -109,6 +107,9 @@ spec:
                   must be set
                 rule: (has(self.hardwareSpecRef) && !has(self.hardwareSpec)) || (!has(self.hardwareSpecRef)
                   && has(self.hardwareSpec))
+              - message: Exactly one of spec.orbit or spec.earthPosition must be set
+                rule: (has(self.orbit) && !has(self.earthPosition)) || (!has(self.orbit)
+                  && has(self.earthPosition))
             type: array
         type: object
     served: true
