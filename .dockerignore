@@ -9,4 +9,4 @@
 # Re-include Go module files
 !go.mod
 !go.sum
-docker-secret.yaml
+!obj-templates
