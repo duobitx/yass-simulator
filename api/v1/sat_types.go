@@ -40,33 +40,24 @@ type SatSpec struct {
 
 // SatStatus defines the observed state of Sat.
 type SatStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// For Kubernetes API conventions, see:
-	// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#typical-status-properties
-
-	// conditions represent the current state of the Sat resource.
-	// Each condition has a unique type and reflects the status of a specific aspect of the resource.
-	//
-	// Standard condition types include:
-	// - "Available": the resource is fully functional
-	// - "Progressing": the resource is being created or updated
-	// - "Degraded": the resource failed to reach or maintain its desired state
-	//
 	// The status of each condition is one of True, False, or Unknown.
 	// +listType=map
 	// +listMapKey=type
 	// +optional
-	Conditions []metav1.Condition `json:"conditions,omitempty"`
-	PosStr     string             `json:"posStr"`
-	LowPower   bool               `json:"lowPower"`
+	Conditions         []metav1.Condition `json:"conditions,omitempty"`
+	PosStr             string             `json:"posStr"`
+	LowPower           bool               `json:"lowPower"`
+	BatteryChargeLevel string             `json:"batteryChargeLevel"`
+	BatteryChargeRate  string             `json:"batteryChargeRate"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-
-// Sat is the Schema for the sats API
+// +kubebuilder:printcolumn:name="BatLev",type=string,JSONPath=`.spec.batteryChargeLevel`
+// +kubebuilder:printcolumn:name="BatCharge",type=string,JSONPath=`.spec.batteryChargeRate`
+// +kubebuilder:printcolumn:name="LowPower",type=bool,JSONPath=`.spec.lowPower`
+// +kubebuilder:printcolumn:name="PosOverEarth",type=bool,JSONPath=`.spec.posStr`
+// Sat is the Schema for the SATs API
 type Sat struct {
 	metav1.TypeMeta `json:",inline"`
 
