@@ -36,10 +36,15 @@ type ExperimentDefinitionList struct {
 
 // ExperimentDefinitionSpec defines the desired state of an ExperimentDefinition
 type ExperimentDefinitionSpec struct {
+
 	// +kubebuilder:validation:Optional
 	// MaxDuration of the experiment
-	MaxDuration    *time.Duration  `json:"maxDuration,omitempty"`
-	SatBehaviours  []SatBehaviour  `json:"satBehaviours,omitempty"`
+	MaxDuration *time.Duration `json:"maxDuration,omitempty"`
+
+	// +listType=map
+	// +listMapKey=satName
+	SatBehaviours []SatBehaviour `json:"satBehaviours,omitempty"`
+
 	HardwareEvents []HardwareEvent `json:"HardwareEvents,omitempty"`
 }
 

@@ -18,10 +18,15 @@ func init() {
 
 // A definition of the hardware installed on the satelite or ground station.
 type HardwareDefinition struct {
-	metav1.TypeMeta   `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Description       string       `json:"description,omitempty"`
-	Spec              HardwareSpec `json:"spec,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// Description of the hardware spec
+	Description string `json:"description,omitempty"`
+
+	Spec HardwareSpec `json:"spec,omitempty"`
 }
 
 // +kubebuilder:object:root=true

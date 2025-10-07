@@ -3,6 +3,9 @@ package v1
 import v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 
 type Orbit struct {
+	// TLE lines
+	//+kubebuilder:validation:MinItems=2
+	//+kubebuilder:validation:MaxItems=2
 	TLE []string `json:"tle"`
 }
 

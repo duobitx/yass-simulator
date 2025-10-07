@@ -14,9 +14,15 @@ spec:
     singular: layout
   scope: Cluster
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.start
+      name: Start
+      type: boolean
+    name: v1
     schema:
       openAPIV3Schema:
+        description: Layout describe how satellites and groud stations are located
+          in space or/and on the Earth.
         properties:
           apiVersion:
             description: |-
@@ -26,6 +32,7 @@ spec:
               More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           description:
+            description: Description of an layout
             type: string
           kind:
             description: |-
@@ -89,8 +96,11 @@ spec:
                   description: A position of an object as TLE.
                   properties:
                     tle:
+                      description: TLE lines
                       items:
                         type: string
+                      maxItems: 2
+                      minItems: 2
                       type: array
                   required:
                   - tle
@@ -119,6 +129,9 @@ spec:
                 rule: (has(self.orbit) && !has(self.earthPosition)) || (!has(self.orbit)
                   && has(self.earthPosition))
             type: array
+            x-kubernetes-list-map-keys:
+            - satName
+            x-kubernetes-list-type: map
         type: object
     served: true
     storage: true

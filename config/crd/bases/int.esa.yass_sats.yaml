@@ -125,8 +125,11 @@ spec:
                 description: A position of an object as TLE.
                 properties:
                   tle:
+                    description: TLE lines
                     items:
                       type: string
+                    maxItems: 2
+                    minItems: 2
                     type: array
                 required:
                 - tle

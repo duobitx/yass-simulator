@@ -11,11 +11,19 @@ func init() {
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:resource:scope=Cluster
+// +kubebuilder:printcolumn:name="Start",type=boolean,JSONPath=`.spec.start`
+// Layout describe how satellites and groud stations are located in space or/and on the Earth.
 type Layout struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Description       string          `json:"description,omitempty"`
-	Spec              []LayoutSatSpec `json:"spec,omitempty"`
+
+	// Description of an layout
+	// +kubebuilder:validation:Optional
+	Description string `json:"description,omitempty"`
+
+	// +listType=map
+	// +listMapKey=satName
+	Spec []LayoutSatSpec `json:"spec,omitempty"`
 }
 
 // +kubebuilder:object:root=true

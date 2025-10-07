@@ -25,7 +25,12 @@ type Experiment struct {
 type ExperimentList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []Experiment `json:"items"`
+
+	// +kubebuilder:validation:Optional
+	// Description of the experiment
+	Description string `json:"description,omitempty"`
+
+	Items []Experiment `json:"items"`
 }
 
 // ExperimentSpec defines the desired state of an Experiment
