@@ -1,0 +1,51 @@
+package v1
+
+import v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+
+type Orbit struct {
+	TLE []string `json:"tle"`
+}
+
+// EarthPosition Position of the object defined as geo coordinates.
+type EarthPosition struct {
+	// Latitude in numeric format.
+	Lat float32 `json:"lat"`
+
+	// Longitude in numeric format.
+	Lng float32 `json:"lng"`
+
+	// +kubebuilder:validation:Optional
+	// Height over sea level in meters.
+	HeightOverSeaLevel float32 `json:"heightOverSeaLevel,omitempty"`
+}
+
+// Rotation - rotation of the object.
+type Rotation struct {
+	// +kubebuilder:validation:Optional
+	Yaw float32 `json:"yaw,omitempty"`
+	// +kubebuilder:validation:Optional
+	Roll float32 `json:"roll,omitempty"`
+	// +kubebuilder:validation:Optional
+	Pitch float32 `json:"pitch,omitempty"`
+}
+
+// EmbeddedPosition to be embedded in other API resources.
+type EmbeddedPosition struct {
+	// +kubebuilder:validation:Optional
+	// A position of an object on Earth.
+	EarthPosition *EarthPosition `json:"earthPosition,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// A position of an object as TLE.
+	Orbit *Orbit `json:"orbit,omitempty"`
+	// +kubebuilder:validation:Optional
+	// Rotation of an object
+	Rotation *Rotation `json:"rotation,omitempty"`
+}
+
+type SimpleSatContainerDef struct {
+	// Container image
+	Image string `json:"image"`
+	// Parameters object (json/yaml) will be available on container under configuration.json file.
+	Parameters v1.JSON `json:"parameters,omitempty"`
+}

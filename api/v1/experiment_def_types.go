@@ -17,11 +17,12 @@ func init() {
 // +kubebuilder:printcolumn:name="MaxDuration",type=string,JSONPath=`.spec.maxDuration`
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
-// ExperimentDef is the Schema for the Experiment Definition
+// ExperimentDefinition defines behaviour and events for an experiment.
 type ExperimentDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	// Description - description of the experiment
+
+	// Description of the experiment
 	Description string                   `json:"description,omitempty"`
 	Spec        ExperimentDefinitionSpec `json:"spec,omitempty"`
 }
@@ -35,15 +36,21 @@ type ExperimentDefinitionList struct {
 
 // ExperimentDefinitionSpec defines the desired state of an ExperimentDefinition
 type ExperimentDefinitionSpec struct {
+	// +kubebuilder:validation:Optional
+	// MaxDuration of the experiment
 	MaxDuration    *time.Duration  `json:"maxDuration,omitempty"`
 	SatBehaviours  []SatBehaviour  `json:"satBehaviours,omitempty"`
 	HardwareEvents []HardwareEvent `json:"HardwareEvents,omitempty"`
 }
 
 type SatBehaviour struct {
-	SatName string                `json:"satName"`
-	Agent   SimpleSatContainerDef `json:"agent"`
+	// Name of the satellite to be configured.
+	SatName string `json:"satName"`
+	// Agent on the satellite
+	Agent SimpleSatContainerDef `json:"agent"`
+
 	// +kubebuilder:validation:Optional
+	// What hardware events to expect during the experiment.
 	HardwareEvents []HardwareEvent `json:"hardwareEvents"`
 }
 type HardwareEvent struct {

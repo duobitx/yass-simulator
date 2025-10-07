@@ -27,6 +27,7 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
+        description: Experiment main object for simulation.
         properties:
           apiVersion:
             description: |-
@@ -49,22 +50,31 @@ spec:
             description: ExperimentSpec defines the desired state of an Experiment
             properties:
               engine:
+                description: Engine defines what engine will be tested during the
+                  experiment.
                 properties:
                   image:
+                    description: Container image
                     type: string
                   parameters:
+                    description: Parameters object (json/yaml) will be available on
+                      container under configuration.json file.
                     x-kubernetes-preserve-unknown-fields: true
                 required:
                 - image
                 type: object
               experimentDefRef:
+                description: Reference to ExperimentDefinition resource.
                 type: string
               layoutDefRef:
+                description: Reference to Layout resource.
                 type: string
               simulationStartTime:
+                description: SimulationStartTime is a starting point of the experiment.
                 format: date-time
                 type: string
               start:
+                description: Start if to start the experiment as soon as it's ready.
                 type: boolean
             required:
             - experimentDefRef
@@ -76,6 +86,7 @@ spec:
             description: ExperimentStatus defines the desired state of an Experiment
             properties:
               Started:
+                description: Started when it was started (real time)
                 format: date-time
                 type: string
               conditions:
@@ -138,7 +149,7 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               ready:
-                description: Ready - ready to be started
+                description: Ready - ready to be started or already started.
                 type: boolean
             required:
             - ready

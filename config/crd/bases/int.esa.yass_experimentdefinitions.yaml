@@ -27,7 +27,7 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: ExperimentDef is the Schema for the Experiment Definition
+        description: ExperimentDefinition defines behaviour and events for an experiment.
         properties:
           apiVersion:
             description: |-
@@ -37,7 +37,7 @@ spec:
               More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           description:
-            description: Description - description of the experiment
+            description: Description of the experiment
             type: string
           kind:
             description: |-
@@ -58,29 +58,32 @@ spec:
                   type: object
                 type: array
               maxDuration:
-                description: |-
-                  A Duration represents the elapsed time between two instants
-                  as an int64 nanosecond count. The representation limits the
-                  largest representable duration to approximately 290 years.
+                description: MaxDuration of the experiment
                 format: int64
                 type: integer
               satBehaviours:
                 items:
                   properties:
                     agent:
+                      description: Agent on the satellite
                       properties:
                         image:
+                          description: Container image
                           type: string
                         parameters:
+                          description: Parameters object (json/yaml) will be available
+                            on container under configuration.json file.
                           x-kubernetes-preserve-unknown-fields: true
                       required:
                       - image
                       type: object
                     hardwareEvents:
+                      description: What hardware events to expect during the experiment.
                       items:
                         type: object
                       type: array
                     satName:
+                      description: Name of the satellite to be configured.
                       type: string
                   required:
                   - agent

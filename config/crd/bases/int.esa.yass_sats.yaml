@@ -55,17 +55,39 @@ spec:
               agent:
                 properties:
                   image:
+                    description: Container image
                     type: string
                   parameters:
+                    description: Parameters object (json/yaml) will be available on
+                      container under configuration.json file.
                     x-kubernetes-preserve-unknown-fields: true
                 required:
                 - image
                 type: object
+              earthPosition:
+                description: A position of an object on Earth.
+                properties:
+                  heightOverSeaLevel:
+                    description: Height over sea level in meters.
+                    type: number
+                  lat:
+                    description: Latitude in numeric format.
+                    type: number
+                  lng:
+                    description: Longitude in numeric format.
+                    type: number
+                required:
+                - lat
+                - lng
+                type: object
               engine:
                 properties:
                   image:
+                    description: Container image
                     type: string
                   parameters:
+                    description: Parameters object (json/yaml) will be available on
+                      container under configuration.json file.
                     x-kubernetes-preserve-unknown-fields: true
                 required:
                 - image
@@ -76,18 +98,21 @@ spec:
                     anyOf:
                     - type: integer
                     - type: string
+                    description: Number of available CPUs.
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
                   DiskSpace:
                     anyOf:
                     - type: integer
                     - type: string
+                    description: Available disk space. If not defined then unlimited.
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
                   Memory:
                     anyOf:
                     - type: integer
                     - type: string
+                    description: Number of available RAM.
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
                 required:
@@ -97,6 +122,7 @@ spec:
               hardwareSpecRef:
                 type: string
               orbit:
+                description: A position of an object as TLE.
                 properties:
                   tle:
                     items:
@@ -106,7 +132,7 @@ spec:
                 - tle
                 type: object
               rotation:
-                description: Rotation - to be inlined
+                description: Rotation of an object
                 properties:
                   pitch:
                     type: number
@@ -115,8 +141,6 @@ spec:
                   yaw:
                     type: number
                 type: object
-            required:
-            - orbit
             type: object
             x-kubernetes-validations:
             - message: Exactly one of spec.hardwareSpecRef or spec.hardwareSpec must

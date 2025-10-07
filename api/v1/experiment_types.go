@@ -13,6 +13,7 @@ func init() {
 // +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=`.spec.ready`
 // +kubebuilder:printcolumn:name="Start",type=boolean,JSONPath=`.spec.start`
 // +kubebuilder:printcolumn:name="Started",type=date,JSONPath=`.status.started`
+// Experiment main object for simulation.
 type Experiment struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -29,18 +30,24 @@ type ExperimentList struct {
 
 // ExperimentSpec defines the desired state of an Experiment
 type ExperimentSpec struct {
-	ExperimentDefRef    string                `json:"experimentDefRef"`
-	LayoutDefRef        string                `json:"layoutDefRef"`
-	Engine              SimpleSatContainerDef `json:"engine,omitempty"`
-	SimulationStartTime metav1.Time           `json:"simulationStartTime"`
-	Start               bool                  `json:"start"`
+	// Reference to ExperimentDefinition resource.
+	ExperimentDefRef string `json:"experimentDefRef"`
+	// Reference to Layout resource.
+	LayoutDefRef string `json:"layoutDefRef"`
+	// Engine defines what engine will be tested during the experiment.
+	Engine SimpleSatContainerDef `json:"engine,omitempty"`
+	// SimulationStartTime is a starting point of the experiment.
+	SimulationStartTime metav1.Time `json:"simulationStartTime"`
+	// Start if to start the experiment as soon as it's ready.
+	Start bool `json:"start"`
 }
 
 // ExperimentStatus defines the desired state of an Experiment
 type ExperimentStatus struct {
 	// +kubebuilder:validation:Optional
+	// Started when it was started (real time)
 	Started *metav1.Time `json:"Started"`
-	// Ready - ready to be started
+	// Ready - ready to be started or already started.
 	Ready bool `json:"ready"`
 
 	// +listType=map

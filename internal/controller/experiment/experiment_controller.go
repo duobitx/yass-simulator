@@ -351,11 +351,10 @@ func (r *ExperimentReconciler) createSatelliteResource(ctx context.Context, name
 				},
 			},
 			Spec: yassv1.SatSpec{
-				HardwareSpec: &layoutItem.HardwareSpec,
-				Orbit:        layoutItem.Orbit,
-				Rotation:     layoutItem.Rotation,
-				Engine:       experiment.Spec.Engine,
-				Agent:        satBehaviour.Agent,
+				HardwareSpec:     &layoutItem.HardwareSpec,
+				Engine:           experiment.Spec.Engine,
+				Agent:            satBehaviour.Agent,
+				EmbeddedPosition: layoutItem.EmbeddedPosition,
 			},
 		}
 		err = r.Create(ctx, sat)

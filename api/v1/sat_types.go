@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -31,11 +30,10 @@ type SatSpec struct {
 	// +kubebuilder:validation:Optional
 	HardwareSpec *HardwareSpec `json:"hardwareSpec,omitempty"`
 	// +kubebuilder:validation:Optional
-	HardwareSpecRef string                `json:"hardwareSpecRef,omitempty"`
-	Orbit           Orbit                 `json:"orbit"`
-	Rotation        Rotation              `json:"rotation,omitempty"`
-	Engine          SimpleSatContainerDef `json:"engine,omitempty"`
-	Agent           SimpleSatContainerDef `json:"agent,omitempty"`
+	HardwareSpecRef  string                `json:"hardwareSpecRef,omitempty"`
+	EmbeddedPosition EmbeddedPosition      `json:",inline"`
+	Engine           SimpleSatContainerDef `json:"engine,omitempty"`
+	Agent            SimpleSatContainerDef `json:"agent,omitempty"`
 }
 
 // SatStatus defines the observed state of Sat.
@@ -81,29 +79,6 @@ type SatList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []Sat `json:"items"`
-}
-
-type Orbit struct {
-	TLE []string `json:"tle"`
-}
-
-type EarthPosition struct {
-	Lat float32 `json:"lat"`
-	Lng float32 `json:"lng"`
-	// +kubebuilder:validation:Optional
-	HeightOverSeaLevel float32 `json:"heightOverSeaLevel,omitempty"`
-}
-
-// Rotation - to be inlined
-type Rotation struct {
-	Yaw   float32 `json:"yaw,omitempty"`
-	Roll  float32 `json:"roll,omitempty"`
-	Pitch float32 `json:"pitch,omitempty"`
-}
-
-type SimpleSatContainerDef struct {
-	Image      string  `json:"image"`
-	Parameters v1.JSON `json:"parameters,omitempty"`
 }
 
 func (s *SimpleSatContainerDef) ParametersAsMap(objName string) (map[string]string, error) {

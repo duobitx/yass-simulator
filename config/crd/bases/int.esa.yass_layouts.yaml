@@ -41,12 +41,16 @@ spec:
             items:
               properties:
                 earthPosition:
+                  description: A position of an object on Earth.
                   properties:
                     heightOverSeaLevel:
+                      description: Height over sea level in meters.
                       type: number
                     lat:
+                      description: Latitude in numeric format.
                       type: number
                     lng:
+                      description: Longitude in numeric format.
                       type: number
                   required:
                   - lat
@@ -58,18 +62,21 @@ spec:
                       anyOf:
                       - type: integer
                       - type: string
+                      description: Number of available CPUs.
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
                     DiskSpace:
                       anyOf:
                       - type: integer
                       - type: string
+                      description: Available disk space. If not defined then unlimited.
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
                     Memory:
                       anyOf:
                       - type: integer
                       - type: string
+                      description: Number of available RAM.
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
                   required:
@@ -79,6 +86,7 @@ spec:
                 hardwareSpecRef:
                   type: string
                 orbit:
+                  description: A position of an object as TLE.
                   properties:
                     tle:
                       items:
@@ -88,7 +96,7 @@ spec:
                   - tle
                   type: object
                 rotation:
-                  description: Rotation - to be inlined
+                  description: Rotation of an object
                   properties:
                     pitch:
                       type: number

@@ -15,6 +15,8 @@ func init() {
 // +kubebuilder:printcolumn:name="CPU",type=string,JSONPath=`.spec.CPU`
 // +kubebuilder:printcolumn:name="Memory",type=string,JSONPath=`.spec.Memory`
 // +kubebuilder:printcolumn:name="DiskSpace",type=string,JSONPath=`.spec.DiskSpace`
+
+// A definition of the hardware installed on the satelite or ground station.
 type HardwareDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -30,8 +32,13 @@ type HardwareDefinitionList struct {
 }
 
 type HardwareSpec struct {
-	CPU    *resource.Quantity `json:"CPU"`
+	// Number of available CPUs.
+	CPU *resource.Quantity `json:"CPU"`
+
+	// Number of available RAM.
 	Memory *resource.Quantity `json:"Memory"`
+
+	// Available disk space. If not defined then unlimited.
 	// +kubebuilder:validation:Optional
 	DiskSpace *resource.Quantity `json:"DiskSpace"`
 }
