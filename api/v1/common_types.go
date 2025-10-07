@@ -35,7 +35,7 @@ type Rotation struct {
 // EmbeddedPosition to be embedded in other API resources.
 type EmbeddedPosition struct {
 	// +kubebuilder:validation:Optional
-	// A position of an object on Earth.
+	// A position of an object on the Earth.
 	EarthPosition *EarthPosition `json:"earthPosition,omitempty"`
 
 	// +kubebuilder:validation:Optional

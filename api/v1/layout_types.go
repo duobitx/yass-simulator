@@ -17,7 +17,7 @@ type Layout struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// Description of an layout
+	// Description of the layout
 	// +kubebuilder:validation:Optional
 	Description string `json:"description,omitempty"`
 
@@ -39,9 +39,11 @@ type LayoutSatSpec struct {
 	SatName string `json:"satName"`
 
 	// +kubebuilder:validation:Optional
+	// Satelite hardware spec.
 	HardwareSpec HardwareSpec `json:"hardwareSpec,omitempty"`
 
 	// +kubebuilder:validation:Optional
+	// Satellite Hardware specification. Field hardwareSpec has priority over hardwareSpecRef.
 	HardwareSpecRef string `json:"hardwareSpecRef,omitempty"`
 
 	EmbeddedPosition EmbeddedPosition `json:",inline"`

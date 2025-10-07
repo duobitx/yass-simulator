@@ -28,12 +28,20 @@ import (
 // +kubebuilder:validation:XValidation:rule="(has(self.hardwareSpecRef) && !has(self.hardwareSpec)) || (!has(self.hardwareSpecRef) && has(self.hardwareSpec))",message="Exactly one of spec.hardwareSpecRef or spec.hardwareSpec must be set"
 type SatSpec struct {
 	// +kubebuilder:validation:Optional
-	HardwareSpec *HardwareSpec `json:"hardwareSpec,omitempty"`
+	// Reference to a hardware installed on the satellite.
+	HardwareSpecRef string `json:"hardwareSpecRef,omitempty"`
+
 	// +kubebuilder:validation:Optional
-	HardwareSpecRef  string                `json:"hardwareSpecRef,omitempty"`
-	EmbeddedPosition EmbeddedPosition      `json:",inline"`
-	Engine           SimpleSatContainerDef `json:"engine,omitempty"`
-	Agent            SimpleSatContainerDef `json:"agent,omitempty"`
+	// Satellite Hardware specification. This has priority over hardwareSpecRef.
+	HardwareSpec *HardwareSpec `json:"hardwareSpec,omitempty"`
+
+	EmbeddedPosition EmbeddedPosition `json:",inline"`
+
+	// What file system engine to be installed
+	Engine SimpleSatContainerDef `json:"engine,omitempty"`
+
+	// What agent to be installed.
+	Agent SimpleSatContainerDef `json:"agent,omitempty"`
 }
 
 // SatStatus defines the observed state of Sat.

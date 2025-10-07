@@ -23,7 +23,7 @@ type HardwareDefinition struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// +kubebuilder:validation:Optional
-	// Description of the hardware spec
+	// Description of the hardware specification.
 	Description string `json:"description,omitempty"`
 
 	Spec HardwareSpec `json:"spec,omitempty"`
