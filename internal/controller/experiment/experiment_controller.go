@@ -33,7 +33,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/tools/record"
@@ -185,24 +184,11 @@ type expComponent struct {
 
 func (r *ExperimentReconciler) deleteExperimentObjects(ctx context.Context, namespace, experimentName string) error {
 	logger := logf.FromContext(ctx)
-	gvks := []schema.GroupVersionKind{
-		//{Group: "int.esa.yass", Version: "v1", Kind: "sat"},
-		{Group: "", Version: "v1", Kind: "Pod"},
-		{Group: "", Version: "v1", Kind: "Service"},
-		{Group: "", Version: "v1", Kind: "ConfigMap"},
-		{Group: "", Version: "v1", Kind: "ServiceAccount"},
-		{Group: "apps", Version: "v1", Kind: "Deployment"},
-		{Group: "apps", Version: "v1", Kind: "StatefulSet"},
+	gvks := []client.ObjectList{
+		&yassv1.SatList{}, &v1.PodList{}, &v1.ServiceList{}, &v1.ConfigMapList{}, &v1.ServiceAccountList{},
+		&appsv1.DeploymentList{}, &appsv1.StatefulSetList{},
 	}
-	for _, gvk := range gvks {
-		listObj, err := r.Scheme.New(gvk)
-		if err != nil {
-			return fmt.Errorf("failed to create list for %v: %w", gvk, err)
-		}
-		objList, ok := listObj.(client.ObjectList)
-		if !ok {
-			return fmt.Errorf("GVK %v is not a valid client.ObjectList", gvk)
-		}
+	for _, objList := range gvks {
 		if err := r.List(ctx, objList,
 			client.InNamespace(namespace),
 			client.MatchingLabels(map[string]string{controller.LabelExperiment: experimentName}),
@@ -232,7 +218,7 @@ func (r *ExperimentReconciler) deleteExperimentObjects(ctx context.Context, name
 				}
 				name, _ := accessor.Name(obj)
 				ns, _ := accessor.Namespace(obj)
-				logger.Info("Deleted resource", "kind", gvk.Kind, "name", name, "namespace", ns)
+				logger.Info("Deleted resource", "kind", item.GetObjectKind().GroupVersionKind().Kind, "name", name, "namespace", ns)
 			}
 		}
 	}
