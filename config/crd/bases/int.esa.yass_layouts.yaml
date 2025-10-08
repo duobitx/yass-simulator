@@ -63,24 +63,26 @@ spec:
                   - lat
                   - lng
                   type: object
+                fsNode:
+                  type: string
                 hardwareSpec:
                   description: Satellite hardware spec.
                   properties:
-                    CPU:
+                    cpu:
                       anyOf:
                       - type: integer
                       - type: string
                       description: Number of available CPUs.
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
-                    DiskSpace:
+                    diskSpace:
                       anyOf:
                       - type: integer
                       - type: string
                       description: Available disk space. If not defined then unlimited.
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
-                    Memory:
+                    memory:
                       anyOf:
                       - type: integer
                       - type: string
@@ -88,8 +90,8 @@ spec:
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
                   required:
-                  - CPU
-                  - Memory
+                  - cpu
+                  - memory
                   type: object
                 hardwareSpecRef:
                   description: Satellite Hardware specification. Field hardwareSpec
@@ -118,10 +120,8 @@ spec:
                     yaw:
                       type: number
                   type: object
-                satName:
-                  type: string
               required:
-              - satName
+              - fsNode
               type: object
               x-kubernetes-validations:
               - message: Exactly one of spec.orbit or spec.earthPosition must be set
@@ -132,7 +132,7 @@ spec:
                 rule: has(self.hardwareSpecRef) || has(self.hardwareSpec)
             type: array
             x-kubernetes-list-map-keys:
-            - satName
+            - fsNode
             x-kubernetes-list-type: map
         type: object
     served: true

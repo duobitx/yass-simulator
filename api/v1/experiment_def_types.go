@@ -42,15 +42,15 @@ type ExperimentDefinitionSpec struct {
 	MaxDuration *time.Duration `json:"maxDuration,omitempty"`
 
 	// +listType=map
-	// +listMapKey=satName
+	// +listMapKey=fsNode
 	SatBehaviours []SatBehaviour `json:"satBehaviours,omitempty"`
 
 	HardwareEvents []HardwareEvent `json:"HardwareEvents,omitempty"`
 }
 
 type SatBehaviour struct {
-	// Name of the satellite to be configured.
-	SatName string `json:"satName"`
+	// Name of the satellite / ground station to be configured.
+	FsNodeName string `json:"fsNode"`
 	// Agent on the satellite
 	Agent SimpleSatContainerDef `json:"agent"`
 

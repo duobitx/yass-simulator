@@ -77,21 +77,21 @@ spec:
                       required:
                       - image
                       type: object
+                    fsNode:
+                      description: Name of the satellite / ground station to be configured.
+                      type: string
                     hardwareEvents:
                       description: What hardware events to expect during the experiment.
                       items:
                         type: object
                       type: array
-                    satName:
-                      description: Name of the satellite to be configured.
-                      type: string
                   required:
                   - agent
-                  - satName
+                  - fsNode
                   type: object
                 type: array
                 x-kubernetes-list-map-keys:
-                - satName
+                - fsNode
                 x-kubernetes-list-type: map
             type: object
         type: object

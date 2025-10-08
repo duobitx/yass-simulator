@@ -2,7 +2,7 @@ package controller
 
 const (
 	LabelExperiment = "yass-experiment"
-	LabelSatellite  = "yass-sat"
+	LabelFsNode     = "yass-fs-node"
 
 	ServiceAccountName = "yass-sa"
 )

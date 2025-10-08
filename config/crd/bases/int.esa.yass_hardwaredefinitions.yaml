@@ -52,21 +52,21 @@ spec:
             type: object
           spec:
             properties:
-              CPU:
+              cpu:
                 anyOf:
                 - type: integer
                 - type: string
                 description: Number of available CPUs.
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
-              DiskSpace:
+              diskSpace:
                 anyOf:
                 - type: integer
                 - type: string
                 description: Available disk space. If not defined then unlimited.
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
-              Memory:
+              memory:
                 anyOf:
                 - type: integer
                 - type: string
@@ -74,8 +74,8 @@ spec:
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
             required:
-            - CPU
-            - Memory
+            - cpu
+            - memory
             type: object
         type: object
     served: true

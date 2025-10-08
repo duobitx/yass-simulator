@@ -24,7 +24,7 @@ resources:
   controller: true
   domain: int.esa.yass
   group: yass
-  kind: Sat
+  kind: FsNode
   path: github.com/ESA-PhiLab/yass-experiment-operator/api/v1
   version: v1
 - api:

@@ -4,14 +4,16 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.19.0
-  name: sats.int.esa.yass
+  name: fsnodes.int.esa.yass
 spec:
   group: int.esa.yass
   names:
-    kind: Sat
-    listKind: SatList
-    plural: sats
-    singular: sat
+    kind: FsNode
+    listKind: FsNodeList
+    plural: fsnodes
+    shortNames:
+    - fsns
+    singular: fsnode
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
@@ -30,7 +32,7 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: Sat is the Schema for the SATs API
+        description: FsNode is the Schema for the FsNode API
         properties:
           apiVersion:
             description: |-
@@ -50,7 +52,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of Sat
+            description: spec defines the desired state of FsNode
             properties:
               agent:
                 description: What agent to be installed.
@@ -97,21 +99,21 @@ spec:
               hardwareSpec:
                 description: Satellite hardware spec.
                 properties:
-                  CPU:
+                  cpu:
                     anyOf:
                     - type: integer
                     - type: string
                     description: Number of available CPUs.
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
-                  DiskSpace:
+                  diskSpace:
                     anyOf:
                     - type: integer
                     - type: string
                     description: Available disk space. If not defined then unlimited.
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
-                  Memory:
+                  memory:
                     anyOf:
                     - type: integer
                     - type: string
@@ -119,8 +121,8 @@ spec:
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
                 required:
-                - CPU
-                - Memory
+                - cpu
+                - memory
                 type: object
               hardwareSpecRef:
                 description: Satellite Hardware specification. Field hardwareSpec
@@ -158,7 +160,7 @@ spec:
                 be set
               rule: has(self.hardwareSpecRef) || has(self.hardwareSpec)
           status:
-            description: status defines the observed state of Sat
+            description: status defines the observed state of FsNode
             properties:
               batteryChargeLevel:
                 type: string

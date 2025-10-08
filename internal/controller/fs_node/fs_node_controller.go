@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package sat
+package fs_node
 
 import (
 	"context"
@@ -37,12 +37,12 @@ import (
 	yassv1 "github.com/ESA-PhiLab/yass-experiment-operator/api/v1"
 )
 
-const sharedVolumeName = "sat-shared-volume"
+const sharedVolumeName = "fs-node-shared-volume"
 const engineVolumeName = "engine-volume"
 const agentTMPVolumeName = "agent-tmp-volume"
 
-// SatReconciler reconciles a Sat object
-type SatReconciler struct {
+// FsNodeReconciler reconciles a FsNode object
+type FsNodeReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
@@ -56,43 +56,41 @@ type containerSpec struct {
 	mods      []modFunc
 }
 
-// +kubebuilder:rbac:groups=yass.int.esa.yass,resources=sats,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=yass.int.esa.yass,resources=sats/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=yass.int.esa.yass,resources=sats/finalizers,verbs=update
+// +kubebuilder:rbac:groups=yass.int.esa.yass,resources=fsnodes,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=yass.int.esa.yass,resources=fsnodes/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=yass.int.esa.yass,resources=fsnodes/finalizers,verbs=update
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Sat object against the actual cluster state, and then
+// the FsNode object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
-//
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.22.1/pkg/reconcile
-func (r *SatReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *FsNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logf.FromContext(ctx)
-	var sat yassv1.Sat
-	err := r.Get(ctx, req.NamespacedName, &sat)
+	var fsNode yassv1.FsNode
+	err := r.Get(ctx, req.NamespacedName, &fsNode)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			// 🔴 Resource was deleted
-			logger.Info("Sat deleted", "name", req.NamespacedName)
-			err := r.removeSatellite(ctx, req)
+			logger.Info("FsNode deleted", "name", req.NamespacedName)
+			err := r.removeFsNode(ctx, req)
 			return ctrl.Result{}, err
 		}
 		// Some other error
 		return ctrl.Result{}, err
 	} else {
-		experimentName := sat.Labels[controller.LabelExperiment]
+		experimentName := fsNode.Labels[controller.LabelExperiment]
 		if experimentName == "" {
 			err := fmt.Errorf("experiment label (%s) not set", controller.LabelExperiment)
-			_ = r.updateStatusCondition(ctx, &sat, "ExperimentAssigned", "no experiment label", err)
+			_ = r.updateStatusCondition(ctx, &fsNode, "ExperimentAssigned", "no experiment label", err)
 			return ctrl.Result{}, err
 		}
 
-		requeue, err := r.updateHardwareSpec(ctx, &sat)
+		requeue, err := r.updateHardwareSpec(ctx, &fsNode)
 		if requeue || err != nil {
-			_ = r.updateStatusCondition(ctx, &sat, "hardwareSpec", "resolving hardwareSpec", err)
+			_ = r.updateStatusCondition(ctx, &fsNode, "hardwareSpec", "resolving hardwareSpec", err)
 		}
 		if err != nil {
 			return ctrl.Result{}, errors.Wrap(err, "cannot update hardwareSpec")
@@ -100,9 +98,9 @@ func (r *SatReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 		if requeue {
 			return ctrl.Result{RequeueAfter: 500 * time.Millisecond}, nil
 		}
-		err = r.createOrUpdateSatellitePod(ctx, req, &sat)
+		err = r.createOrUpdateFsNodePod(ctx, req, &fsNode)
 		if err != nil {
-			_ = r.updateStatusCondition(ctx, &sat, "podCreation", "pod", err)
+			_ = r.updateStatusCondition(ctx, &fsNode, "podCreation", "pod", err)
 			return ctrl.Result{}, err
 		}
 	}
@@ -111,14 +109,14 @@ func (r *SatReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.R
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *SatReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *FsNodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&yassv1.Sat{}).
-		Named("sat").
+		For(&yassv1.FsNode{}).
+		Named("fsNode").
 		Complete(r)
 }
 
-func (r *SatReconciler) removeSatellite(ctx context.Context, req ctrl.Request) error {
+func (r *FsNodeReconciler) removeFsNode(ctx context.Context, req ctrl.Request) error {
 	pod := &v1.Pod{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: createPodName(req)}, pod)
 	if apierrors.IsNotFound(err) {
@@ -130,34 +128,34 @@ func (r *SatReconciler) removeSatellite(ctx context.Context, req ctrl.Request) e
 	return r.Delete(ctx, pod)
 }
 
-func (r *SatReconciler) createOrUpdateSatellitePod(ctx context.Context, req ctrl.Request, sat *yassv1.Sat) error {
+func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, req ctrl.Request, fsNode *yassv1.FsNode) error {
 	commonComponentsImage := "ghcr.io/esa-philab/yass/internal-components:latest"
 	podName := createPodName(req)
 	pod := &v1.Pod{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: podName}, pod)
 	if apierrors.IsNotFound(err) {
-		experimentName := sat.Labels[controller.LabelExperiment]
+		experimentName := fsNode.Labels[controller.LabelExperiment]
 		// create Pod
 		enginePorts := []v1.ContainerPort{}
 		for port := 3000; port <= 3020; port++ {
 			enginePorts = append(enginePorts, v1.ContainerPort{ContainerPort: int32(port)})
 		}
 		enginePorts = append(enginePorts, v1.ContainerPort{ContainerPort: int32(8080)})
-		agentParameters, err := sat.Spec.Agent.ParametersAsMap("agent")
+		agentParameters, err := fsNode.Spec.Agent.ParametersAsMap("agent")
 		if err != nil {
 			return err
 		}
-		engineParameters, err := sat.Spec.Engine.ParametersAsMap("engine")
+		engineParameters, err := fsNode.Spec.Engine.ParametersAsMap("engine")
 		if err != nil {
 			return err
 		}
 		engineResources := v1.ResourceRequirements{Limits: map[v1.ResourceName]resource.Quantity{}}
-		if sat.Spec.HardwareSpec != nil {
-			if sat.Spec.HardwareSpec.CPU != nil && !sat.Spec.HardwareSpec.CPU.IsZero() {
-				engineResources.Limits[v1.ResourceCPU] = *sat.Spec.HardwareSpec.CPU
+		if fsNode.Spec.HardwareSpec != nil {
+			if fsNode.Spec.HardwareSpec.CPU != nil && !fsNode.Spec.HardwareSpec.CPU.IsZero() {
+				engineResources.Limits[v1.ResourceCPU] = *fsNode.Spec.HardwareSpec.CPU
 			}
-			if sat.Spec.HardwareSpec.Memory != nil && !sat.Spec.HardwareSpec.Memory.IsZero() {
-				engineResources.Limits[v1.ResourceMemory] = *sat.Spec.HardwareSpec.Memory
+			if fsNode.Spec.HardwareSpec.Memory != nil && !fsNode.Spec.HardwareSpec.Memory.IsZero() {
+				engineResources.Limits[v1.ResourceMemory] = *fsNode.Spec.HardwareSpec.Memory
 			}
 		}
 		var containers []v1.Container
@@ -172,7 +170,7 @@ func (r *SatReconciler) createOrUpdateSatellitePod(ctx context.Context, req ctrl
 			},
 			{
 				name:      "agent",
-				image:     sat.Spec.Agent.Image,
+				image:     fsNode.Spec.Agent.Image,
 				resources: v1.ResourceRequirements{},
 				extraEnv:  agentParameters,
 				ports:     nil,
@@ -182,7 +180,7 @@ func (r *SatReconciler) createOrUpdateSatellitePod(ctx context.Context, req ctrl
 			},
 			{
 				name:      "engine",
-				image:     sat.Spec.Engine.Image,
+				image:     fsNode.Spec.Engine.Image,
 				resources: engineResources,
 				extraEnv:  engineParameters,
 				ports:     enginePorts,
@@ -201,7 +199,7 @@ func (r *SatReconciler) createOrUpdateSatellitePod(ctx context.Context, req ctrl
 			},
 		}
 		for _, cs := range containerSpecs {
-			container, err := r.createSatelliteContainerTemplate(sat, cs)
+			container, err := r.createFsNodeContainerTemplate(fsNode, cs)
 			if err != nil {
 				return errors.Wrap(err, fmt.Sprintf("cannot create container template %s", cs.name))
 			}
@@ -217,19 +215,19 @@ func (r *SatReconciler) createOrUpdateSatellitePod(ctx context.Context, req ctrl
 		}
 
 		var diskSizeLimit *resource.Quantity = nil
-		if sat.Spec.HardwareSpec != nil {
-			diskSizeLimit = sat.Spec.HardwareSpec.DiskSpace
+		if fsNode.Spec.HardwareSpec != nil {
+			diskSizeLimit = fsNode.Spec.HardwareSpec.DiskSpace
 		}
 		pod = &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      podName,
-				Namespace: sat.Namespace,
+				Namespace: fsNode.Namespace,
 				Labels: map[string]string{
-					controller.LabelSatellite:  sat.Name,
+					controller.LabelFsNode:     fsNode.Name,
 					controller.LabelExperiment: experimentName,
 				},
 				OwnerReferences: []metav1.OwnerReference{
-					*metav1.NewControllerRef(sat, v1.SchemeGroupVersion.WithKind("Sat")),
+					*metav1.NewControllerRef(fsNode, v1.SchemeGroupVersion.WithKind("FsNode")),
 				},
 			},
 			Spec: v1.PodSpec{
@@ -244,7 +242,7 @@ func (r *SatReconciler) createOrUpdateSatellitePod(ctx context.Context, req ctrl
 		}
 
 		err = r.Create(ctx, pod)
-		_ = r.updateStatusCondition(ctx, sat, "PodCreation", "creation", err)
+		_ = r.updateStatusCondition(ctx, fsNode, "PodCreation", "creation", err)
 		if err != nil {
 			return err
 		}
@@ -256,10 +254,10 @@ func createPodName(req ctrl.Request) string {
 	return fmt.Sprintf("%s-pod", req.Name)
 }
 
-func (r *SatReconciler) createSatelliteContainerTemplate(sat *yassv1.Sat, cs containerSpec) (*v1.Container, error) {
-	experimentName := sat.Labels[controller.LabelExperiment]
+func (r *FsNodeReconciler) createFsNodeContainerTemplate(fsNode *yassv1.FsNode, cs containerSpec) (*v1.Container, error) {
+	experimentName := fsNode.Labels[controller.LabelExperiment]
 	envVars := []v1.EnvVar{
-		{Name: controller.LabelSatellite, Value: sat.Name},
+		{Name: controller.LabelFsNode, Value: fsNode.Name},
 		{Name: controller.LabelExperiment, Value: experimentName},
 	}
 	for k, v := range cs.extraEnv {
@@ -288,20 +286,20 @@ func (r *SatReconciler) createSatelliteContainerTemplate(sat *yassv1.Sat, cs con
 	return &container, nil
 }
 
-func (r *SatReconciler) updateHardwareSpec(ctx context.Context, sat *yassv1.Sat) (bool, error) {
-	if sat.Spec.HardwareSpec == nil && sat.Spec.HardwareSpecRef != "" {
+func (r *FsNodeReconciler) updateHardwareSpec(ctx context.Context, fsNode *yassv1.FsNode) (bool, error) {
+	if fsNode.Spec.HardwareSpec == nil && fsNode.Spec.HardwareSpecRef != "" {
 		hardwareDef := &yassv1.HardwareDefinition{}
-		err := r.Get(ctx, types.NamespacedName{Name: sat.Spec.HardwareSpecRef}, hardwareDef)
+		err := r.Get(ctx, types.NamespacedName{Name: fsNode.Spec.HardwareSpecRef}, hardwareDef)
 		if apierrors.IsNotFound(err) {
-			return false, fmt.Errorf("HardwareSpecRef '%s' not found", sat.Spec.HardwareSpecRef)
+			return false, fmt.Errorf("HardwareSpecRef '%s' not found", fsNode.Spec.HardwareSpecRef)
 		}
 		if err != nil {
 			return false, errors.Wrap(err, "cannot fetch HardwareSpecRef")
 		}
 		if hardwareDef.Spec != nil {
 			hwSpecCopy := hardwareDef.Spec.DeepCopy()
-			sat.Spec.HardwareSpec = hwSpecCopy
-			err = r.Update(ctx, sat)
+			fsNode.Spec.HardwareSpec = hwSpecCopy
+			err = r.Update(ctx, fsNode)
 			if err != nil {
 				return false, err
 			}
@@ -311,13 +309,13 @@ func (r *SatReconciler) updateHardwareSpec(ctx context.Context, sat *yassv1.Sat)
 	return false, nil
 }
 
-func (r *SatReconciler) updateStatusCondition(ctx context.Context, sat *yassv1.Sat, ctype string, reason string, cause error) error {
+func (r *FsNodeReconciler) updateStatusCondition(ctx context.Context, fsNode *yassv1.FsNode, ctype string, reason string, cause error) error {
 	if reason == "" || cause == nil {
 		reason = "ok"
 	}
 	var condition *metav1.Condition
 	found := false
-	for _, c := range sat.Status.Conditions {
+	for _, c := range fsNode.Status.Conditions {
 		if c.Type == ctype {
 			condition = &c
 			found = true
@@ -339,11 +337,11 @@ func (r *SatReconciler) updateStatusCondition(ctx context.Context, sat *yassv1.S
 	condition.Reason = strings.ReplaceAll(reason, " ", "_")
 	condition.LastTransitionTime = metav1.Time{Time: time.Now()}
 	if !found {
-		sat.Status.Conditions = append(sat.Status.Conditions, *condition)
+		fsNode.Status.Conditions = append(fsNode.Status.Conditions, *condition)
 	}
-	err := r.Status().Update(ctx, sat)
+	err := r.Status().Update(ctx, fsNode)
 	if err != nil {
-		logf.FromContext(ctx).Error(err, fmt.Sprintf("cannot update sat %s status", sat.Name))
+		logf.FromContext(ctx).Error(err, fmt.Sprintf("cannot update fsNode %s status", fsNode.Name))
 	}
 	return cause
 }

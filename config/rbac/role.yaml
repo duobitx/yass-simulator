@@ -50,7 +50,7 @@ rules:
 - apiGroups:
   - yass.int.esa.yass
   resources:
-  - sats
+  - fsnodes
   verbs:
   - create
   - delete
@@ -62,13 +62,13 @@ rules:
 - apiGroups:
   - yass.int.esa.yass
   resources:
-  - sats/finalizers
+  - fsnodes/finalizers
   verbs:
   - update
 - apiGroups:
   - yass.int.esa.yass
   resources:
-  - sats/status
+  - fsnodes/status
   verbs:
   - get
   - patch

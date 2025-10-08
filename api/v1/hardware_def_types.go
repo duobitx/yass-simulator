@@ -39,12 +39,12 @@ type HardwareDefinitionList struct {
 
 type HardwareSpec struct {
 	// Number of available CPUs.
-	CPU *resource.Quantity `json:"CPU"`
+	CPU *resource.Quantity `json:"cpu"`
 
 	// Number of available RAM.
-	Memory *resource.Quantity `json:"Memory"`
+	Memory *resource.Quantity `json:"memory"`
 
 	// Available disk space. If not defined then unlimited.
 	// +kubebuilder:validation:Optional
-	DiskSpace *resource.Quantity `json:"DiskSpace"`
+	DiskSpace *resource.Quantity `json:"diskSpace"`
 }

@@ -162,7 +162,7 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 
 	for _, satItem := range layoutDef.Spec {
 		err := r.createSatelliteResource(ctx, req.NamespacedName.Namespace, experiment, expDef, &satItem)
-		_ = r.updateStatusCondition(ctx, experiment, fmt.Sprintf("sat_creation_%s", satItem.SatName), "", err)
+		_ = r.updateStatusCondition(ctx, experiment, fmt.Sprintf("sat_creation_%s", satItem.FsNodeName), "", err)
 		if err != nil {
 			return err
 		}
@@ -321,22 +321,22 @@ func (r *ExperimentReconciler) updateStatusCondition(ctx context.Context, exp *y
 }
 
 func (r *ExperimentReconciler) createSatelliteResource(ctx context.Context, namespace string, experiment *yassv1.Experiment, expDef *yassv1.ExperimentDefinition, layoutItem *yassv1.LayoutSatSpec) error {
-	sat := &yassv1.Sat{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: layoutItem.SatName}, sat)
+	sat := &yassv1.FsNode{}
+	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: layoutItem.FsNodeName}, sat)
 	if apierrors.IsNotFound(err) {
 		var satBehaviour *yassv1.SatBehaviour
 		for _, sb := range expDef.Spec.SatBehaviours {
-			if sb.SatName == layoutItem.SatName {
+			if sb.FsNodeName == layoutItem.FsNodeName {
 				satBehaviour = &sb
 				break
 			}
 		}
 		if satBehaviour == nil {
-			return fmt.Errorf("cannot find sat item in experimentDefinition for '%s'", layoutItem.SatName)
+			return fmt.Errorf("cannot find sat item in experimentDefinition for '%s'", layoutItem.FsNodeName)
 		}
-		sat = &yassv1.Sat{
+		sat = &yassv1.FsNode{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      layoutItem.SatName,
+				Name:      layoutItem.FsNodeName,
 				Namespace: namespace,
 				Labels: map[string]string{
 					controller.LabelExperiment: experiment.Name,
@@ -345,7 +345,7 @@ func (r *ExperimentReconciler) createSatelliteResource(ctx context.Context, name
 					*metav1.NewControllerRef(experiment, v1.SchemeGroupVersion.WithKind(experimentKind)),
 				},
 			},
-			Spec: yassv1.SatSpec{
+			Spec: yassv1.FsNodeSpec{
 				EmbeddedHardware: layoutItem.EmbeddedHardware,
 				EmbeddedPosition: layoutItem.EmbeddedPosition,
 				Engine:           experiment.Spec.Engine,
@@ -353,7 +353,7 @@ func (r *ExperimentReconciler) createSatelliteResource(ctx context.Context, name
 			},
 		}
 		err = r.Create(ctx, sat)
-		_ = r.updateStatusCondition(ctx, experiment, fmt.Sprintf("Sat-%s", layoutItem.SatName), "creating", err)
+		_ = r.updateStatusCondition(ctx, experiment, fmt.Sprintf("FsNode-%s", layoutItem.FsNodeName), "creating", err)
 		if err != nil {
 			r.recorder.Eventf(experiment, v1.EventTypeWarning, "sat creation", "sat %s error :: %s", sat.Name, err)
 			return err

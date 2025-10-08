@@ -22,7 +22,7 @@ type Layout struct {
 	Description string `json:"description,omitempty"`
 
 	// +listType=map
-	// +listMapKey=satName
+	// +listMapKey=fsNode
 	Spec []LayoutSatSpec `json:"spec,omitempty"`
 }
 
@@ -34,7 +34,7 @@ type LayoutList struct {
 }
 
 type LayoutSatSpec struct {
-	SatName string `json:"satName"`
+	FsNodeName string `json:"fsNode"`
 
 	EmbeddedHardware `json:",inline"`
 

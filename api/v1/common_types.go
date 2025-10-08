@@ -13,10 +13,8 @@ type Orbit struct {
 type EarthPosition struct {
 	// Latitude in numeric format.
 	Lat float32 `json:"lat"`
-
 	// Longitude in numeric format.
 	Lng float32 `json:"lng"`
-
 	// +kubebuilder:validation:Optional
 	// Height over sea level in meters.
 	HeightOverSeaLevel float32 `json:"heightOverSeaLevel,omitempty"`
