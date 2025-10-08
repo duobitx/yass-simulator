@@ -33,18 +33,10 @@ type LayoutList struct {
 	Items           []Layout `json:"items"`
 }
 
-// +kubebuilder:validation:XValidation:rule="(has(self.hardwareSpecRef) && !has(self.hardwareSpec)) || (!has(self.hardwareSpecRef) && has(self.hardwareSpec))",message="Exactly one of spec.hardwareSpecRef or spec.hardwareSpec must be set"
-// +kubebuilder:validation:XValidation:rule="(has(self.orbit) && !has(self.earthPosition)) || (!has(self.orbit) && has(self.earthPosition))",message="Exactly one of spec.orbit or spec.earthPosition must be set"
 type LayoutSatSpec struct {
 	SatName string `json:"satName"`
 
-	// +kubebuilder:validation:Optional
-	// Satelite hardware spec.
-	HardwareSpec HardwareSpec `json:"hardwareSpec,omitempty"`
+	EmbeddedHardware `json:",inline"`
 
-	// +kubebuilder:validation:Optional
-	// Satellite Hardware specification. Field hardwareSpec has priority over hardwareSpecRef.
-	HardwareSpecRef string `json:"hardwareSpecRef,omitempty"`
-
-	EmbeddedPosition EmbeddedPosition `json:",inline"`
+	EmbeddedPosition `json:",inline"`
 }

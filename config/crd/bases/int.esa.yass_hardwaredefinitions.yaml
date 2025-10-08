@@ -38,7 +38,7 @@ spec:
               More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           description:
-            description: Description of the hardware spec
+            description: Description of the hardware specification.
             type: string
           kind:
             description: |-

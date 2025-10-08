@@ -33,6 +33,7 @@ type Rotation struct {
 }
 
 // EmbeddedPosition to be embedded in other API resources.
+// +kubebuilder:validation:XValidation:rule="(has(self.orbit) && !has(self.earthPosition)) || (!has(self.orbit) && has(self.earthPosition))",message="Exactly one of spec.orbit or spec.earthPosition must be set"
 type EmbeddedPosition struct {
 	// +kubebuilder:validation:Optional
 	// A position of an object on the Earth.
@@ -41,9 +42,21 @@ type EmbeddedPosition struct {
 	// +kubebuilder:validation:Optional
 	// A position of an object as TLE.
 	Orbit *Orbit `json:"orbit,omitempty"`
+
 	// +kubebuilder:validation:Optional
 	// Rotation of an object
 	Rotation *Rotation `json:"rotation,omitempty"`
+}
+
+// +kubebuilder:validation:XValidation:rule="has(self.hardwareSpecRef) || has(self.hardwareSpec)",message="At least one of spec.hardwareSpecRef or spec.hardwareSpec must be set"
+type EmbeddedHardware struct {
+	// +kubebuilder:validation:Optional
+	// Satellite hardware spec.
+	HardwareSpec *HardwareSpec `json:"hardwareSpec,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// Satellite Hardware specification. Field hardwareSpec has priority over hardwareSpecRef.
+	HardwareSpecRef string `json:"hardwareSpecRef,omitempty"`
 }
 
 type SimpleSatContainerDef struct {

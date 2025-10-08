@@ -32,7 +32,7 @@ spec:
               More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           description:
-            description: Description of an layout
+            description: Description of the layout
             type: string
           kind:
             description: |-
@@ -48,7 +48,7 @@ spec:
             items:
               properties:
                 earthPosition:
-                  description: A position of an object on Earth.
+                  description: A position of an object on the Earth.
                   properties:
                     heightOverSeaLevel:
                       description: Height over sea level in meters.
@@ -64,6 +64,7 @@ spec:
                   - lng
                   type: object
                 hardwareSpec:
+                  description: Satellite hardware spec.
                   properties:
                     CPU:
                       anyOf:
@@ -91,6 +92,8 @@ spec:
                   - Memory
                   type: object
                 hardwareSpecRef:
+                  description: Satellite Hardware specification. Field hardwareSpec
+                    has priority over hardwareSpecRef.
                   type: string
                 orbit:
                   description: A position of an object as TLE.
@@ -121,13 +124,12 @@ spec:
               - satName
               type: object
               x-kubernetes-validations:
-              - message: Exactly one of spec.hardwareSpecRef or spec.hardwareSpec
-                  must be set
-                rule: (has(self.hardwareSpecRef) && !has(self.hardwareSpec)) || (!has(self.hardwareSpecRef)
-                  && has(self.hardwareSpec))
               - message: Exactly one of spec.orbit or spec.earthPosition must be set
                 rule: (has(self.orbit) && !has(self.earthPosition)) || (!has(self.orbit)
                   && has(self.earthPosition))
+              - message: At least one of spec.hardwareSpecRef or spec.hardwareSpec
+                  must be set
+                rule: has(self.hardwareSpecRef) || has(self.hardwareSpec)
             type: array
             x-kubernetes-list-map-keys:
             - satName

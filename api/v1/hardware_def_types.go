@@ -26,7 +26,8 @@ type HardwareDefinition struct {
 	// Description of the hardware specification.
 	Description string `json:"description,omitempty"`
 
-	Spec HardwareSpec `json:"spec,omitempty"`
+	// +kubebuilder:validation:Optional
+	Spec *HardwareSpec `json:"spec,omitempty"`
 }
 
 // +kubebuilder:object:root=true

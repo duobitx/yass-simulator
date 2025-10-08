@@ -53,6 +53,7 @@ spec:
             description: spec defines the desired state of Sat
             properties:
               agent:
+                description: What agent to be installed.
                 properties:
                   image:
                     description: Container image
@@ -65,7 +66,7 @@ spec:
                 - image
                 type: object
               earthPosition:
-                description: A position of an object on Earth.
+                description: A position of an object on the Earth.
                 properties:
                   heightOverSeaLevel:
                     description: Height over sea level in meters.
@@ -81,6 +82,7 @@ spec:
                 - lng
                 type: object
               engine:
+                description: What file system engine to be installed
                 properties:
                   image:
                     description: Container image
@@ -93,6 +95,7 @@ spec:
                 - image
                 type: object
               hardwareSpec:
+                description: Satellite hardware spec.
                 properties:
                   CPU:
                     anyOf:
@@ -120,6 +123,8 @@ spec:
                 - Memory
                 type: object
               hardwareSpecRef:
+                description: Satellite Hardware specification. Field hardwareSpec
+                  has priority over hardwareSpecRef.
                 type: string
               orbit:
                 description: A position of an object as TLE.
@@ -146,10 +151,12 @@ spec:
                 type: object
             type: object
             x-kubernetes-validations:
-            - message: Exactly one of spec.hardwareSpecRef or spec.hardwareSpec must
+            - message: Exactly one of spec.orbit or spec.earthPosition must be set
+              rule: (has(self.orbit) && !has(self.earthPosition)) || (!has(self.orbit)
+                && has(self.earthPosition))
+            - message: At least one of spec.hardwareSpecRef or spec.hardwareSpec must
                 be set
-              rule: (has(self.hardwareSpecRef) && !has(self.hardwareSpec)) || (!has(self.hardwareSpecRef)
-                && has(self.hardwareSpec))
+              rule: has(self.hardwareSpecRef) || has(self.hardwareSpec)
           status:
             description: status defines the observed state of Sat
             properties:

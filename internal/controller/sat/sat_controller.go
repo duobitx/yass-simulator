@@ -39,6 +39,7 @@ import (
 
 const sharedVolumeName = "sat-shared-volume"
 const engineVolumeName = "engine-volume"
+const agentTMPVolumeName = "agent-tmp-volume"
 
 // SatReconciler reconciles a Sat object
 type SatReconciler struct {
@@ -52,6 +53,7 @@ type containerSpec struct {
 	resources v1.ResourceRequirements
 	extraEnv  map[string]string
 	ports     []v1.ContainerPort
+	mods      []modFunc
 }
 
 // +kubebuilder:rbac:groups=yass.int.esa.yass,resources=sats,verbs=get;list;watch;create;update;patch;delete
@@ -129,6 +131,7 @@ func (r *SatReconciler) removeSatellite(ctx context.Context, req ctrl.Request) e
 }
 
 func (r *SatReconciler) createOrUpdateSatellitePod(ctx context.Context, req ctrl.Request, sat *yassv1.Sat) error {
+	commonComponentsImage := "ghcr.io/esa-philab/yass/internal-components:latest"
 	podName := createPodName(req)
 	pod := &v1.Pod{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: podName}, pod)
@@ -149,20 +152,33 @@ func (r *SatReconciler) createOrUpdateSatellitePod(ctx context.Context, req ctrl
 			return err
 		}
 		engineResources := v1.ResourceRequirements{Limits: map[v1.ResourceName]resource.Quantity{}}
-		if sat.Spec.HardwareSpec.CPU != nil && !sat.Spec.HardwareSpec.CPU.IsZero() {
-			engineResources.Limits[v1.ResourceCPU] = *sat.Spec.HardwareSpec.CPU
-		}
-		if sat.Spec.HardwareSpec.Memory != nil && !sat.Spec.HardwareSpec.Memory.IsZero() {
-			engineResources.Limits[v1.ResourceMemory] = *sat.Spec.HardwareSpec.Memory
+		if sat.Spec.HardwareSpec != nil {
+			if sat.Spec.HardwareSpec.CPU != nil && !sat.Spec.HardwareSpec.CPU.IsZero() {
+				engineResources.Limits[v1.ResourceCPU] = *sat.Spec.HardwareSpec.CPU
+			}
+			if sat.Spec.HardwareSpec.Memory != nil && !sat.Spec.HardwareSpec.Memory.IsZero() {
+				engineResources.Limits[v1.ResourceMemory] = *sat.Spec.HardwareSpec.Memory
+			}
 		}
 		var containers []v1.Container
 		containerSpecs := []containerSpec{
+			{
+				name:  "world-controller",
+				image: commonComponentsImage,
+				mods: []modFunc{
+					modVolumeMount(agentTMPVolumeName, "/tmp", false),
+					cmd("/world-controller"),
+				},
+			},
 			{
 				name:      "agent",
 				image:     sat.Spec.Agent.Image,
 				resources: v1.ResourceRequirements{},
 				extraEnv:  agentParameters,
 				ports:     nil,
+				mods: []modFunc{
+					modVolumeMount(agentTMPVolumeName, "/tmp", false),
+				},
 			},
 			{
 				name:      "engine",
@@ -170,6 +186,10 @@ func (r *SatReconciler) createOrUpdateSatellitePod(ctx context.Context, req ctrl
 				resources: engineResources,
 				extraEnv:  engineParameters,
 				ports:     enginePorts,
+				mods: []modFunc{
+					modVolumeMount(engineVolumeName, "/var/data", false),
+					rootFSReadOnly(),
+				},
 			},
 			{
 				name:  "engine-gw",
@@ -181,16 +201,25 @@ func (r *SatReconciler) createOrUpdateSatellitePod(ctx context.Context, req ctrl
 			},
 		}
 		for _, cs := range containerSpecs {
-			container, err := r.createSatelliteContainer(sat, cs)
+			container, err := r.createSatelliteContainerTemplate(sat, cs)
 			if err != nil {
-				return errors.Wrap(err, fmt.Sprintf("cannot create container %s", cs.name))
+				return errors.Wrap(err, fmt.Sprintf("cannot create container template %s", cs.name))
 			}
 			if container == nil {
-				return fmt.Errorf("cannot create container %s, nil returned without error", cs.name)
+				return fmt.Errorf("cannot create container template %s, nil returned without error", cs.name)
+			}
+			if cs.mods != nil {
+				for _, mod := range cs.mods {
+					mod(container)
+				}
 			}
 			containers = append(containers, *container)
 		}
 
+		var diskSizeLimit *resource.Quantity = nil
+		if sat.Spec.HardwareSpec != nil {
+			diskSizeLimit = sat.Spec.HardwareSpec.DiskSpace
+		}
 		pod = &v1.Pod{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      podName,
@@ -205,13 +234,12 @@ func (r *SatReconciler) createOrUpdateSatellitePod(ctx context.Context, req ctrl
 			},
 			Spec: v1.PodSpec{
 				Volumes: []v1.Volume{
-					{Name: sharedVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
-					{Name: experimentName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{
-						SizeLimit: sat.Spec.HardwareSpec.DiskSpace,
-					}}},
+					{Name: sharedVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}}, // mounted by default under /shared
+					{Name: engineVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: diskSizeLimit}}},
+					{Name: agentTMPVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
 				},
 				Containers:         containers,
-				ServiceAccountName: "",
+				ServiceAccountName: controller.ServiceAccountName,
 			},
 		}
 
@@ -228,7 +256,7 @@ func createPodName(req ctrl.Request) string {
 	return fmt.Sprintf("%s-pod", req.Name)
 }
 
-func (r *SatReconciler) createSatelliteContainer(sat *yassv1.Sat, cs containerSpec) (*v1.Container, error) {
+func (r *SatReconciler) createSatelliteContainerTemplate(sat *yassv1.Sat, cs containerSpec) (*v1.Container, error) {
 	experimentName := sat.Labels[controller.LabelExperiment]
 	envVars := []v1.EnvVar{
 		{Name: controller.LabelSatellite, Value: sat.Name},
@@ -250,9 +278,11 @@ func (r *SatReconciler) createSatelliteContainer(sat *yassv1.Sat, cs containerSp
 			{
 				Name:      sharedVolumeName,
 				ReadOnly:  false,
-				MountPath: "/data",
+				MountPath: "/shared",
 			},
 		},
+		LivenessProbe:   nil,
+		ReadinessProbe:  nil,
 		ImagePullPolicy: "Always",
 	}
 	return &container, nil
@@ -268,10 +298,13 @@ func (r *SatReconciler) updateHardwareSpec(ctx context.Context, sat *yassv1.Sat)
 		if err != nil {
 			return false, errors.Wrap(err, "cannot fetch HardwareSpecRef")
 		}
-		sat.Spec.HardwareSpec = &hardwareDef.Spec
-		err = r.Update(ctx, sat)
-		if err != nil {
-			return false, err
+		if hardwareDef.Spec != nil {
+			hwSpecCopy := hardwareDef.Spec.DeepCopy()
+			sat.Spec.HardwareSpec = hwSpecCopy
+			err = r.Update(ctx, sat)
+			if err != nil {
+				return false, err
+			}
 		}
 		return true, nil
 	}

@@ -37,7 +37,6 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	webappv1 "github.com/ESA-PhiLab/yass-experiment-operator/api/v1"
 	yassv1 "github.com/ESA-PhiLab/yass-experiment-operator/api/v1"
 	// +kubebuilder:scaffold:imports
 )
@@ -49,8 +48,9 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
-	utilruntime.Must(webappv1.AddToScheme(scheme))
+	// FIXME
+	//utilruntime.Must(corev1.AddToScheme(scheme))
+	//utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(yassv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }

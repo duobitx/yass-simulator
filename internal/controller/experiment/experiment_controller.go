@@ -140,6 +140,7 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 		objSrc   client.Object
 		mod      func(object client.Object)
 	}{
+		{"yaas-serviceaccount.yaml", "yass-sa", &v1.ServiceAccount{}, nil},
 		{"messaging-statefulSet.yaml", "messaging", &appsv1.StatefulSet{}, nil},
 		{"messaging-service.yaml", "messaging", &v1.Service{}, nil},
 		//{"executor-statefulSet.yaml", "executor", &appsv1.StatefulSet{}, nil},
@@ -150,6 +151,7 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 		objCopy := cDef.objSrc.DeepCopyObject()
 		obj := objCopy.(client.Object)
 		objErr := r.createExperimentObjectIfRequired(ctx, req.Namespace, experiment, cDef.fName, cDef.compName, obj, cDef.mod)
+		_ = r.updateStatusCondition(ctx, experiment, cDef.compName, "creation", objErr)
 		if objErr != nil {
 			joinErrHelper.Append(errors.Wrap(objErr, fmt.Sprintf("error creating experiment component %s/%s for %s from template %s", cDef.objSrc.GetObjectKind().GroupVersionKind(), cDef.compName, experiment.Name, cDef.fName)))
 		}
@@ -184,10 +186,11 @@ type expComponent struct {
 func (r *ExperimentReconciler) deleteExperimentObjects(ctx context.Context, namespace, experimentName string) error {
 	logger := logf.FromContext(ctx)
 	gvks := []schema.GroupVersionKind{
-		{Group: "int.esa.yass", Version: "v1", Kind: "Sat"},
+		//{Group: "int.esa.yass", Version: "v1", Kind: "sat"},
 		{Group: "", Version: "v1", Kind: "Pod"},
 		{Group: "", Version: "v1", Kind: "Service"},
 		{Group: "", Version: "v1", Kind: "ConfigMap"},
+		{Group: "", Version: "v1", Kind: "ServiceAccount"},
 		{Group: "apps", Version: "v1", Kind: "Deployment"},
 		{Group: "apps", Version: "v1", Kind: "StatefulSet"},
 	}
@@ -238,7 +241,6 @@ func (r *ExperimentReconciler) deleteExperimentObjects(ctx context.Context, name
 
 func (r *ExperimentReconciler) createExperimentObjectIfRequired(ctx context.Context, namespace string, experiment *yassv1.Experiment, fName string, objName string, obj client.Object, modifier func(o client.Object)) error {
 	logger := logf.FromContext(ctx)
-	componentFullName := fmt.Sprintf("component-%s-%s", obj.GetObjectKind(), objName)
 	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: objName}, obj)
 	if err == nil {
 		return nil
@@ -255,11 +257,18 @@ func (r *ExperimentReconciler) createExperimentObjectIfRequired(ctx context.Cont
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("cannot unmarshall file %s", fn))
 	}
+	obj.SetNamespace(namespace)
 	obj.SetName(objName)
 	labels := obj.GetLabels()
+	if labels == nil {
+		labels = make(map[string]string)
+	}
 	labels[controller.LabelExperiment] = experiment.Name
 	obj.SetLabels(labels)
 	annotations := obj.GetAnnotations()
+	if annotations == nil {
+		annotations = make(map[string]string)
+	}
 	labels["component-source"] = fName
 	obj.SetAnnotations(annotations)
 	obj.SetOwnerReferences([]metav1.OwnerReference{*metav1.NewControllerRef(experiment, v1.SchemeGroupVersion.WithKind(experiment.Kind))})
@@ -268,10 +277,10 @@ func (r *ExperimentReconciler) createExperimentObjectIfRequired(ctx context.Cont
 	}
 	err = r.Create(ctx, obj)
 	if err != nil {
-		r.recorder.Eventf(experiment, v1.EventTypeWarning, componentFullName, fmt.Sprintf("creation error: %s", err.Error()))
+		r.recorder.Eventf(experiment, v1.EventTypeWarning, objName, fmt.Sprintf("creation error: %s", err.Error()))
 		return err
 	}
-	r.recorder.Eventf(experiment, v1.EventTypeNormal, componentFullName, "component created")
+	r.recorder.Eventf(experiment, v1.EventTypeNormal, objName, "component created")
 	logger.Info(fmt.Sprintf("object %s of type %T created", objName, obj))
 	return nil
 }
@@ -351,10 +360,10 @@ func (r *ExperimentReconciler) createSatelliteResource(ctx context.Context, name
 				},
 			},
 			Spec: yassv1.SatSpec{
-				HardwareSpec:     &layoutItem.HardwareSpec,
+				EmbeddedHardware: layoutItem.EmbeddedHardware,
+				EmbeddedPosition: layoutItem.EmbeddedPosition,
 				Engine:           experiment.Spec.Engine,
 				Agent:            satBehaviour.Agent,
-				EmbeddedPosition: layoutItem.EmbeddedPosition,
 			},
 		}
 		err = r.Create(ctx, sat)
