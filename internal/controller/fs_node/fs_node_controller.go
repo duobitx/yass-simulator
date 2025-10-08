@@ -22,7 +22,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ESA-PhiLab/yass-experiment-operator/internal/controller"
+	"github.com/ESA-PhiLab/yass-operator/internal/controller"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,7 +34,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	yassv1 "github.com/ESA-PhiLab/yass-experiment-operator/api/v1"
+	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
 )
 
 const sharedVolumeName = "fs-node-shared-volume"

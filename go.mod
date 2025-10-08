@@ -1,4 +1,4 @@
-module github.com/ESA-PhiLab/yass-experiment-operator
+module github.com/ESA-PhiLab/yass-operator
 
 go 1.24.0
 

@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	yassv1 "github.com/ESA-PhiLab/yass-experiment-operator/api/v1"
-	"github.com/ESA-PhiLab/yass-experiment-operator/internal/controller"
+	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
+	"github.com/ESA-PhiLab/yass-operator/internal/controller"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"

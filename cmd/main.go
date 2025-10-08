@@ -21,8 +21,8 @@ import (
 	"flag"
 	"os"
 
-	"github.com/ESA-PhiLab/yass-experiment-operator/internal/controller/experiment"
-	"github.com/ESA-PhiLab/yass-experiment-operator/internal/controller/fs_node"
+	"github.com/ESA-PhiLab/yass-operator/internal/controller/experiment"
+	"github.com/ESA-PhiLab/yass-operator/internal/controller/fs_node"
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -37,7 +37,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	yassv1 "github.com/ESA-PhiLab/yass-experiment-operator/api/v1"
+	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
 	// +kubebuilder:scaffold:imports
 )
 

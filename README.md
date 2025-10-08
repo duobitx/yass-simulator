@@ -1,4 +1,4 @@
-# Yass kubernetes controllers
+# Yass kubernetes operator
 
 ## Components
 ### Yass experiment controller

@@ -28,7 +28,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/ESA-PhiLab/yass-experiment-operator/test/utils"
+	"github.com/ESA-PhiLab/yass-operator/test/utils"
 )
 
 var (
