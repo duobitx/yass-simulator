@@ -40,7 +40,7 @@ type ExperimentSpec struct {
 	// Reference to Layout resource.
 	LayoutDefRef string `json:"layoutDefRef"`
 	// Engine defines what engine will be tested during the experiment.
-	Engine SimpleSatContainerDef `json:"engine,omitempty"`
+	Engine SimpleContainer `json:"engine,omitempty"`
 	// SimulationStartTime is a starting point of the experiment.
 	SimulationStartTime metav1.Time `json:"simulationStartTime"`
 	// Start if to start the experiment as soon as it's ready.

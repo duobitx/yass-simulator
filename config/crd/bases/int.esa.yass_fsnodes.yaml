@@ -57,13 +57,25 @@ spec:
               agent:
                 description: What agent to be installed.
                 properties:
+                  configurationFilesFromConfigMap:
+                    description: Configuration files can be mounted from ConfigMap.
+                    properties:
+                      configMapRef:
+                        type: string
+                      mountPath:
+                        type: string
+                    required:
+                    - configMapRef
+                    - mountPath
+                    type: object
+                  envs:
+                    additionalProperties:
+                      type: string
+                    description: Envs environment variables
+                    type: object
                   image:
                     description: Container image
                     type: string
-                  parameters:
-                    description: Parameters object (json/yaml) will be available on
-                      container under configuration.json file.
-                    x-kubernetes-preserve-unknown-fields: true
                 required:
                 - image
                 type: object
@@ -86,13 +98,25 @@ spec:
               engine:
                 description: What file system engine to be installed
                 properties:
+                  configurationFilesFromConfigMap:
+                    description: Configuration files can be mounted from ConfigMap.
+                    properties:
+                      configMapRef:
+                        type: string
+                      mountPath:
+                        type: string
+                    required:
+                    - configMapRef
+                    - mountPath
+                    type: object
+                  envs:
+                    additionalProperties:
+                      type: string
+                    description: Envs environment variables
+                    type: object
                   image:
                     description: Container image
                     type: string
-                  parameters:
-                    description: Parameters object (json/yaml) will be available on
-                      container under configuration.json file.
-                    x-kubernetes-preserve-unknown-fields: true
                 required:
                 - image
                 type: object

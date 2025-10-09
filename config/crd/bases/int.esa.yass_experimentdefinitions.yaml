@@ -57,23 +57,31 @@ spec:
                 items:
                   type: object
                 type: array
-              maxDuration:
-                description: MaxDuration of the experiment
-                format: int64
-                type: integer
-              satBehaviours:
+              behaviours:
                 items:
                   properties:
                     agent:
                       description: Agent on the satellite
                       properties:
+                        configurationFilesFromConfigMap:
+                          description: Configuration files can be mounted from ConfigMap.
+                          properties:
+                            configMapRef:
+                              type: string
+                            mountPath:
+                              type: string
+                          required:
+                          - configMapRef
+                          - mountPath
+                          type: object
+                        envs:
+                          additionalProperties:
+                            type: string
+                          description: Envs environment variables
+                          type: object
                         image:
                           description: Container image
                           type: string
-                        parameters:
-                          description: Parameters object (json/yaml) will be available
-                            on container under configuration.json file.
-                          x-kubernetes-preserve-unknown-fields: true
                       required:
                       - image
                       type: object
@@ -93,6 +101,10 @@ spec:
                 x-kubernetes-list-map-keys:
                 - fsNode
                 x-kubernetes-list-type: map
+              maxDuration:
+                description: MaxDuration of the experiment
+                format: int64
+                type: integer
             type: object
         type: object
     served: true

@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: experiment-executor
+spec:
+  serviceName: experiment-executor
+  replicas: 1
+  selector:
+    matchLabels:
+      app: experiment-executor
+  template:
+    metadata:
+      labels:
+        app: experiment-executor
+    spec:
+      serviceAccountName: "yass-sa"
+      initContainers:
+        - name: resource-to-json-experiment
+          image: "ghcr.io/esa-philab/yass/internal-components:latest"
+          imagePullPolicy: "Always"
+          command:
+            - "/resource-to-json"
+          env:
+            - name: RESOURCE_KIND
+              value: "Experiment"
+            - name: DST_FILE
+              value: "/shared/experiment.json"
+            - name: RESOURCE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['experiment']
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - mountPath: /shared
+              name: shared
+      containers:
+        - name: experiment-executor
+          image: "ghcr.io/esa-philab/yass/internal-components:latest"
+          imagePullPolicy: "Always"
+          command:
+            - "/experiment-executor"
+          volumeMounts:
+            - mountPath: /shared
+              name: shared
+        - name: geo-calculator
+          image: "ghcr.io/esa-philab/yass/internal-components:latest"
+          imagePullPolicy: "Always"
+          command:
+            - "/geo-calculator"
+          volumeMounts:
+            - mountPath: /shared
+              name: shared
+      volumes:
+        - name: shared
+          emptyDir:
+            sizeLimit: 2M

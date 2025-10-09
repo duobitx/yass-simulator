@@ -43,16 +43,16 @@ type ExperimentDefinitionSpec struct {
 
 	// +listType=map
 	// +listMapKey=fsNode
-	SatBehaviours []SatBehaviour `json:"satBehaviours,omitempty"`
+	Behaviours []Behaviour `json:"behaviours,omitempty"`
 
 	HardwareEvents []HardwareEvent `json:"HardwareEvents,omitempty"`
 }
 
-type SatBehaviour struct {
+type Behaviour struct {
 	// Name of the satellite / ground station to be configured.
 	FsNodeName string `json:"fsNode"`
 	// Agent on the satellite
-	Agent SimpleSatContainerDef `json:"agent"`
+	Agent SimpleContainer `json:"agent"`
 
 	// +kubebuilder:validation:Optional
 	// What hardware events to expect during the experiment.

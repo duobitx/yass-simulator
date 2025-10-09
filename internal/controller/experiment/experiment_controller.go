@@ -142,8 +142,7 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 		{"yaas-serviceaccount.yaml", "yass-sa", &v1.ServiceAccount{}, nil},
 		{"messaging-statefulSet.yaml", "messaging", &appsv1.StatefulSet{}, nil},
 		{"messaging-service.yaml", "messaging", &v1.Service{}, nil},
-		//{"executor-statefulSet.yaml", "executor", &appsv1.StatefulSet{}, nil},
-		//{"executor-service.yaml", "executor", &v1.Service{}, nil},
+		{"experiment-executor-statefulSet.yaml", "experiment-executor", &appsv1.StatefulSet{}, nil},
 	}
 	joinErrHelper := &goutils.JoinErrorHelper{}
 	for _, cDef := range componentDefs {
@@ -161,16 +160,24 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 	}
 
 	for _, satItem := range layoutDef.Spec {
-		err := r.createSatelliteResource(ctx, req.NamespacedName.Namespace, experiment, expDef, &satItem)
+		err := r.createFsNodeResource(ctx, req.NamespacedName.Namespace, experiment, expDef, &satItem)
 		_ = r.updateStatusCondition(ctx, experiment, fmt.Sprintf("sat_creation_%s", satItem.FsNodeName), "", err)
 		if err != nil {
 			return err
 		}
 	}
 	if experiment.Spec.Start {
-		err := r.startExperiment(ctx, experiment)
-		if err != nil {
-			return errors.Wrap(err, "unable to start experiment")
+		failedConditions := 0
+		for _, cond := range experiment.Status.Conditions {
+			if cond.Status == metav1.ConditionFalse {
+				failedConditions++
+			}
+		}
+		if failedConditions == 0 {
+			err = r.startExperiment(ctx, experiment)
+			if err != nil {
+				return errors.Wrap(err, "unable to start experiment")
+			}
 		}
 	}
 	return nil
@@ -320,21 +327,21 @@ func (r *ExperimentReconciler) updateStatusCondition(ctx context.Context, exp *y
 	return cause
 }
 
-func (r *ExperimentReconciler) createSatelliteResource(ctx context.Context, namespace string, experiment *yassv1.Experiment, expDef *yassv1.ExperimentDefinition, layoutItem *yassv1.LayoutSatSpec) error {
-	sat := &yassv1.FsNode{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: layoutItem.FsNodeName}, sat)
+func (r *ExperimentReconciler) createFsNodeResource(ctx context.Context, namespace string, experiment *yassv1.Experiment, expDef *yassv1.ExperimentDefinition, layoutItem *yassv1.LayoutSatSpec) error {
+	fsNode := &yassv1.FsNode{}
+	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: layoutItem.FsNodeName}, fsNode)
 	if apierrors.IsNotFound(err) {
-		var satBehaviour *yassv1.SatBehaviour
-		for _, sb := range expDef.Spec.SatBehaviours {
+		var behaviour *yassv1.Behaviour
+		for _, sb := range expDef.Spec.Behaviours {
 			if sb.FsNodeName == layoutItem.FsNodeName {
-				satBehaviour = &sb
+				behaviour = &sb
 				break
 			}
 		}
-		if satBehaviour == nil {
-			return fmt.Errorf("cannot find sat item in experimentDefinition for '%s'", layoutItem.FsNodeName)
+		if behaviour == nil {
+			return fmt.Errorf("cannot find fsNode item in experimentDefinition for '%s'", layoutItem.FsNodeName)
 		}
-		sat = &yassv1.FsNode{
+		fsNode = &yassv1.FsNode{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      layoutItem.FsNodeName,
 				Namespace: namespace,
@@ -349,16 +356,16 @@ func (r *ExperimentReconciler) createSatelliteResource(ctx context.Context, name
 				EmbeddedHardware: layoutItem.EmbeddedHardware,
 				EmbeddedPosition: layoutItem.EmbeddedPosition,
 				Engine:           experiment.Spec.Engine,
-				Agent:            satBehaviour.Agent,
+				Agent:            behaviour.Agent,
 			},
 		}
-		err = r.Create(ctx, sat)
+		err = r.Create(ctx, fsNode)
 		_ = r.updateStatusCondition(ctx, experiment, fmt.Sprintf("FsNode-%s", layoutItem.FsNodeName), "creating", err)
 		if err != nil {
-			r.recorder.Eventf(experiment, v1.EventTypeWarning, "sat creation", "sat %s error :: %s", sat.Name, err)
+			r.recorder.Eventf(experiment, v1.EventTypeWarning, "fsNode creation", "fsNode %s error :: %s", fsNode.Name, err)
 			return err
 		}
-		r.recorder.Eventf(experiment, v1.EventTypeNormal, "sat creation", "sat %s :: online", sat.Name)
+		r.recorder.Eventf(experiment, v1.EventTypeNormal, "fsNode creation", "fsNode %s :: online", fsNode.Name)
 	}
 	return nil
 }

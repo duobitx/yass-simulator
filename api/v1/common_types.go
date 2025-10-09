@@ -1,7 +1,5 @@
 package v1
 
-import v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
-
 type Orbit struct {
 	// TLE lines
 	//+kubebuilder:validation:MinItems=2
@@ -57,9 +55,19 @@ type EmbeddedHardware struct {
 	HardwareSpecRef string `json:"hardwareSpecRef,omitempty"`
 }
 
-type SimpleSatContainerDef struct {
+type SimpleContainerConfigFiles struct {
+	ConfigMapRef string `json:"configMapRef"`
+	MountPath    string `json:"mountPath"`
+}
+type SimpleContainer struct {
 	// Container image
 	Image string `json:"image"`
-	// Parameters object (json/yaml) will be available on container under configuration.json file.
-	Parameters v1.JSON `json:"parameters,omitempty"`
+
+	// Envs environment variables
+	// +kubebuilder:validation:Optional
+	Envs map[string]string `json:"envs,omitempty"`
+
+	// Configuration files can be mounted from ConfigMap.
+	// +kubebuilder:validation:Optional
+	ConfigurationFilesFromConfigMap *SimpleContainerConfigFiles `json:"configurationFilesFromConfigMap"`
 }

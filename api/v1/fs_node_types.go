@@ -17,10 +17,6 @@ limitations under the License.
 package v1
 
 import (
-	"encoding/json"
-	"fmt"
-
-	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -29,9 +25,9 @@ type FsNodeSpec struct {
 	EmbeddedHardware `json:",inline"`
 	EmbeddedPosition `json:",inline"`
 	// What file system engine to be installed
-	Engine SimpleSatContainerDef `json:"engine,omitempty"`
+	Engine SimpleContainer `json:"engine,omitempty"`
 	// What agent to be installed.
-	Agent SimpleSatContainerDef `json:"agent,omitempty"`
+	Agent SimpleContainer `json:"agent,omitempty"`
 }
 
 // FsNodeStatus defines the observed state of FsNode.
@@ -80,15 +76,14 @@ type SatList struct {
 	Items           []FsNode `json:"items"`
 }
 
-func (s *SimpleSatContainerDef) ParametersAsMap(objName string) (map[string]string, error) {
-	params := map[string]string{}
-	if s.Parameters.Raw != nil {
-		err := json.Unmarshal(s.Parameters.Raw, &params)
-		if err != nil {
-			return params, errors.Wrap(err, fmt.Sprintf("cannot convert params of '%s'", objName))
+func (s *SimpleContainer) AsMap() (map[string]string, error) {
+	ret := map[string]string{}
+	if s.Envs != nil {
+		for k, v := range s.Envs {
+			ret[k] = v
 		}
 	}
-	return params, nil
+	return ret, nil
 }
 
 func init() {

@@ -141,11 +141,11 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, req ctrl
 			enginePorts = append(enginePorts, v1.ContainerPort{ContainerPort: int32(port)})
 		}
 		enginePorts = append(enginePorts, v1.ContainerPort{ContainerPort: int32(8080)})
-		agentParameters, err := fsNode.Spec.Agent.ParametersAsMap("agent")
+		agentParameters, err := fsNode.Spec.Agent.AsMap()
 		if err != nil {
 			return err
 		}
-		engineParameters, err := fsNode.Spec.Engine.ParametersAsMap("engine")
+		engineParameters, err := fsNode.Spec.Engine.AsMap()
 		if err != nil {
 			return err
 		}
@@ -158,6 +158,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, req ctrl
 				engineResources.Limits[v1.ResourceMemory] = *fsNode.Spec.HardwareSpec.Memory
 			}
 		}
+		// TODO mount
 		var containers []v1.Container
 		containerSpecs := []containerSpec{
 			{
@@ -176,6 +177,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, req ctrl
 				ports:     nil,
 				mods: []modFunc{
 					modVolumeMount(agentTMPVolumeName, "/tmp", false),
+					modFor(fsNode.Spec.Agent),
 				},
 			},
 			{
@@ -186,6 +188,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, req ctrl
 				ports:     enginePorts,
 				mods: []modFunc{
 					modVolumeMount(engineVolumeName, "/var/data", false),
+					modFor(fsNode.Spec.Engine),
 					rootFSReadOnly(),
 				},
 			},
@@ -197,21 +200,6 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, req ctrl
 				},
 				ports: []v1.ContainerPort{{ContainerPort: 8080, Protocol: "TCP"}},
 			},
-		}
-		for _, cs := range containerSpecs {
-			container, err := r.createFsNodeContainerTemplate(fsNode, cs)
-			if err != nil {
-				return errors.Wrap(err, fmt.Sprintf("cannot create container template %s", cs.name))
-			}
-			if container == nil {
-				return fmt.Errorf("cannot create container template %s, nil returned without error", cs.name)
-			}
-			if cs.mods != nil {
-				for _, mod := range cs.mods {
-					mod(container)
-				}
-			}
-			containers = append(containers, *container)
 		}
 
 		var diskSizeLimit *resource.Quantity = nil
@@ -236,10 +224,26 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, req ctrl
 					{Name: engineVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: diskSizeLimit}}},
 					{Name: agentTMPVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
 				},
-				Containers:         containers,
 				ServiceAccountName: controller.ServiceAccountName,
 			},
 		}
+
+		for _, cs := range containerSpecs {
+			container, err := r.createFsNodeContainerTemplate(fsNode, cs)
+			if err != nil {
+				return errors.Wrap(err, fmt.Sprintf("cannot create container template %s", cs.name))
+			}
+			if container == nil {
+				return fmt.Errorf("cannot create container template %s, nil returned without error", cs.name)
+			}
+			if cs.mods != nil {
+				for _, mod := range cs.mods {
+					mod(pod, container)
+				}
+			}
+			containers = append(containers, *container)
+		}
+		pod.Spec.Containers = containers
 
 		err = r.Create(ctx, pod)
 		_ = r.updateStatusCondition(ctx, fsNode, "PodCreation", "creation", err)
