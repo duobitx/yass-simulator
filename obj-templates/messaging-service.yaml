@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: mosquitto
+  name: messaging
 spec:
   clusterIP: None  # headless service for StatefulSet
   ports:
@@ -9,4 +9,4 @@ spec:
       port: 1883
       targetPort: 1883
   selector:
-    app: mosquitto
+    app: messaging

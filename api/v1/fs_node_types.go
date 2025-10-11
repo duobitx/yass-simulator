@@ -69,8 +69,8 @@ type FsNode struct {
 }
 
 // +kubebuilder:object:root=true
-// SatList contains a list of FsNode
-type SatList struct {
+// FsNodeList contains a list of FsNode
+type FsNodeList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
 	Items           []FsNode `json:"items"`
@@ -87,5 +87,5 @@ func (s *SimpleContainer) AsMap() (map[string]string, error) {
 }
 
 func init() {
-	SchemeBuilder.Register(&FsNode{}, &SatList{})
+	SchemeBuilder.Register(&FsNode{}, &FsNodeList{})
 }

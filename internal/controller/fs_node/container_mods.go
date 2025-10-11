@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	v2 "github.com/ESA-PhiLab/yass-operator/api/v1"
+	"github.com/ESA-PhiLab/yass-operator/internal/controller"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -25,6 +26,14 @@ func rootFSReadOnly() modFunc {
 	}
 }
 
+func modMountSharedVolume(ro bool) modFunc {
+	montPath := "/shared"
+	return modComposite(
+		modEnvs(map[string]string{"SHARED_VOLUME_PATH": montPath}),
+		modVolumeMount(sharedVolumeName, montPath, ro),
+	)
+}
+
 func modVolumeMount(volumeName, mountPoint string, ro bool) modFunc {
 	return func(_ *v1.Pod, container *v1.Container) {
 		vms := []v1.VolumeMount{
@@ -42,9 +51,79 @@ func modVolumeMount(volumeName, mountPoint string, ro bool) modFunc {
 	}
 }
 
-func modFor(simpleContainer v2.SimpleContainer) modFunc {
+func modFileProbes(filename string) modFunc {
+	fileProbe := &v1.Probe{
+		ProbeHandler: v1.ProbeHandler{
+			Exec: &v1.ExecAction{
+				Command: []string{"/file_probe.sh"}, // see internal-components->docker_tools
+			},
+		},
+		InitialDelaySeconds: 2,
+		TimeoutSeconds:      1,
+		PeriodSeconds:       3,
+		SuccessThreshold:    1,
+		FailureThreshold:    2,
+	}
+
+	return modComposite(
+		modEnvs(map[string]string{"PROBE_FILE": filename}),
+		func(pod *v1.Pod, container *v1.Container) {
+			container.ReadinessProbe = fileProbe
+			container.LivenessProbe = fileProbe
+		},
+	)
+}
+
+func modEnvs(vars map[string]string) modFunc {
 	return func(pod *v1.Pod, container *v1.Container) {
-		if simpleContainer.ConfigurationFilesFromConfigMap != nil && simpleContainer.ConfigurationFilesFromConfigMap.ConfigMapRef != "" {
+		if container.Env == nil {
+			container.Env = []v1.EnvVar{}
+		}
+		for k, v := range vars {
+			container.Env = append(container.Env, v1.EnvVar{
+				Name:  controller.NormalizeEnvName(k),
+				Value: v,
+			})
+		}
+	}
+}
+
+func modEnvFromField(name, fieldPath string) modFunc {
+	return func(pod *v1.Pod, container *v1.Container) {
+		if container.Env == nil {
+			container.Env = []v1.EnvVar{}
+		}
+		container.Env = append(container.Env, v1.EnvVar{
+			Name: controller.NormalizeEnvName(name),
+			ValueFrom: &v1.EnvVarSource{
+				FieldRef: &v1.ObjectFieldSelector{
+					FieldPath: fieldPath,
+				},
+			},
+		})
+	}
+}
+
+func modComposite(composites ...modFunc) modFunc {
+	return func(pod *v1.Pod, container *v1.Container) {
+		for _, c := range composites {
+			c(pod, container)
+		}
+	}
+}
+
+func modResourcesLimit(resourceRequirements *v1.ResourceRequirements) modFunc {
+	return func(pod *v1.Pod, container *v1.Container) {
+		if resourceRequirements != nil {
+			pod.Spec.Resources = resourceRequirements
+		}
+	}
+}
+
+func modFor(simpleContainer v2.SimpleContainer) modFunc {
+	var modFunctions []modFunc
+	if simpleContainer.ConfigurationFilesFromConfigMap != nil && simpleContainer.ConfigurationFilesFromConfigMap.ConfigMapRef != "" {
+		mf := func(pod *v1.Pod, container *v1.Container) {
 			volName := fmt.Sprintf("vol-%s", simpleContainer.ConfigurationFilesFromConfigMap.ConfigMapRef)
 			valFalse := false
 			if pod.Spec.Volumes == nil {
@@ -78,5 +157,10 @@ func modFor(simpleContainer v2.SimpleContainer) modFunc {
 				MountPath: simpleContainer.ConfigurationFilesFromConfigMap.MountPath,
 			})
 		}
+		modFunctions = append(modFunctions, mf)
 	}
+	if simpleContainer.Envs != nil && len(simpleContainer.Envs) > 0 {
+		modFunctions = append(modFunctions, modEnvs(simpleContainer.Envs))
+	}
+	return modComposite(modFunctions...)
 }

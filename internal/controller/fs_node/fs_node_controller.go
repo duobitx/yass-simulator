@@ -30,6 +30,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -37,9 +38,17 @@ import (
 	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
 )
 
-const sharedVolumeName = "fs-node-shared-volume"
-const engineVolumeName = "engine-volume"
-const agentTMPVolumeName = "agent-tmp-volume"
+const (
+	engineVolumeName   = "engine-volume"
+	agentTMPVolumeName = "agent-tmp-volume"
+	sharedVolumeName   = "fs-node-shared-volume"
+)
+
+var enginePorts = map[int]v1.Protocol{
+	3000: v1.ProtocolTCP, 3001: v1.ProtocolTCP, 3002: v1.ProtocolTCP, 3003: v1.ProtocolTCP, 3004: v1.ProtocolTCP, 3005: v1.ProtocolTCP, 3006: v1.ProtocolTCP,
+	3007: v1.ProtocolTCP, 3008: v1.ProtocolTCP, 3009: v1.ProtocolTCP, 3010: v1.ProtocolTCP,
+	3011: v1.ProtocolUDP, 3012: v1.ProtocolUDP, 3013: v1.ProtocolUDP, 3014: v1.ProtocolUDP, 3015: v1.ProtocolUDP,
+}
 
 // FsNodeReconciler reconciles a FsNode object
 type FsNodeReconciler struct {
@@ -48,12 +57,10 @@ type FsNodeReconciler struct {
 }
 
 type containerSpec struct {
-	name      string
-	image     string
-	resources v1.ResourceRequirements
-	extraEnv  map[string]string
-	ports     []v1.ContainerPort
-	mods      []modFunc
+	name  string
+	image string
+	ports []v1.ContainerPort
+	mods  []modFunc
 }
 
 // +kubebuilder:rbac:groups=yass.int.esa.yass,resources=fsnodes,verbs=get;list;watch;create;update;patch;delete
@@ -84,13 +91,13 @@ func (r *FsNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		experimentName := fsNode.Labels[controller.LabelExperiment]
 		if experimentName == "" {
 			err := fmt.Errorf("experiment label (%s) not set", controller.LabelExperiment)
-			_ = r.updateStatusCondition(ctx, &fsNode, "ExperimentAssigned", "no experiment label", err)
+			_ = r.updateStatusCondition(&fsNode, "ExperimentAssigned", "no experiment label", err)
 			return ctrl.Result{}, err
 		}
 
 		requeue, err := r.updateHardwareSpec(ctx, &fsNode)
 		if requeue || err != nil {
-			_ = r.updateStatusCondition(ctx, &fsNode, "hardwareSpec", "resolving hardwareSpec", err)
+			_ = r.updateStatusCondition(&fsNode, "hardwareSpec", "resolving hardwareSpec", err)
 		}
 		if err != nil {
 			return ctrl.Result{}, errors.Wrap(err, "cannot update hardwareSpec")
@@ -98,10 +105,14 @@ func (r *FsNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		if requeue {
 			return ctrl.Result{RequeueAfter: 500 * time.Millisecond}, nil
 		}
-		err = r.createOrUpdateFsNodePod(ctx, req, &fsNode)
+		err = r.createOrUpdateFsNodePodAndService(ctx, req, &fsNode)
 		if err != nil {
-			_ = r.updateStatusCondition(ctx, &fsNode, "podCreation", "pod", err)
+			_ = r.updateStatusCondition(&fsNode, "podCreation", "pod", err)
 			return ctrl.Result{}, err
+		}
+		err = r.Status().Update(ctx, &fsNode)
+		if err != nil {
+			logf.FromContext(ctx).Error(err, fmt.Sprintf("cannot update fsNode %s status", fsNode.Name))
 		}
 	}
 
@@ -118,7 +129,7 @@ func (r *FsNodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 func (r *FsNodeReconciler) removeFsNode(ctx context.Context, req ctrl.Request) error {
 	pod := &v1.Pod{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: createPodName(req)}, pod)
+	err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: req.Name}, pod)
 	if apierrors.IsNotFound(err) {
 		return nil
 	}
@@ -128,27 +139,19 @@ func (r *FsNodeReconciler) removeFsNode(ctx context.Context, req ctrl.Request) e
 	return r.Delete(ctx, pod)
 }
 
-func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, req ctrl.Request, fsNode *yassv1.FsNode) error {
+func (r *FsNodeReconciler) createOrUpdateFsNodePodAndService(ctx context.Context, req ctrl.Request, fsNode *yassv1.FsNode) error {
 	commonComponentsImage := "ghcr.io/esa-philab/yass/internal-components:latest"
-	podName := createPodName(req)
+	podName := req.Name
 	pod := &v1.Pod{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: podName}, pod)
 	if apierrors.IsNotFound(err) {
 		experimentName := fsNode.Labels[controller.LabelExperiment]
 		// create Pod
-		enginePorts := []v1.ContainerPort{}
-		for port := 3000; port <= 3020; port++ {
-			enginePorts = append(enginePorts, v1.ContainerPort{ContainerPort: int32(port)})
+		var _enginePorts []v1.ContainerPort
+		for port, prot := range enginePorts {
+			_enginePorts = append(_enginePorts, v1.ContainerPort{ContainerPort: int32(port), Protocol: prot})
 		}
-		enginePorts = append(enginePorts, v1.ContainerPort{ContainerPort: int32(8080)})
-		agentParameters, err := fsNode.Spec.Agent.AsMap()
-		if err != nil {
-			return err
-		}
-		engineParameters, err := fsNode.Spec.Engine.AsMap()
-		if err != nil {
-			return err
-		}
+		_enginePorts = append(_enginePorts, v1.ContainerPort{ContainerPort: int32(8080)})
 		engineResources := v1.ResourceRequirements{Limits: map[v1.ResourceName]resource.Quantity{}}
 		if fsNode.Spec.HardwareSpec != nil {
 			if fsNode.Spec.HardwareSpec.CPU != nil && !fsNode.Spec.HardwareSpec.CPU.IsZero() {
@@ -167,42 +170,52 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, req ctrl
 				mods: []modFunc{
 					modVolumeMount(agentTMPVolumeName, "/tmp", false),
 					cmd("/world-controller"),
+					modFileProbes("worldController.txt"),
+					modEnvFromField("POD_IP", "status.podIP"),
+					modEnvFromField("NAMESPACE", "metadata.namespace"),
+					modEnvs(map[string]string{"RESOURCE_NAME": fsNode.Name}),
+					modMountSharedVolume(false),
 				},
 			},
 			{
-				name:      "agent",
-				image:     fsNode.Spec.Agent.Image,
-				resources: v1.ResourceRequirements{},
-				extraEnv:  agentParameters,
-				ports:     nil,
+				name:  "agent",
+				image: fsNode.Spec.Agent.Image,
+				ports: nil,
 				mods: []modFunc{
 					modVolumeMount(agentTMPVolumeName, "/tmp", false),
 					modFor(fsNode.Spec.Agent),
+					modMountSharedVolume(true),
 				},
 			},
 			{
-				name:      "engine",
-				image:     fsNode.Spec.Engine.Image,
-				resources: engineResources,
-				extraEnv:  engineParameters,
-				ports:     enginePorts,
+				name:  "engine",
+				image: fsNode.Spec.Engine.Image,
+				ports: _enginePorts,
 				mods: []modFunc{
 					modVolumeMount(engineVolumeName, "/var/data", false),
 					modFor(fsNode.Spec.Engine),
 					rootFSReadOnly(),
+					modResourcesLimit(&engineResources),
+					modMountSharedVolume(false),
 				},
 			},
 			{
 				name:  "engine-gw",
 				image: "ghcr.io/esa-philab/yass/gateway:latest",
-				extraEnv: map[string]string{
-					"HANDLERS": "http:messaging-gw:8080;http:engine:8080",
-				},
 				ports: []v1.ContainerPort{{ContainerPort: 8080, Protocol: "TCP"}},
+				mods: []modFunc{
+					modEnvs(map[string]string{"HANDLERS": "http:messaging-gw:8080;http:engine:8080"}),
+				},
 			},
 		}
 
+		labels := map[string]string{
+			controller.LabelFsNode:     fsNode.Name,
+			controller.LabelExperiment: experimentName,
+		}
+
 		var diskSizeLimit *resource.Quantity = nil
+		terminationGracePeriodSeconds := int64(8)
 		if fsNode.Spec.HardwareSpec != nil {
 			diskSizeLimit = fsNode.Spec.HardwareSpec.DiskSpace
 		}
@@ -210,21 +223,19 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, req ctrl
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      podName,
 				Namespace: fsNode.Namespace,
-				Labels: map[string]string{
-					controller.LabelFsNode:     fsNode.Name,
-					controller.LabelExperiment: experimentName,
-				},
+				Labels:    labels,
 				OwnerReferences: []metav1.OwnerReference{
 					*metav1.NewControllerRef(fsNode, v1.SchemeGroupVersion.WithKind("FsNode")),
 				},
 			},
 			Spec: v1.PodSpec{
+				TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
 				Volumes: []v1.Volume{
 					{Name: sharedVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}}, // mounted by default under /shared
 					{Name: engineVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: diskSizeLimit}}},
 					{Name: agentTMPVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
 				},
-				ServiceAccountName: controller.ServiceAccountName,
+				//ServiceAccountName: controller.ServiceAccountName, // TODO co z tym ????
 			},
 		}
 
@@ -246,43 +257,56 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, req ctrl
 		pod.Spec.Containers = containers
 
 		err = r.Create(ctx, pod)
-		_ = r.updateStatusCondition(ctx, fsNode, "PodCreation", "creation", err)
+		_ = r.updateStatusCondition(fsNode, "PodCreation", "creation", err)
 		if err != nil {
 			return err
 		}
+
+		var _engineServicePorts []v1.ServicePort
+		for port, proto := range enginePorts {
+			_engineServicePorts = append(_engineServicePorts, v1.ServicePort{
+				Protocol:   proto,
+				Port:       int32(port),
+				TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: int32(port)},
+			})
+		}
+		_ = r.updateStatusCondition(fsNode, "ServiceCreation", "creation", nil)
+		fsNodeService := &v1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fsNode.Name,
+				Namespace: fsNode.Namespace,
+				Labels:    labels,
+				OwnerReferences: []metav1.OwnerReference{
+					*metav1.NewControllerRef(fsNode, v1.SchemeGroupVersion.WithKind("FsNode")),
+				},
+			},
+			Spec: v1.ServiceSpec{
+				Selector: labels,
+				Ports:    _engineServicePorts,
+			},
+		}
+		err = r.Create(ctx, fsNodeService)
+		_ = r.updateStatusCondition(fsNode, "ServiceCreation", "creation", err)
+		return err
 	}
 	return nil
-}
-
-func createPodName(req ctrl.Request) string {
-	return fmt.Sprintf("%s-pod", req.Name)
 }
 
 func (r *FsNodeReconciler) createFsNodeContainerTemplate(fsNode *yassv1.FsNode, cs containerSpec) (*v1.Container, error) {
 	experimentName := fsNode.Labels[controller.LabelExperiment]
 	envVars := []v1.EnvVar{
-		{Name: controller.LabelFsNode, Value: fsNode.Name},
-		{Name: controller.LabelExperiment, Value: experimentName},
-	}
-	for k, v := range cs.extraEnv {
-		envVars = append(envVars, v1.EnvVar{Name: k, Value: v})
+		{Name: controller.NormalizeEnvName(controller.LabelFsNode), Value: fsNode.Name},
+		{Name: controller.NormalizeEnvName(controller.LabelExperiment), Value: experimentName},
 	}
 	for _, ev := range envVars {
 		ev.Name = strings.ToUpper(strings.ReplaceAll(ev.Name, "-", "_"))
 	}
 	container := v1.Container{
-		Name:      cs.name,
-		Image:     cs.image,
-		Ports:     cs.ports,
-		Env:       envVars,
-		Resources: cs.resources,
-		VolumeMounts: []v1.VolumeMount{
-			{
-				Name:      sharedVolumeName,
-				ReadOnly:  false,
-				MountPath: "/shared",
-			},
-		},
+		Name:            cs.name,
+		Image:           cs.image,
+		Ports:           cs.ports,
+		Env:             envVars,
+		VolumeMounts:    []v1.VolumeMount{},
 		LivenessProbe:   nil,
 		ReadinessProbe:  nil,
 		ImagePullPolicy: "Always",
@@ -313,7 +337,7 @@ func (r *FsNodeReconciler) updateHardwareSpec(ctx context.Context, fsNode *yassv
 	return false, nil
 }
 
-func (r *FsNodeReconciler) updateStatusCondition(ctx context.Context, fsNode *yassv1.FsNode, ctype string, reason string, cause error) error {
+func (r *FsNodeReconciler) updateStatusCondition(fsNode *yassv1.FsNode, ctype string, reason string, cause error) error {
 	if reason == "" || cause == nil {
 		reason = "ok"
 	}
@@ -342,10 +366,6 @@ func (r *FsNodeReconciler) updateStatusCondition(ctx context.Context, fsNode *ya
 	condition.LastTransitionTime = metav1.Time{Time: time.Now()}
 	if !found {
 		fsNode.Status.Conditions = append(fsNode.Status.Conditions, *condition)
-	}
-	err := r.Status().Update(ctx, fsNode)
-	if err != nil {
-		logf.FromContext(ctx).Error(err, fmt.Sprintf("cannot update fsNode %s status", fsNode.Name))
 	}
 	return cause
 }

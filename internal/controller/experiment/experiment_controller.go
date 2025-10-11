@@ -1,18 +1,5 @@
 /*
-Copyright 2025.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+ */
 
 package experiment
 
@@ -60,9 +47,6 @@ type ExperimentReconciler struct {
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Guestbook object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
@@ -149,7 +133,7 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 		objCopy := cDef.objSrc.DeepCopyObject()
 		obj := objCopy.(client.Object)
 		objErr := r.createExperimentObjectIfRequired(ctx, req.Namespace, experiment, cDef.fName, cDef.compName, obj, cDef.mod)
-		_ = r.updateStatusCondition(ctx, experiment, cDef.compName, "creation", objErr)
+		_ = r.updateStatusCondition(experiment, cDef.compName, "creation", objErr)
 		if objErr != nil {
 			joinErrHelper.Append(errors.Wrap(objErr, fmt.Sprintf("error creating experiment component %s/%s for %s from template %s", cDef.objSrc.GetObjectKind().GroupVersionKind(), cDef.compName, experiment.Name, cDef.fName)))
 		}
@@ -161,7 +145,7 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 
 	for _, satItem := range layoutDef.Spec {
 		err := r.createFsNodeResource(ctx, req.NamespacedName.Namespace, experiment, expDef, &satItem)
-		_ = r.updateStatusCondition(ctx, experiment, fmt.Sprintf("sat_creation_%s", satItem.FsNodeName), "", err)
+		_ = r.updateStatusCondition(experiment, fmt.Sprintf("sat_creation_%s", satItem.FsNodeName), "", err)
 		if err != nil {
 			return err
 		}
@@ -180,19 +164,17 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 			}
 		}
 	}
+	err = r.Status().Update(ctx, experiment)
+	if err != nil {
+		return errors.Wrap(err, "cannot update experiment.status")
+	}
 	return nil
-}
-
-type expComponent struct {
-	name         string
-	podSpec      func(podSpec *v1.PodSpec)
-	servicePorts []int
 }
 
 func (r *ExperimentReconciler) deleteExperimentObjects(ctx context.Context, namespace, experimentName string) error {
 	logger := logf.FromContext(ctx)
 	gvks := []client.ObjectList{
-		&yassv1.SatList{}, &v1.PodList{}, &v1.ServiceList{}, &v1.ConfigMapList{}, &v1.ServiceAccountList{},
+		&yassv1.FsNodeList{}, &v1.PodList{}, &v1.ServiceList{}, &v1.ConfigMapList{}, &v1.ServiceAccountList{},
 		&appsv1.DeploymentList{}, &appsv1.StatefulSetList{},
 	}
 	for _, objList := range gvks {
@@ -278,7 +260,7 @@ func (r *ExperimentReconciler) createExperimentObjectIfRequired(ctx context.Cont
 	return nil
 }
 
-func (r *ExperimentReconciler) updateStatusCondition(ctx context.Context, exp *yassv1.Experiment, ctype string, reason string, cause error) error {
+func (r *ExperimentReconciler) updateStatusCondition(exp *yassv1.Experiment, ctype string, reason string, cause error) error {
 	if reason == "" || cause == nil {
 		reason = "ok"
 	}
@@ -320,10 +302,6 @@ func (r *ExperimentReconciler) updateStatusCondition(ctx context.Context, exp *y
 		ready = allOk
 	}
 	exp.Status.Ready = ready
-	err := r.Status().Update(ctx, exp)
-	if err != nil {
-		logf.FromContext(ctx).Error(err, fmt.Sprintf("cannot update experiment %s status", exp.Name))
-	}
 	return cause
 }
 
@@ -360,12 +338,12 @@ func (r *ExperimentReconciler) createFsNodeResource(ctx context.Context, namespa
 			},
 		}
 		err = r.Create(ctx, fsNode)
-		_ = r.updateStatusCondition(ctx, experiment, fmt.Sprintf("FsNode-%s", layoutItem.FsNodeName), "creating", err)
+		_ = r.updateStatusCondition(experiment, fmt.Sprintf("FsNode-%s", layoutItem.FsNodeName), "creating", err)
 		if err != nil {
 			r.recorder.Eventf(experiment, v1.EventTypeWarning, "fsNode creation", "fsNode %s error :: %s", fsNode.Name, err)
 			return err
 		}
-		r.recorder.Eventf(experiment, v1.EventTypeNormal, "fsNode creation", "fsNode %s :: online", fsNode.Name)
+		r.recorder.Eventf(experiment, v1.EventTypeNormal, "fsNode creation", "fsNode %s :: created", fsNode.Name)
 	}
 	return nil
 }
@@ -373,9 +351,5 @@ func (r *ExperimentReconciler) createFsNodeResource(ctx context.Context, namespa
 func (r *ExperimentReconciler) startExperiment(ctx context.Context, experiment *yassv1.Experiment) error {
 	// TODO call experiment executor
 	experiment.Status.Started = &metav1.Time{Time: time.Now()}
-	err := r.Status().Update(ctx, experiment)
-	if err != nil {
-		logf.FromContext(ctx).Error(err, fmt.Sprintf("cannot update experiment %s status (started)", experiment.Name))
-	}
 	return nil
 }

@@ -16,17 +16,19 @@ spec:
       containers:
         - name: mosquitto
           image: "ghcr.io/esa-philab/yass/eclipse-mosquitto:latest"
-          imagePullPolicy: "Always"
+          imagePullPolicy: "Always"  # TODO
           ports:
             - containerPort: 1883
               name: mqtt
-          livenessProbe:
-            tcpSocket:
-              port: 1883
-            initialDelaySeconds: 10
-            periodSeconds: 30
-          readinessProbe:
-            tcpSocket:
-              port: 1883
-            initialDelaySeconds: 5
-            periodSeconds: 10
+
+              # TODO
+#          livenessProbe:
+#            tcpSocket:
+#              port: 1883
+#            initialDelaySeconds: 10
+#            periodSeconds: 30
+#          readinessProbe:
+#            tcpSocket:
+#              port: 1883
+#            initialDelaySeconds: 5
+#            periodSeconds: 10
