@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package yass.fs;
+
+option go_package = "github.com/ESA-PhiLab/yass-internal-components/go-common/proto;proto";
+
+message FsNodeId {
+  string name = 1;
+  string experiment = 2;
+}
+
+message FsNodeOnlineState {
+  FsNodeId fsNodeId = 1;
+  string ip = 2;
+  bool online = 3;
+
+}

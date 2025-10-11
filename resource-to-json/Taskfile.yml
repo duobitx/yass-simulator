@@ -1,0 +1,34 @@
+version: '3'
+
+vars:
+  TARGETARCH: 'amd64'
+  TARGETOS:   'linux'
+
+silent: true
+
+tasks:
+  build:
+    sources:
+      - '**/*.go'
+      - go.mod
+      - exclude: '**/*_test.go'
+    desc: Build the resource-to-json binary
+    env:
+      CGO_ENABLED: '0'
+      GOOS:   '{{.TARGETOS}}'
+      GOARCH: '{{.TARGETARCH}}'
+    cmds:
+      - go build -o main -a main.go
+
+  test:
+    deps:
+      - build
+    desc: Run tests
+    cmds:
+      - go test ./...
+
+  default:
+    desc: Alias to build
+    cmds:
+      - task: build
+      - task: test

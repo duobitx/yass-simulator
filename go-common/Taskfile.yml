@@ -1,0 +1,55 @@
+version: '3'
+
+vars:
+  GO_BIN:
+    sh: go env GOPATH
+
+silent: true
+
+tasks:
+  help:
+    desc: Show available tasks
+    cmds:
+      - |
+        echo "Available tasks:"
+        echo "  task tools        # Install required protoc Go plugins (protoc-gen-go)"
+        echo "  task proto        # Generate Go code for all .proto files"
+        echo "  task proto-clean  # Remove generated *.pb.go files"
+        echo "Notes: Requires 'protoc' installed on your system."
+
+  tools:
+    desc: Install required protobuf codegen plugins for Go (requires protoc installed)
+    cmds:
+      - |
+        if ! command -v protoc >/dev/null 2>&1; then \
+          echo "Error: protoc not found. Please install Protocol Buffers compiler."; \
+          echo "See: https://grpc.io/docs/protoc-installation/"; \
+          exit 1; \
+        fi
+      - echo "Installing protoc-gen-go..."
+      - GO111MODULE=on go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.5
+
+  proto:
+    desc: Generate Go files from all .proto files
+    deps: [tools]
+    cmds:
+      - |
+        PROTO_FILES=$(find . -type f -name '*.proto' -not -path './.*/*'); \
+        if [ -z "${PROTO_FILES}" ]; then \
+          echo "No .proto files found."; \
+          exit 0; \
+        fi; \
+        echo "Generating Go code from protos..."; \
+        for f in ${PROTO_FILES}; do \
+          echo "  protoc ${f}"; \
+          protoc -I . --go_out=paths=source_relative:. ${f}; \
+        done; \
+        echo "Done."
+
+  proto-clean:
+    desc: Remove generated *.pb.go files
+    cmds:
+      - |
+        echo "Removing generated *.pb.go files..."; \
+        find . -type f \( -name '*.pb.go' -o -name '*_pb.go' \) -not -path './.*/*' -print -delete; \
+        echo "Clean complete."
