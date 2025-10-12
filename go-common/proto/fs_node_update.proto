@@ -9,6 +9,7 @@ message FsNodeUpdate {
 
   bool in_shadow = 2;
 
+  optional string pos_str = 3;
 
   // Last update timestamp as Unix seconds.
   int64 updated_unix_sec = 6;
