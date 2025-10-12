@@ -9,14 +9,13 @@ func init() {
 	SchemeBuilder.Register(&HardwareDefinition{}, &HardwareDefinitionList{})
 }
 
+// HardwareDefinition definition of the hardware installed on the satellite or ground station.
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="CPU",type=string,JSONPath=`.spec.CPU`
 // +kubebuilder:printcolumn:name="Memory",type=string,JSONPath=`.spec.Memory`
 // +kubebuilder:printcolumn:name="DiskSpace",type=string,JSONPath=`.spec.DiskSpace`
-
-// A definition of the hardware installed on the satelite or ground station.
 type HardwareDefinition struct {
 	metav1.TypeMeta `json:",inline"`
 
