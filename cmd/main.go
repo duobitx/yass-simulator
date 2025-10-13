@@ -21,8 +21,11 @@ import (
 	"flag"
 	"os"
 
+	"github.com/ESA-PhiLab/yass-operator/internal/config"
 	"github.com/ESA-PhiLab/yass-operator/internal/controller/experiment"
 	"github.com/ESA-PhiLab/yass-operator/internal/controller/fs_node"
+	"github.com/m-szalik/goutils"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -177,20 +180,25 @@ func main() {
 		// LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
-		setupLog.Error(err, "unable to start manager")
-		os.Exit(1)
+		goutils.ExitOnErrorf(err, 1, "unable to start manager")
+	}
+	conf, err := config.NewConfiguration()
+	if err != nil {
+		goutils.ExitOnErrorf(err, 2, "unable to prepare configuration")
 	}
 
 	if err := (&experiment.ExperimentReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Configuration: conf,
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Experiment")
 		os.Exit(1)
 	}
 	if err := (&fs_node.FsNodeReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Configuration: conf,
+		Client:        mgr.GetClient(),
+		Scheme:        mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "FsNode")
 		os.Exit(1)

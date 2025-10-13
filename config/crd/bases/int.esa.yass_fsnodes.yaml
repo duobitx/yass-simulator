@@ -17,16 +17,19 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.batteryChargeLevel
+    - jsonPath: .status.ready
+      name: Ready
+      type: string
+    - jsonPath: .status.batteryChargeLevel
       name: BatLev
       type: string
-    - jsonPath: .spec.batteryChargeRate
+    - jsonPath: .status.batteryChargeRate
       name: BatCharge
       type: string
-    - jsonPath: .spec.lowPower
+    - jsonPath: .status.lowPower
       name: LowPower
       type: boolean
-    - jsonPath: .spec.posStr
+    - jsonPath: .status.posStr
       name: PosOverEarth
       type: boolean
     name: v1
@@ -255,11 +258,14 @@ spec:
                 type: boolean
               posStr:
                 type: string
+              ready:
+                type: boolean
             required:
             - batteryChargeLevel
             - batteryChargeRate
             - lowPower
             - posStr
+            - ready
             type: object
         required:
         - spec

@@ -287,9 +287,13 @@ func (in *ExperimentStatus) DeepCopyInto(out *ExperimentStatus) {
 	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
-		*out = make([]metav1.Condition, len(*in))
+		*out = make([]*metav1.Condition, len(*in))
 		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(metav1.Condition)
+				(*in).DeepCopyInto(*out)
+			}
 		}
 	}
 }
@@ -387,9 +391,13 @@ func (in *FsNodeStatus) DeepCopyInto(out *FsNodeStatus) {
 	*out = *in
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
-		*out = make([]metav1.Condition, len(*in))
+		*out = make([]*metav1.Condition, len(*in))
 		for i := range *in {
-			(*in)[i].DeepCopyInto(&(*out)[i])
+			if (*in)[i] != nil {
+				in, out := &(*in)[i], &(*out)[i]
+				*out = new(metav1.Condition)
+				(*in).DeepCopyInto(*out)
+			}
 		}
 	}
 }

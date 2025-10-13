@@ -36,21 +36,23 @@ type FsNodeStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	// +optional
-	Conditions         []metav1.Condition `json:"conditions,omitempty"`
-	PosStr             string             `json:"posStr"`
-	LowPower           bool               `json:"lowPower"`
-	BatteryChargeLevel string             `json:"batteryChargeLevel"`
-	BatteryChargeRate  string             `json:"batteryChargeRate"`
+	Conditions         []*metav1.Condition `json:"conditions,omitempty"`
+	Ready              bool                `json:"ready"`
+	PosStr             string              `json:"posStr"`
+	LowPower           bool                `json:"lowPower"`
+	BatteryChargeLevel string              `json:"batteryChargeLevel"`
+	BatteryChargeRate  string              `json:"batteryChargeRate"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:shortName=fsn
 // +kubebuilder:resource:shortName=fsns
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="BatLev",type=string,JSONPath=`.spec.batteryChargeLevel`
-// +kubebuilder:printcolumn:name="BatCharge",type=string,JSONPath=`.spec.batteryChargeRate`
-// +kubebuilder:printcolumn:name="LowPower",type=boolean,JSONPath=`.spec.lowPower`
-// +kubebuilder:printcolumn:name="PosOverEarth",type=boolean,JSONPath=`.spec.posStr`
+// +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.ready`
+// +kubebuilder:printcolumn:name="BatLev",type=string,JSONPath=`.status.batteryChargeLevel`
+// +kubebuilder:printcolumn:name="BatCharge",type=string,JSONPath=`.status.batteryChargeRate`
+// +kubebuilder:printcolumn:name="LowPower",type=boolean,JSONPath=`.status.lowPower`
+// +kubebuilder:printcolumn:name="PosOverEarth",type=boolean,JSONPath=`.status.posStr`
 // FsNode is the Schema for the FsNode API
 type FsNode struct {
 	metav1.TypeMeta `json:",inline"`

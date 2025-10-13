@@ -13,7 +13,7 @@ spec:
       labels:
         app: experiment-executor
     spec:
-      serviceAccountName: "yass-sa"
+#      serviceAccountName: "yass-sa"
       initContainers:
         - name: resource-to-json-experiment
           image: "ghcr.io/esa-philab/yass/internal-components:latest"
@@ -28,7 +28,7 @@ spec:
             - name: RESOURCE_NAME
               valueFrom:
                 fieldRef:
-                  fieldPath: metadata.annotations['experiment']
+                  fieldPath: metadata.annotations['yass-experiment']
             - name: NAMESPACE
               valueFrom:
                 fieldRef:
@@ -42,14 +42,6 @@ spec:
           imagePullPolicy: "Always"
           command:
             - "/experiment-executor"
-          volumeMounts:
-            - mountPath: /shared
-              name: shared
-        - name: geo-calculator
-          image: "ghcr.io/esa-philab/yass/internal-components:latest"
-          imagePullPolicy: "Always"
-          command:
-            - "/geo-calculator"
           volumeMounts:
             - mountPath: /shared
               name: shared

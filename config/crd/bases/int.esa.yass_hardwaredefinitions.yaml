@@ -27,8 +27,8 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: A definition of the hardware installed on the satelite or ground
-          station.
+        description: HardwareDefinition definition of the hardware installed on the
+          satellite or ground station.
         properties:
           apiVersion:
             description: |-

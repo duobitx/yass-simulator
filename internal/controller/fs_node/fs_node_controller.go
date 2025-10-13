@@ -22,7 +22,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/ESA-PhiLab/yass-operator/internal/config"
 	"github.com/ESA-PhiLab/yass-operator/internal/controller"
+	"github.com/m-szalik/goutils"
+	"github.com/m-szalik/goutils/collections"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -53,7 +56,8 @@ var enginePorts = map[int]v1.Protocol{
 // FsNodeReconciler reconciles a FsNode object
 type FsNodeReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme        *runtime.Scheme
+	Configuration *config.Configuration
 }
 
 type containerSpec struct {
@@ -80,43 +84,42 @@ func (r *FsNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	err := r.Get(ctx, req.NamespacedName, &fsNode)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			// 🔴 Resource was deleted
 			logger.Info("FsNode deleted", "name", req.NamespacedName)
 			err := r.removeFsNode(ctx, req)
 			return ctrl.Result{}, err
 		}
-		// Some other error
 		return ctrl.Result{}, err
 	} else {
-		experimentName := fsNode.Labels[controller.LabelExperiment]
-		if experimentName == "" {
-			err := fmt.Errorf("experiment label (%s) not set", controller.LabelExperiment)
-			_ = r.updateStatusCondition(&fsNode, "ExperimentAssigned", "no experiment label", err)
-			return ctrl.Result{}, err
-		}
-
 		requeue, err := r.updateHardwareSpec(ctx, &fsNode)
-		if requeue || err != nil {
-			_ = r.updateStatusCondition(&fsNode, "hardwareSpec", "resolving hardwareSpec", err)
-		}
-		if err != nil {
-			return ctrl.Result{}, errors.Wrap(err, "cannot update hardwareSpec")
-		}
 		if requeue {
 			return ctrl.Result{RequeueAfter: 500 * time.Millisecond}, nil
 		}
+		defer func() {
+			fsNode.Status.Ready = collections.AllMatch(fsNode.Status.Conditions, func(element *metav1.Condition) bool {
+				return element.Status == metav1.ConditionTrue
+			})
+			err := r.Status().Update(ctx, &fsNode)
+			if err != nil {
+				logger.Error(err, "error updating fsNode status")
+			}
+		}()
+		if err != nil {
+			r.updateStatusCondition(&fsNode, "hardwareSpec", err.Error(), "hardwareNotAssigned", false)
+		} else {
+			r.updateStatusCondition(&fsNode, "hardwareSpec", "", "hardwareAssigned", true)
+		}
+		experimentName := fsNode.Labels[controller.LabelExperiment]
+		if experimentName == "" {
+			r.updateStatusCondition(&fsNode, "experimentAssigned", fmt.Sprintf("no %s label found", controller.LabelExperiment), "noExperimentLabel", false)
+			return ctrl.Result{RequeueAfter: 500 * time.Millisecond}, nil
+		}
+		r.updateStatusCondition(&fsNode, "experimentAssigned", "experiment assigned", "experimentLabelFound", true)
 		err = r.createOrUpdateFsNodePodAndService(ctx, req, &fsNode)
 		if err != nil {
-			_ = r.updateStatusCondition(&fsNode, "podCreation", "pod", err)
 			return ctrl.Result{}, err
 		}
-		err = r.Status().Update(ctx, &fsNode)
-		if err != nil {
-			logf.FromContext(ctx).Error(err, fmt.Sprintf("cannot update fsNode %s status", fsNode.Name))
-		}
+		return ctrl.Result{}, err
 	}
-
-	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -140,7 +143,7 @@ func (r *FsNodeReconciler) removeFsNode(ctx context.Context, req ctrl.Request) e
 }
 
 func (r *FsNodeReconciler) createOrUpdateFsNodePodAndService(ctx context.Context, req ctrl.Request, fsNode *yassv1.FsNode) error {
-	commonComponentsImage := "ghcr.io/esa-philab/yass/internal-components:latest"
+	True := true
 	podName := req.Name
 	pod := &v1.Pod{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: podName}, pod)
@@ -166,9 +169,8 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePodAndService(ctx context.Context
 		containerSpecs := []containerSpec{
 			{
 				name:  "world-controller",
-				image: commonComponentsImage,
+				image: r.Configuration.InternalComponentImage,
 				mods: []modFunc{
-					modVolumeMount(agentTMPVolumeName, "/tmp", false),
 					cmd("/world-controller"),
 					modFileProbes("worldController.txt"),
 					modEnvFromField("POD_IP", "status.podIP"),
@@ -199,21 +201,11 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePodAndService(ctx context.Context
 					modMountSharedVolume(false),
 				},
 			},
-			{
-				name:  "engine-gw",
-				image: "ghcr.io/esa-philab/yass/gateway:latest",
-				ports: []v1.ContainerPort{{ContainerPort: 8080, Protocol: "TCP"}},
-				mods: []modFunc{
-					modEnvs(map[string]string{"HANDLERS": "http:messaging-gw:8080;http:engine:8080"}),
-				},
-			},
 		}
-
 		labels := map[string]string{
 			controller.LabelFsNode:     fsNode.Name,
 			controller.LabelExperiment: experimentName,
 		}
-
 		var diskSizeLimit *resource.Quantity = nil
 		terminationGracePeriodSeconds := int64(8)
 		if fsNode.Spec.HardwareSpec != nil {
@@ -239,6 +231,17 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePodAndService(ctx context.Context
 			},
 		}
 
+		initContainer := &v1.Container{
+			Name:            "resource-to-json",
+			Command:         []string{"/resource-to-json"},
+			Image:           r.Configuration.InternalComponentImage,
+			ImagePullPolicy: r.Configuration.InternalComponentImagePullPolicy,
+		}
+		modMountSharedVolume(false)(pod, initContainer)
+		modEnvs(map[string]string{"DST_FILE": "/shared/fs-node.json", "RESOURCE_KIND": fsNode.Kind, "RESOURCE_NAME": fsNode.Name})(pod, initContainer)
+		modEnvFromField("NAMESPACE", "metadata.namespace")(pod, initContainer)
+		pod.Spec.InitContainers = []v1.Container{*initContainer}
+
 		for _, cs := range containerSpecs {
 			container, err := r.createFsNodeContainerTemplate(fsNode, cs)
 			if err != nil {
@@ -255,9 +258,13 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePodAndService(ctx context.Context
 			containers = append(containers, *container)
 		}
 		pod.Spec.Containers = containers
+		pod.Spec.AutomountServiceAccountToken = &True
 
 		err = r.Create(ctx, pod)
-		_ = r.updateStatusCondition(fsNode, "PodCreation", "creation", err)
+		if apierrors.IsAlreadyExists(err) {
+			err = nil
+		}
+		r.updateStatusConditionForObject(fsNode, "fsNodePod", pod, err)
 		if err != nil {
 			return err
 		}
@@ -265,12 +272,12 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePodAndService(ctx context.Context
 		var _engineServicePorts []v1.ServicePort
 		for port, proto := range enginePorts {
 			_engineServicePorts = append(_engineServicePorts, v1.ServicePort{
+				Name:       strings.ToLower(fmt.Sprintf("port%d%s", port, proto)),
 				Protocol:   proto,
 				Port:       int32(port),
 				TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: int32(port)},
 			})
 		}
-		_ = r.updateStatusCondition(fsNode, "ServiceCreation", "creation", nil)
 		fsNodeService := &v1.Service{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      fsNode.Name,
@@ -286,8 +293,24 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePodAndService(ctx context.Context
 			},
 		}
 		err = r.Create(ctx, fsNodeService)
-		_ = r.updateStatusCondition(fsNode, "ServiceCreation", "creation", err)
+		if apierrors.IsAlreadyExists(err) {
+			err = nil
+		}
+		r.updateStatusConditionForObject(fsNode, "fsNodeService", fsNodeService, err)
 		return err
+	} else { // Pod found or other error
+		if err != nil {
+			r.updateStatusConditionForObject(fsNode, "fsNodePod", pod, err)
+		} else {
+			podReady := collections.AllMatch(pod.Status.Conditions, func(element v1.PodCondition) bool {
+				return element.Status == v1.ConditionTrue
+			})
+			if podReady {
+				r.updateStatusConditionForObject(fsNode, "fsNodePod", pod, nil)
+			} else {
+				r.updateStatusConditionForObject(fsNode, "fsNodePod", pod, errors.New("podNotReady"))
+			}
+		}
 	}
 	return nil
 }
@@ -309,7 +332,7 @@ func (r *FsNodeReconciler) createFsNodeContainerTemplate(fsNode *yassv1.FsNode, 
 		VolumeMounts:    []v1.VolumeMount{},
 		LivenessProbe:   nil,
 		ReadinessProbe:  nil,
-		ImagePullPolicy: "Always",
+		ImagePullPolicy: r.Configuration.InternalComponentImagePullPolicy,
 	}
 	return &container, nil
 }
@@ -331,41 +354,66 @@ func (r *FsNodeReconciler) updateHardwareSpec(ctx context.Context, fsNode *yassv
 			if err != nil {
 				return false, err
 			}
+			return true, nil
 		}
-		return true, nil
 	}
 	return false, nil
 }
 
-func (r *FsNodeReconciler) updateStatusCondition(fsNode *yassv1.FsNode, ctype string, reason string, cause error) error {
-	if reason == "" || cause == nil {
-		reason = "ok"
+func (r *FsNodeReconciler) updateStatusConditionForObject(fsNode *yassv1.FsNode, ctype string, obj client.Object, cause error) {
+	newReason := ""
+	newStatus := false
+	newMessage := ""
+	if cause != nil {
+		newMessage = cause.Error()
+		newReason = "error"
+	} else {
+		newMessage = ""
+		ready := false
+		switch x := obj.(type) {
+		case *v1.Pod:
+			ready = collections.AllMatch(x.Status.Conditions, func(element v1.PodCondition) bool {
+				return element.Status == v1.ConditionTrue
+			})
+		default:
+			ready = true
+		}
+		if ready {
+			newStatus = true
+			newReason = "ok"
+		} else {
+			newStatus = false
+			newReason = "notReady"
+		}
 	}
+	r.updateStatusCondition(fsNode, ctype, newMessage, newReason, newStatus)
+}
+
+func (r *FsNodeReconciler) updateStatusCondition(fsNode *yassv1.FsNode, ctype, message, reason string, status bool) {
 	var condition *metav1.Condition
 	found := false
 	for _, c := range fsNode.Status.Conditions {
 		if c.Type == ctype {
-			condition = &c
+			condition = c
 			found = true
 			break
 		}
 	}
 	if !found {
 		condition = &metav1.Condition{
-			Type: ctype,
+			Type:   ctype,
+			Status: metav1.ConditionUnknown,
+			Reason: "undefined",
 		}
 	}
-	if cause == nil {
-		condition.Status = metav1.ConditionTrue
-		condition.Message = ""
-	} else {
-		condition.Status = metav1.ConditionFalse
-		condition.Message = fmt.Sprintf("error: %s", cause.Error())
+	newStatus := goutils.BoolTo(status, metav1.ConditionTrue, metav1.ConditionFalse)
+	if condition.Status != newStatus || condition.Reason != reason || condition.Message != message {
+		condition.LastTransitionTime = metav1.Time{Time: time.Now()}
+		condition.Status = newStatus
+		condition.Message = message
+		condition.Reason = reason
 	}
-	condition.Reason = strings.ReplaceAll(reason, " ", "_")
-	condition.LastTransitionTime = metav1.Time{Time: time.Now()}
 	if !found {
-		fsNode.Status.Conditions = append(fsNode.Status.Conditions, *condition)
+		fsNode.Status.Conditions = append(fsNode.Status.Conditions, condition)
 	}
-	return cause
 }

@@ -7,12 +7,13 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strings"
 	"time"
 
 	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
+	"github.com/ESA-PhiLab/yass-operator/internal/config"
 	"github.com/ESA-PhiLab/yass-operator/internal/controller"
 	"github.com/m-szalik/goutils"
+	"github.com/m-szalik/goutils/collections"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -35,8 +36,9 @@ const (
 // ExperimentReconciler reconciles an Experiment object
 type ExperimentReconciler struct {
 	client.Client
-	recorder record.EventRecorder
-	Scheme   *runtime.Scheme
+	Configuration *config.Configuration
+	recorder      record.EventRecorder
+	Scheme        *runtime.Scheme
 }
 
 // +kubebuilder:rbac:groups=int.esa.yass,resources=experiments,verbs=get;list;watch;create;update;patch;delete
@@ -55,13 +57,11 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	logger := logf.FromContext(ctx)
 	logger.Info(fmt.Sprintf("req %+v", req))
 
-	// Fetch the resource
 	var experiment yassv1.Experiment
 	err := r.Get(ctx, req.NamespacedName, &experiment)
 
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			// Resource experiment was deleted
+		if apierrors.IsNotFound(err) { // Resource experiment was deleted
 			logger.Info("Experiment deleted", "name", req.NamespacedName)
 			err = r.deleteExperimentObjects(ctx, req.NamespacedName.Namespace, req.Name)
 			return ctrl.Result{}, err
@@ -69,8 +69,15 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	} else {
 		err = r.createOrUpdateExperiment(ctx, req, &experiment)
+		upErr := r.Status().Update(ctx, &experiment)
+		if upErr != nil {
+			logger.Error(upErr, "cannot update experiment status")
+		}
 		if err != nil {
 			return ctrl.Result{}, err
+		}
+		if !experiment.Status.Ready {
+			return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
 		}
 	}
 	return ctrl.Result{}, nil
@@ -86,54 +93,40 @@ func (r *ExperimentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req ctrl.Request, experiment *yassv1.Experiment) error {
+	experiment.Status.Ready = false
+	exDef := yassv1.ExperimentDefinition{}
 	if experiment.Spec.ExperimentDefRef == "" {
-		r.recorder.Eventf(experiment, v1.EventTypeWarning, "experimentDefRef not defined", ".spec.experimentDefRef is empty")
-		return fmt.Errorf("experiment.spec.experimentDefRef must not be empty")
+		r.updateStatusConditionForExperimentObject(experiment, "experiment-definition", &exDef, errors.New("experimentDefRef is empty"))
+	} else {
+		err := r.Get(ctx, types.NamespacedName{Name: experiment.Spec.ExperimentDefRef}, &exDef)
+		r.updateStatusConditionForExperimentObject(experiment, "experiment-definition", &exDef, err)
 	}
-	expDef := &yassv1.ExperimentDefinition{}
-	if err := r.Get(ctx, types.NamespacedName{Name: experiment.Spec.ExperimentDefRef}, expDef); err != nil {
-		if apierrors.IsNotFound(err) {
-			r.recorder.Eventf(experiment, v1.EventTypeWarning, "experimentDefRef not found", "experimentDefinition %s not found", experiment.Spec.ExperimentDefRef)
-			logf.FromContext(ctx).Info("ExperimentDefinition not found", "name", experiment.Spec.ExperimentDefRef)
-			// Gracefully ignore to allow controller to requeue on future changes
-			return nil
-		}
-		return err
-	}
-	r.recorder.Eventf(experiment, v1.EventTypeNormal, "experimentDefRef", "experimentDefinition %s found", experiment.Spec.ExperimentDefRef)
-	if experiment.Spec.LayoutDefRef == "" {
-		r.recorder.Eventf(experiment, v1.EventTypeWarning, "layoutRef not defined", ".spec.layoutDefRef is empty")
-		return fmt.Errorf("experiment.spec.layoutDefRef must not be empty")
-	}
-	layoutDef := &yassv1.Layout{}
-	if err := r.Get(ctx, types.NamespacedName{Name: experiment.Spec.LayoutDefRef}, layoutDef); err != nil {
-		if apierrors.IsNotFound(err) {
-			logf.FromContext(ctx).Info("Layout not found", "name", experiment.Spec.LayoutDefRef)
-			r.recorder.Eventf(experiment, v1.EventTypeWarning, "layoutDefRef not found", "layout %s not found", experiment.Spec.LayoutDefRef)
-			// Gracefully ignore to allow controller to requeue on future changes
-			return nil
-		}
-		return err
-	}
-	r.recorder.Eventf(experiment, v1.EventTypeNormal, "layoutDefRef found", "layout %s found", experiment.Spec.LayoutDefRef)
 
-	componentDefs := []struct {
+	layoutDef := yassv1.Layout{}
+	if experiment.Spec.LayoutDefRef == "" {
+		r.updateStatusConditionForExperimentObject(experiment, "layout", &exDef, errors.New("layoutDefRef is empty"))
+	} else {
+		err := r.Get(ctx, types.NamespacedName{Name: experiment.Spec.LayoutDefRef}, &layoutDef)
+		r.updateStatusConditionForExperimentObject(experiment, "layout", &layoutDef, err)
+	}
+
+	componentDefinitions := []struct {
 		fName    string
 		compName string
 		objSrc   client.Object
 		mod      func(object client.Object)
 	}{
 		{"yaas-serviceaccount.yaml", "yass-sa", &v1.ServiceAccount{}, nil},
-		{"messaging-statefulSet.yaml", "messaging", &appsv1.StatefulSet{}, nil},
+		{"messaging-statefulSet.yaml", "messaging", &appsv1.StatefulSet{}, modAddExperimentAnnotation(experiment.Name)},
 		{"messaging-service.yaml", "messaging", &v1.Service{}, nil},
-		{"experiment-executor-statefulSet.yaml", "experiment-executor", &appsv1.StatefulSet{}, nil},
+		{"experiment-executor-statefulSet.yaml", "experiment-executor", &appsv1.StatefulSet{}, modAddExperimentAnnotation(experiment.Name)},
+		{"experiment-executor-service.yaml", "experiment-executor", &v1.Service{}, nil},
 	}
 	joinErrHelper := &goutils.JoinErrorHelper{}
-	for _, cDef := range componentDefs {
+	for _, cDef := range componentDefinitions {
 		objCopy := cDef.objSrc.DeepCopyObject()
 		obj := objCopy.(client.Object)
-		objErr := r.createExperimentObjectIfRequired(ctx, req.Namespace, experiment, cDef.fName, cDef.compName, obj, cDef.mod)
-		_ = r.updateStatusCondition(experiment, cDef.compName, "creation", objErr)
+		objErr := r.createExperimentComponentIfRequired(ctx, req.Namespace, experiment, cDef.fName, cDef.compName, obj, cDef.mod)
 		if objErr != nil {
 			joinErrHelper.Append(errors.Wrap(objErr, fmt.Sprintf("error creating experiment component %s/%s for %s from template %s", cDef.objSrc.GetObjectKind().GroupVersionKind(), cDef.compName, experiment.Name, cDef.fName)))
 		}
@@ -143,30 +136,25 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 		return err
 	}
 
-	for _, satItem := range layoutDef.Spec {
-		err := r.createFsNodeResource(ctx, req.NamespacedName.Namespace, experiment, expDef, &satItem)
-		_ = r.updateStatusCondition(experiment, fmt.Sprintf("sat_creation_%s", satItem.FsNodeName), "", err)
+	joinErrHelper = &goutils.JoinErrorHelper{}
+	if layoutDef.Spec != nil {
+		for _, satItem := range layoutDef.Spec {
+			err = r.createFsNodeResource(ctx, req.NamespacedName.Namespace, experiment, &exDef, &satItem)
+			joinErrHelper.Append(err)
+		}
+	}
+	if err := joinErrHelper.AsError(); err != nil {
+		return err
+	}
+
+	experiment.Status.Ready = collections.AllMatch(experiment.Status.Conditions, func(element *metav1.Condition) bool {
+		return element.Status == metav1.ConditionTrue
+	})
+	if experiment.Spec.Start && experiment.Status.Ready {
+		err = r.startExperiment(ctx, experiment)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "cannot start experiment")
 		}
-	}
-	if experiment.Spec.Start {
-		failedConditions := 0
-		for _, cond := range experiment.Status.Conditions {
-			if cond.Status == metav1.ConditionFalse {
-				failedConditions++
-			}
-		}
-		if failedConditions == 0 {
-			err = r.startExperiment(ctx, experiment)
-			if err != nil {
-				return errors.Wrap(err, "unable to start experiment")
-			}
-		}
-	}
-	err = r.Status().Update(ctx, experiment)
-	if err != nil {
-		return errors.Wrap(err, "cannot update experiment.status")
 	}
 	return nil
 }
@@ -214,9 +202,11 @@ func (r *ExperimentReconciler) deleteExperimentObjects(ctx context.Context, name
 	return nil
 }
 
-func (r *ExperimentReconciler) createExperimentObjectIfRequired(ctx context.Context, namespace string, experiment *yassv1.Experiment, fName string, objName string, obj client.Object, modifier func(o client.Object)) error {
-	logger := logf.FromContext(ctx)
+func (r *ExperimentReconciler) createExperimentComponentIfRequired(ctx context.Context, namespace string, experiment *yassv1.Experiment, fName string, objName string, obj client.Object, modifier func(o client.Object)) (exitErr error) {
 	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: objName}, obj)
+	defer func() {
+		r.updateStatusConditionForExperimentObject(experiment, objName, obj, exitErr)
+	}()
 	if err == nil {
 		return nil
 	}
@@ -251,63 +241,80 @@ func (r *ExperimentReconciler) createExperimentObjectIfRequired(ctx context.Cont
 		modifier(obj)
 	}
 	err = r.Create(ctx, obj)
-	if err != nil {
-		r.recorder.Eventf(experiment, v1.EventTypeWarning, objName, fmt.Sprintf("creation error: %s", err.Error()))
-		return err
-	}
-	r.recorder.Eventf(experiment, v1.EventTypeNormal, objName, "component created")
-	logger.Info(fmt.Sprintf("object %s of type %T created", objName, obj))
-	return nil
+	return err
 }
 
-func (r *ExperimentReconciler) updateStatusCondition(exp *yassv1.Experiment, ctype string, reason string, cause error) error {
-	if reason == "" || cause == nil {
-		reason = "ok"
-	}
+func (r *ExperimentReconciler) updateStatusConditionForExperimentObject(exp *yassv1.Experiment, compName string, obj client.Object, extra error) {
+	ctype := fmt.Sprintf("%s-%s", compName, obj.GetObjectKind().GroupVersionKind().Kind)
 	var condition *metav1.Condition
 	found := false
 	for _, c := range exp.Status.Conditions {
 		if c.Type == ctype {
-			condition = &c
+			condition = c
 			found = true
 			break
 		}
 	}
 	if !found {
 		condition = &metav1.Condition{
-			Type: ctype,
+			Type:   ctype,
+			Status: metav1.ConditionUnknown,
+			Reason: "undefined",
 		}
 	}
-	if cause == nil {
-		condition.Status = metav1.ConditionTrue
-		condition.Message = ""
+	newStatus := condition.Status
+	newReason := condition.Reason
+	newMessage := ""
+	if extra != nil {
+		newStatus = metav1.StatusFailure
+		if apierrors.IsNotFound(extra) {
+			newReason = "objectNotFound"
+		} else {
+			newReason = "error"
+			newMessage = extra.Error()
+		}
 	} else {
-		condition.Status = metav1.ConditionFalse
-		condition.Message = fmt.Sprintf("error: %s", cause.Error())
-	}
-	condition.Reason = strings.ReplaceAll(reason, " ", "_")
-	condition.LastTransitionTime = metav1.Time{Time: time.Now()}
-	if !found {
-		exp.Status.Conditions = append(exp.Status.Conditions, *condition)
-	}
-	ready := false
-	if len(exp.Status.Conditions) > 0 {
-		allOk := false
-		for _, cond := range exp.Status.Conditions {
-			if string(cond.Status) == string(v1.ConditionFalse) {
-				allOk = false
-				break
-			}
+		ready := false
+		newReason = "notReady"
+		switch x := obj.(type) {
+		case *v1.Pod:
+			ready = collections.AllMatch(x.Status.Conditions, func(element v1.PodCondition) bool {
+				return element.Status == v1.ConditionTrue
+			})
+		case *appsv1.StatefulSet:
+			ready = x.Status.AvailableReplicas > 0
+			newReason = goutils.BoolToStr(ready, fmt.Sprintf("Replicas_%d", x.Status.AvailableReplicas), "notReadyAtLeastOneReplicaIsRequired")
+		case *appsv1.Deployment:
+			ready = x.Status.AvailableReplicas > 0
+			newReason = goutils.BoolToStr(ready, fmt.Sprintf("Replicas_%d", x.Status.AvailableReplicas), "notReadyAtLeastOneReplicaIsRequired")
+		case *yassv1.FsNode:
+			ready = x.Status.Ready
+		default:
+			ready = true
 		}
-		ready = allOk
+		if ready {
+			newReason = "ok"
+		}
+		newStatus = goutils.BoolTo(ready, metav1.ConditionTrue, metav1.ConditionFalse)
 	}
-	exp.Status.Ready = ready
-	return cause
+
+	if condition.Status != newStatus || condition.Reason != newReason || condition.Message != newMessage {
+		condition.LastTransitionTime = metav1.Time{Time: time.Now()}
+		condition.Reason = newReason
+		condition.Status = newStatus
+		condition.Message = newMessage
+	}
+	if !found {
+		exp.Status.Conditions = append(exp.Status.Conditions, condition)
+	}
 }
 
-func (r *ExperimentReconciler) createFsNodeResource(ctx context.Context, namespace string, experiment *yassv1.Experiment, expDef *yassv1.ExperimentDefinition, layoutItem *yassv1.LayoutSatSpec) error {
+func (r *ExperimentReconciler) createFsNodeResource(ctx context.Context, namespace string, experiment *yassv1.Experiment, expDef *yassv1.ExperimentDefinition, layoutItem *yassv1.LayoutSatSpec) (exitErr error) {
 	fsNode := &yassv1.FsNode{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: layoutItem.FsNodeName}, fsNode)
+	defer func() {
+		r.updateStatusConditionForExperimentObject(experiment, layoutItem.FsNodeName, fsNode, exitErr)
+	}()
 	if apierrors.IsNotFound(err) {
 		var behaviour *yassv1.Behaviour
 		for _, sb := range expDef.Spec.Behaviours {
@@ -338,12 +345,7 @@ func (r *ExperimentReconciler) createFsNodeResource(ctx context.Context, namespa
 			},
 		}
 		err = r.Create(ctx, fsNode)
-		_ = r.updateStatusCondition(experiment, fmt.Sprintf("FsNode-%s", layoutItem.FsNodeName), "creating", err)
-		if err != nil {
-			r.recorder.Eventf(experiment, v1.EventTypeWarning, "fsNode creation", "fsNode %s error :: %s", fsNode.Name, err)
-			return err
-		}
-		r.recorder.Eventf(experiment, v1.EventTypeNormal, "fsNode creation", "fsNode %s :: created", fsNode.Name)
+		return err
 	}
 	return nil
 }

@@ -1,0 +1,50 @@
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: yass-role
+rules:
+- apiGroups:
+  - int.esa.yass
+  resources:
+  - experimentdefinitions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - int.esa.yass
+  resources:
+  - experiments
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - int.esa.yass
+  resources:
+  - experiments/status
+  verbs:
+  - get
+- apiGroups:
+  - int.esa.yass
+  resources:
+  - sats
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - int.esa.yass
+  resources:
+  - fsnodes
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - int.esa.yass
+  resources:
+  - fsnodes/status
+  verbs:
+  - get
