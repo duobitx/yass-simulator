@@ -4,8 +4,6 @@ LABEL author="duobit"
 WORKDIR /
 
 # Combine multiple binaries into one container:
-# docker-tools:
-COPY docker-tools/* .
 
 # Resource-to-json
 COPY resource-to-json/main ./resource-to-json

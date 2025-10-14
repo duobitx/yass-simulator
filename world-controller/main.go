@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/ESA-PhiLab/yass-internal-components/go-common/com"
 	"github.com/ESA-PhiLab/yass-internal-components/go-common/proto"
@@ -18,6 +19,7 @@ import (
 	"github.com/m-szalik/goutils"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/json"
+	"k8s.io/apimachinery/pkg/util/rand"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -36,12 +38,18 @@ type appType struct {
 
 func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
 	slog.Info("incoming data", "data", data)
-	fsNode := &yassv1.FsNode{}
-	err := a.k8sClient.Get(ctx, a.fsNodeObjKey, fsNode)
+	dataObj := &proto.FsNodeUpdate{}
+	err := com.MsgUnmarshall(data, &dataObj)
 	if err != nil {
 		return err
 	}
-	fsNode.Status.PosStr = string(data)
+
+	fsNode := &yassv1.FsNode{}
+	err = a.k8sClient.Get(ctx, a.fsNodeObjKey, fsNode)
+	if err != nil {
+		return err
+	}
+	fsNode.Status.PosStr = dataObj.GetPosStr()
 	return a.k8sClient.Status().Update(ctx, fsNode)
 }
 
@@ -91,9 +99,9 @@ func main() {
 	resourceName := goutils.EnvRequired[string]("RESOURCE_NAME")
 	resourceNamespace := goutils.EnvRequired[string]("NAMESPACE")
 	slog.Info("World Controller", "namespace", resourceNamespace, "name", resourceName)
-	ctx, cancel := signal.NotifyContext(context.WithValue(context.Background(), consts.CtxKeyFsName, resourceName), syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(context.WithValue(context.Background(), consts.CtxKeyFsName, resourceName), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
-	facade := com.NewFacade(ctx, fmt.Sprintf("%s-%s", resourceName, consts.AppName))
+	facade := com.NewFacade(ctx, fmt.Sprintf("%s-%s-%d", resourceName, consts.AppName, rand.Intn(100)))
 	app := &appType{
 		mainCtx:   ctx,
 		facade:    facade,
@@ -122,7 +130,7 @@ func main() {
 	}
 	app.k8sClient = k8sClient
 
-	subscribeUpdateTopic := fmt.Sprintf("/updates/%s", app.fsNodeObjKey.Name)
+	subscribeUpdateTopic := fmt.Sprintf("updates/%s", app.fsNodeObjKey.Name)
 	slog.Info("Subscribe", "topic", subscribeUpdateTopic)
 	err = facade.Subscribe(subscribeUpdateTopic, func(sCtx context.Context, topic string, retained bool, data []byte) {
 		err := app.handleUpdate(sCtx, data)
@@ -151,9 +159,11 @@ func main() {
 		}
 	}()
 
-	err = startup.FileProbe(ctx, consts.AppName)
+	err = startup.FileProbe(ctx)
 	goutils.ExitOnError(err, 6)
+	startup.HttpProbe(ctx, 8801)
 	slog.Info("StartupCompleted")
 	<-ctx.Done()
+	time.Sleep(1 * time.Second)
 	slog.Info("Terminated")
 }

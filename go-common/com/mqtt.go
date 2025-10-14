@@ -42,12 +42,12 @@ func (m *mqttFacade) IsConnected() bool {
 
 func (m *mqttFacade) Subscribe(topic string, handler MessageSubscriptionFunct) error {
 	slog.Info("Subscribe", "topic", topic)
-	ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
-	defer cancel()
 	token := m.client.Subscribe(topic, 1, func(client mqtt.Client, msg mqtt.Message) {
-		msg.Ack()
+		defer msg.Ack()
 		go func(message mqtt.Message) {
-			handler(ctx, message.Topic(), message.Retained(), message.Payload())
+			opCtx, cancel := context.WithTimeout(m.ctx, 20*time.Second) // TODO timeout
+			defer cancel()
+			handler(opCtx, message.Topic(), message.Retained(), message.Payload())
 		}(msg)
 	})
 

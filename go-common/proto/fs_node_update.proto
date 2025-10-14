@@ -11,6 +11,6 @@ message FsNodeUpdate {
 
   optional string pos_str = 3;
 
-  // Last update timestamp as Unix seconds.
-  int64 updated_unix_sec = 6;
+  // Last update timestamp as Unix milliseconds.
+  int64 updated_unix_millis = 6;
 }

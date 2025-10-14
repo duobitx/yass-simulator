@@ -2,99 +2,65 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
+	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal"
 	"github.com/gorilla/mux"
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/consts"
-	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal/model"
 	"github.com/ESA-PhiLab/yass-internal-components/go-common/com"
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/proto"
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/startup"
 	"github.com/m-szalik/goutils"
 )
-
-type appType struct {
-	mainCtx             context.Context
-	experimentStartTime *time.Time
-	facade              com.Facade
-	experiment          string
-	nodes               map[string]*model.FsNodeState
-	nodesLock           sync.Mutex
-}
-
-func (t *appType) handleOnlineUpdate(_ context.Context, data []byte) error {
-	msg := &proto.FsNodeOnlineState{}
-	err := com.MsgUnmarshall(data, msg)
-	if err != nil {
-		return err
-	}
-	if t.experiment != msg.FsNodeId.Experiment {
-		return nil
-	}
-	t.nodesLock.Lock()
-	defer t.nodesLock.Unlock()
-	if state, ok := t.nodes[msg.FsNodeId.Name]; !ok {
-		state = &model.FsNodeState{
-			Online: msg.Online,
-			IP:     msg.Ip,
-		}
-		t.nodes[msg.FsNodeId.Name] = state
-	} else {
-		state.Online = msg.Online
-	}
-	return nil
-}
 
 func main() {
 	experiment := goutils.EnvRequired[string]("YASS_EXPERIMENT")
 	slog.Info("ExperimentExecutor", "experiment", experiment)
-	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM)
+	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
-	facade := com.NewFacade(ctx, consts.AppName)
-	app := &appType{
-		mainCtx:    ctx,
-		facade:     facade,
-		experiment: experiment,
-		nodes:      map[string]*model.FsNodeState{},
-	}
+	facade := com.NewFacade(ctx, fmt.Sprintf("%s-%d", consts.AppName, rand.Int()))
 	err := facade.Connect()
 	goutils.ExitOnError(err, 2)
-
-	err = facade.Subscribe("/online-states/#", func(sCtx context.Context, topic string, retained bool, data []byte) {
-		err := app.handleOnlineUpdate(sCtx, data)
-		if err != nil {
-			slog.Error("error handling incoming update data", "data", string(data), "topic", topic, "error", err)
-		}
-	})
-	goutils.ExitOnError(err, 4)
-
-	err = startup.FileProbe(ctx, consts.AppName)
-	goutils.ExitOnError(err, 5)
+	app, err := internal.NewApp(ctx, facade)
+	goutils.ExitOnError(err, 3)
 
 	router := mux.NewRouter()
-	fmt.Println(router, app)
-	app.defineEndpoints(router)
+	app.DefineEndpoints(router)
 	srv := &http.Server{
-		Handler: router,
-		Addr:    ":8080",
+		Handler:           router,
+		Addr:              "0.0.0.0:8080",
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
+	slog.Info("HTTP server starting", "addr", srv.Addr)
 	go func() {
 		<-ctx.Done()
-		ctx, cancel = context.WithTimeout(context.Background(), 10*time.Second)
+		slog.Info("Shutdown signal received, shutting down HTTP server...")
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		_ = srv.Shutdown(ctx)
+		if err := srv.Shutdown(shutdownCtx); err != nil {
+			slog.Error("HTTP server shutdown error", "error", err)
+		}
 	}()
 
-	fmt.Println("Server running on http://localhost:8080")
-	slog.Info("StartupCompleted")
+	slog.Info("StartupCompleted....")
+
+	err = app.Start()             // FIXME
+	goutils.ExitOnError(err, 111) // FIXME mock
+
 	err = srv.ListenAndServe()
-	slog.Default().Error("webServer", "error", err)
-	slog.Default().Info("Terminated")
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		slog.Error("HTTP server stopped unexpectedly", "error", err)
+	} else {
+		slog.Info("HTTP server stopped")
+	}
+	slog.Info("Terminated")
 }
