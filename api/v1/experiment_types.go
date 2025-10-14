@@ -8,11 +8,19 @@ func init() {
 	SchemeBuilder.Register(&Experiment{}, &ExperimentList{})
 }
 
+type ExperimentState string
+
+const (
+	ExperimentStateInit      = "Init"
+	ExperimentStateReady     = "Ready"
+	ExperimentStateErrored   = "Errored"
+	ExperimentStateOngoing   = "Ongoing"
+	ExperimentStateCompleted = "Completed"
+)
+
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Ready",type=boolean,JSONPath=`.spec.ready`
-// +kubebuilder:printcolumn:name="Start",type=boolean,JSONPath=`.spec.start`
-// +kubebuilder:printcolumn:name="Started",type=date,JSONPath=`.status.started`
+// +kubebuilder:printcolumn:name="state",type=string,JSONPath=`.status.experimentState`
 // Experiment main object for simulation.
 type Experiment struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -49,11 +57,7 @@ type ExperimentSpec struct {
 
 // ExperimentStatus defines the desired state of an Experiment
 type ExperimentStatus struct {
-	// +kubebuilder:validation:Optional
-	// Started when it was started (real time)
-	Started *metav1.Time `json:"Started"`
-	// Ready - ready to be started or already started.
-	Ready bool `json:"ready"`
+	ExperimentState ExperimentState `json:"experimentState"`
 
 	// +listType=map
 	// +listMapKey=type

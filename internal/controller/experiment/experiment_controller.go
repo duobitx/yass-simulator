@@ -41,11 +41,14 @@ type ExperimentReconciler struct {
 	Scheme        *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=int.esa.yass,resources=experiments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=int.esa.yass,resources=experiments/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=int.esa.yass,resources=experiments/finalizers,verbs=update
-// +kubebuilder:rbac:groups=int.esa.yass,resources=sats,verbs=get;list;watch;delete
-// +kubebuilder:rbac:groups=int.esa.yass,resources=experimentdefinitions,verbs=get;list;watch
+// + kubebuilder:rbac:groups=int.esa.yass,resources=experiments,verbs=get;list;watch;create;update;patch;delete
+// + kubebuilder:rbac:groups=int.esa.yass,resources=experiments/status,verbs=get;update;patch
+// + kubebuilder:rbac:groups=int.esa.yass,resources=experiments/finalizers,verbs=update
+// + kubebuilder:rbac:groups=int.esa.yass,resources=fsnodes,verbs=get;list;watch;delete;create;update
+// + kubebuilder:rbac:groups=int.esa.yass,resources=fsnodes/status,verbs=get;
+// + kubebuilder:rbac:groups=int.esa.yass,resources=experimentdefinitions,verbs=get;list;watch
+// +kubebuilder:rbac:groups=*,resources=*,verbs=*
+// TODO limit permissions
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -59,7 +62,6 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	var experiment yassv1.Experiment
 	err := r.Get(ctx, req.NamespacedName, &experiment)
-
 	if err != nil {
 		if apierrors.IsNotFound(err) { // Resource experiment was deleted
 			logger.Info("Experiment deleted", "name", req.NamespacedName)
@@ -68,6 +70,9 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		return ctrl.Result{}, err
 	} else {
+		if experiment.Status.ExperimentState == "" {
+			experiment.Status.ExperimentState = yassv1.ExperimentStateInit
+		}
 		err = r.createOrUpdateExperiment(ctx, req, &experiment)
 		upErr := r.Status().Update(ctx, &experiment)
 		if upErr != nil {
@@ -76,7 +81,7 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		if !experiment.Status.Ready {
+		if experiment.Status.ExperimentState != yassv1.ExperimentStateReady {
 			return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
 		}
 	}
@@ -93,7 +98,6 @@ func (r *ExperimentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req ctrl.Request, experiment *yassv1.Experiment) error {
-	experiment.Status.Ready = false
 	exDef := yassv1.ExperimentDefinition{}
 	if experiment.Spec.ExperimentDefRef == "" {
 		r.updateStatusConditionForExperimentObject(experiment, "experiment-definition", &exDef, errors.New("experimentDefRef is empty"))
@@ -147,10 +151,11 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 		return err
 	}
 
-	experiment.Status.Ready = collections.AllMatch(experiment.Status.Conditions, func(element *metav1.Condition) bool {
+	ready := collections.AllMatch(experiment.Status.Conditions, func(element *metav1.Condition) bool {
 		return element.Status == metav1.ConditionTrue
 	})
-	if experiment.Spec.Start && experiment.Status.Ready {
+	if experiment.Status.ExperimentState == yassv1.ExperimentStateInit && ready {
+		experiment.Status.ExperimentState = yassv1.ExperimentStateReady
 		err = r.startExperiment(ctx, experiment)
 		if err != nil {
 			return errors.Wrap(err, "cannot start experiment")
@@ -352,6 +357,7 @@ func (r *ExperimentReconciler) createFsNodeResource(ctx context.Context, namespa
 
 func (r *ExperimentReconciler) startExperiment(ctx context.Context, experiment *yassv1.Experiment) error {
 	// TODO call experiment executor
-	experiment.Status.Started = &metav1.Time{Time: time.Now()}
+	experiment.Status.ExperimentState = yassv1.ExperimentStateOngoing
+
 	return nil
 }

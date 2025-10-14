@@ -67,9 +67,11 @@ type containerSpec struct {
 	mods  []modFunc
 }
 
-// +kubebuilder:rbac:groups=yass.int.esa.yass,resources=fsnodes,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=yass.int.esa.yass,resources=fsnodes/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=yass.int.esa.yass,resources=fsnodes/finalizers,verbs=update
+// + kubebuilder:rbac:groups=yass.int.esa.yass,resources=fsnodes,verbs=get;list;watch;create;update;patch;delete
+// + kubebuilder:rbac:groups=yass.int.esa.yass,resources=fsnodes/status,verbs=get;update;patch
+// + kubebuilder:rbac:groups=yass.int.esa.yass,resources=fsnodes/finalizers,verbs=update
+// +kubebuilder:rbac:groups=*,resources=*,verbs=*
+// TODO limit permissions
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -114,7 +116,11 @@ func (r *FsNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 			return ctrl.Result{RequeueAfter: 500 * time.Millisecond}, nil
 		}
 		r.updateStatusCondition(&fsNode, "experimentAssigned", "experiment assigned", "experimentLabelFound", true)
-		err = r.createOrUpdateFsNodePodAndService(ctx, req, &fsNode)
+		err = r.createOrUpdateFsNodePod(ctx, &fsNode)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		err = r.createOrUpdateFsNodeService(ctx, &fsNode)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -142,177 +148,186 @@ func (r *FsNodeReconciler) removeFsNode(ctx context.Context, req ctrl.Request) e
 	return r.Delete(ctx, pod)
 }
 
-func (r *FsNodeReconciler) createOrUpdateFsNodePodAndService(ctx context.Context, req ctrl.Request, fsNode *yassv1.FsNode) error {
+func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *yassv1.FsNode) error {
+	const ctype = "fsNodePod"
 	True := true
-	podName := req.Name
+	podName := fsNode.Name
 	pod := &v1.Pod{}
-	err := r.Get(ctx, types.NamespacedName{Namespace: req.Namespace, Name: podName}, pod)
-	if apierrors.IsNotFound(err) {
-		experimentName := fsNode.Labels[controller.LabelExperiment]
-		// create Pod
-		var _enginePorts []v1.ContainerPort
-		for port, prot := range enginePorts {
-			_enginePorts = append(_enginePorts, v1.ContainerPort{ContainerPort: int32(port), Protocol: prot})
-		}
-		_enginePorts = append(_enginePorts, v1.ContainerPort{ContainerPort: int32(8080)})
-		engineResources := v1.ResourceRequirements{Limits: map[v1.ResourceName]resource.Quantity{}}
-		if fsNode.Spec.HardwareSpec != nil {
-			if fsNode.Spec.HardwareSpec.CPU != nil && !fsNode.Spec.HardwareSpec.CPU.IsZero() {
-				engineResources.Limits[v1.ResourceCPU] = *fsNode.Spec.HardwareSpec.CPU
-			}
-			if fsNode.Spec.HardwareSpec.Memory != nil && !fsNode.Spec.HardwareSpec.Memory.IsZero() {
-				engineResources.Limits[v1.ResourceMemory] = *fsNode.Spec.HardwareSpec.Memory
-			}
-		}
-		// TODO mount
-		var containers []v1.Container
-		containerSpecs := []containerSpec{
-			{
-				name:  "world-controller",
-				image: r.Configuration.InternalComponentImage,
-				mods: []modFunc{
-					cmd("/world-controller"),
-					modFileProbes("worldController.txt"),
-					modEnvFromField("POD_IP", "status.podIP"),
-					modEnvFromField("NAMESPACE", "metadata.namespace"),
-					modEnvs(map[string]string{"RESOURCE_NAME": fsNode.Name}),
-					modMountSharedVolume(false),
-				},
-			},
-			{
-				name:  "agent",
-				image: fsNode.Spec.Agent.Image,
-				ports: nil,
-				mods: []modFunc{
-					modVolumeMount(agentTMPVolumeName, "/tmp", false),
-					modFor(fsNode.Spec.Agent),
-					modMountSharedVolume(true),
-				},
-			},
-			{
-				name:  "engine",
-				image: fsNode.Spec.Engine.Image,
-				ports: _enginePorts,
-				mods: []modFunc{
-					modVolumeMount(engineVolumeName, "/var/data", false),
-					modFor(fsNode.Spec.Engine),
-					rootFSReadOnly(),
-					modResourcesLimit(&engineResources),
-					modMountSharedVolume(false),
-				},
-			},
-		}
-		labels := map[string]string{
-			controller.LabelFsNode:     fsNode.Name,
-			controller.LabelExperiment: experimentName,
-		}
-		var diskSizeLimit *resource.Quantity = nil
-		terminationGracePeriodSeconds := int64(8)
-		if fsNode.Spec.HardwareSpec != nil {
-			diskSizeLimit = fsNode.Spec.HardwareSpec.DiskSpace
-		}
-		pod = &v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      podName,
-				Namespace: fsNode.Namespace,
-				Labels:    labels,
-				OwnerReferences: []metav1.OwnerReference{
-					*metav1.NewControllerRef(fsNode, v1.SchemeGroupVersion.WithKind("FsNode")),
-				},
-			},
-			Spec: v1.PodSpec{
-				TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
-				Volumes: []v1.Volume{
-					{Name: sharedVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}}, // mounted by default under /shared
-					{Name: engineVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: diskSizeLimit}}},
-					{Name: agentTMPVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
-				},
-				//ServiceAccountName: controller.ServiceAccountName, // TODO co z tym ????
-			},
-		}
-
-		initContainer := &v1.Container{
-			Name:            "resource-to-json",
-			Command:         []string{"/resource-to-json"},
-			Image:           r.Configuration.InternalComponentImage,
-			ImagePullPolicy: r.Configuration.InternalComponentImagePullPolicy,
-		}
-		modMountSharedVolume(false)(pod, initContainer)
-		modEnvs(map[string]string{"DST_FILE": "/shared/fs-node.json", "RESOURCE_KIND": fsNode.Kind, "RESOURCE_NAME": fsNode.Name})(pod, initContainer)
-		modEnvFromField("NAMESPACE", "metadata.namespace")(pod, initContainer)
-		pod.Spec.InitContainers = []v1.Container{*initContainer}
-
-		for _, cs := range containerSpecs {
-			container, err := r.createFsNodeContainerTemplate(fsNode, cs)
-			if err != nil {
-				return errors.Wrap(err, fmt.Sprintf("cannot create container template %s", cs.name))
-			}
-			if container == nil {
-				return fmt.Errorf("cannot create container template %s, nil returned without error", cs.name)
-			}
-			if cs.mods != nil {
-				for _, mod := range cs.mods {
-					mod(pod, container)
-				}
-			}
-			containers = append(containers, *container)
-		}
-		pod.Spec.Containers = containers
-		pod.Spec.AutomountServiceAccountToken = &True
-
-		err = r.Create(ctx, pod)
-		if apierrors.IsAlreadyExists(err) {
-			err = nil
-		}
-		r.updateStatusConditionForObject(fsNode, "fsNodePod", pod, err)
-		if err != nil {
-			return err
-		}
-
-		var _engineServicePorts []v1.ServicePort
-		for port, proto := range enginePorts {
-			_engineServicePorts = append(_engineServicePorts, v1.ServicePort{
-				Name:       strings.ToLower(fmt.Sprintf("port%d%s", port, proto)),
-				Protocol:   proto,
-				Port:       int32(port),
-				TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: int32(port)},
-			})
-		}
-		fsNodeService := &v1.Service{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fsNode.Name,
-				Namespace: fsNode.Namespace,
-				Labels:    labels,
-				OwnerReferences: []metav1.OwnerReference{
-					*metav1.NewControllerRef(fsNode, v1.SchemeGroupVersion.WithKind("FsNode")),
-				},
-			},
-			Spec: v1.ServiceSpec{
-				Selector: labels,
-				Ports:    _engineServicePorts,
-			},
-		}
-		err = r.Create(ctx, fsNodeService)
-		if apierrors.IsAlreadyExists(err) {
-			err = nil
-		}
-		r.updateStatusConditionForObject(fsNode, "fsNodeService", fsNodeService, err)
+	err := r.Get(ctx, types.NamespacedName{Namespace: fsNode.Namespace, Name: podName}, pod)
+	if err == nil || !apierrors.IsNotFound(err) { // already exists OR other unexpected error
+		r.updateStatusConditionForObject(fsNode, ctype, pod, err)
 		return err
-	} else { // Pod found or other error
-		if err != nil {
-			r.updateStatusConditionForObject(fsNode, "fsNodePod", pod, err)
-		} else {
-			podReady := collections.AllMatch(pod.Status.Conditions, func(element v1.PodCondition) bool {
-				return element.Status == v1.ConditionTrue
-			})
-			if podReady {
-				r.updateStatusConditionForObject(fsNode, "fsNodePod", pod, nil)
-			} else {
-				r.updateStatusConditionForObject(fsNode, "fsNodePod", pod, errors.New("podNotReady"))
-			}
+	}
+	// POD not found we need to create the POD
+	experimentName := fsNode.Labels[controller.LabelExperiment]
+	// create Pod
+	var _enginePorts []v1.ContainerPort
+	for port, prot := range enginePorts {
+		_enginePorts = append(_enginePorts, v1.ContainerPort{ContainerPort: int32(port), Protocol: prot})
+	}
+	_enginePorts = append(_enginePorts, v1.ContainerPort{ContainerPort: int32(8080)})
+	engineResources := v1.ResourceRequirements{Limits: map[v1.ResourceName]resource.Quantity{}}
+	if fsNode.Spec.HardwareSpec != nil {
+		if fsNode.Spec.HardwareSpec.CPU != nil && !fsNode.Spec.HardwareSpec.CPU.IsZero() {
+			engineResources.Limits[v1.ResourceCPU] = *fsNode.Spec.HardwareSpec.CPU
+		}
+		if fsNode.Spec.HardwareSpec.Memory != nil && !fsNode.Spec.HardwareSpec.Memory.IsZero() {
+			engineResources.Limits[v1.ResourceMemory] = *fsNode.Spec.HardwareSpec.Memory
 		}
 	}
-	return nil
+	// TODO mount
+	var containers []v1.Container
+	containerSpecs := []containerSpec{
+		{
+			name:  "world-controller",
+			image: r.Configuration.InternalComponentImage,
+			mods: []modFunc{
+				cmd("/world-controller"),
+				modFileProbes("worldController.txt"),
+				modEnvFromField("POD_IP", "status.podIP"),
+				modEnvFromField("NAMESPACE", "metadata.namespace"),
+				modEnvs(map[string]string{"RESOURCE_NAME": fsNode.Name}),
+				modMountSharedVolume(false),
+			},
+		},
+		{
+			name:  "agent",
+			image: fsNode.Spec.Agent.Image,
+			ports: nil,
+			mods: []modFunc{
+				modVolumeMount(agentTMPVolumeName, "/tmp", false),
+				modFor(fsNode.Spec.Agent),
+				modMountSharedVolume(true),
+			},
+		},
+		{
+			name:  "engine",
+			image: fsNode.Spec.Engine.Image,
+			ports: _enginePorts,
+			mods: []modFunc{
+				modVolumeMount(engineVolumeName, "/var/data", false),
+				modFor(fsNode.Spec.Engine),
+				rootFSReadOnly(),
+				modResourcesLimit(&engineResources),
+				modMountSharedVolume(false),
+			},
+		},
+	}
+	var diskSizeLimit *resource.Quantity = nil
+	terminationGracePeriodSeconds := int64(8)
+	if fsNode.Spec.HardwareSpec != nil {
+		diskSizeLimit = fsNode.Spec.HardwareSpec.DiskSpace
+	}
+	pod = &v1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      podName,
+			Namespace: fsNode.Namespace,
+			Labels: map[string]string{
+				controller.LabelFsNode:     fsNode.Name,
+				controller.LabelExperiment: experimentName,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(fsNode, v1.SchemeGroupVersion.WithKind("FsNode")),
+			},
+		},
+		Spec: v1.PodSpec{
+			TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
+			Volumes: []v1.Volume{
+				{Name: sharedVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}}, // mounted by default under /shared
+				{Name: engineVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: diskSizeLimit}}},
+				{Name: agentTMPVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
+			},
+			//ServiceAccountName: controller.ServiceAccountName, // TODO co z tym ????
+		},
+	}
+
+	initContainer := &v1.Container{
+		Name:            "resource-to-json-fsnode",
+		Command:         []string{"/resource-to-json"},
+		Image:           r.Configuration.InternalComponentImage,
+		ImagePullPolicy: r.Configuration.InternalComponentImagePullPolicy,
+	}
+	modMountSharedVolume(false)(pod, initContainer)
+	modEnvs(map[string]string{"DST_FILE": "/shared/fs-node.json", "RESOURCE_KIND": fsNode.Kind, "RESOURCE_NAME": fsNode.Name})(pod, initContainer)
+	modEnvFromField("NAMESPACE", "metadata.namespace")(pod, initContainer)
+	pod.Spec.InitContainers = []v1.Container{*initContainer}
+
+	for _, cs := range containerSpecs {
+		container, err := r.createFsNodeContainerTemplate(fsNode, cs)
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("cannot create container template %s", cs.name))
+		}
+		if container == nil {
+			return fmt.Errorf("cannot create container template %s, nil returned without error", cs.name)
+		}
+		if cs.mods != nil {
+			for _, mod := range cs.mods {
+				mod(pod, container)
+			}
+		}
+		containers = append(containers, *container)
+	}
+	pod.Spec.Containers = containers
+	pod.Spec.AutomountServiceAccountToken = &True
+
+	err = r.Create(ctx, pod)
+	if apierrors.IsAlreadyExists(err) {
+		err = nil
+	}
+	r.updateStatusConditionForObject(fsNode, ctype, pod, err)
+	return err
+}
+
+func (r *FsNodeReconciler) createOrUpdateFsNodeService(ctx context.Context, fsNode *yassv1.FsNode) error {
+	const ctype = "fsNodeService"
+	fsNodeService := &v1.Service{}
+	objKey := client.ObjectKey{
+		Namespace: fsNode.Namespace,
+		Name:      fsNode.Name,
+	}
+	err := r.Get(ctx, objKey, fsNodeService)
+	if err != nil { // exists
+		r.updateStatusConditionForObject(fsNode, ctype, fsNodeService, nil)
+		return nil
+	}
+	if !apierrors.IsNotFound(err) { // unknown error
+		r.updateStatusConditionForObject(fsNode, ctype, fsNodeService, err)
+		return err
+	}
+	// not found -> create
+	labels := map[string]string{
+		controller.LabelFsNode:     fsNode.Name,
+		controller.LabelExperiment: fsNode.Labels[controller.LabelExperiment],
+	}
+	var _engineServicePorts []v1.ServicePort
+	for port, proto := range enginePorts {
+		_engineServicePorts = append(_engineServicePorts, v1.ServicePort{
+			Name:       strings.ToLower(fmt.Sprintf("port%d%s", port, proto)),
+			Protocol:   proto,
+			Port:       int32(port),
+			TargetPort: intstr.IntOrString{Type: intstr.Int, IntVal: int32(port)},
+		})
+	}
+	fsNodeService = &v1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fsNode.Name,
+			Namespace: fsNode.Namespace,
+			Labels:    labels,
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(fsNode, v1.SchemeGroupVersion.WithKind("FsNode")),
+			},
+		},
+		Spec: v1.ServiceSpec{
+			Selector: labels,
+			Ports:    _engineServicePorts,
+		},
+	}
+	err = r.Create(ctx, fsNodeService)
+	if apierrors.IsAlreadyExists(err) {
+		err = nil
+	}
+	r.updateStatusConditionForObject(fsNode, ctype, fsNodeService, err)
+	return err
 }
 
 func (r *FsNodeReconciler) createFsNodeContainerTemplate(fsNode *yassv1.FsNode, cs containerSpec) (*v1.Container, error) {
@@ -369,21 +384,14 @@ func (r *FsNodeReconciler) updateStatusConditionForObject(fsNode *yassv1.FsNode,
 		newReason = "error"
 	} else {
 		newMessage = ""
-		ready := false
+		newReason = "notReady"
 		switch x := obj.(type) {
 		case *v1.Pod:
-			ready = collections.AllMatch(x.Status.Conditions, func(element v1.PodCondition) bool {
-				return element.Status == v1.ConditionTrue
-			})
+			newStatus = x.Status.Phase == v1.PodRunning || x.Status.Phase == v1.PodSucceeded
+			newReason = string(x.Status.Phase)
 		default:
-			ready = true
-		}
-		if ready {
 			newStatus = true
 			newReason = "ok"
-		} else {
-			newStatus = false
-			newReason = "notReady"
 		}
 	}
 	r.updateStatusCondition(fsNode, ctype, newMessage, newReason, newStatus)

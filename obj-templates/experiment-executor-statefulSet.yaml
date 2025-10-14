@@ -42,6 +42,11 @@ spec:
           imagePullPolicy: "Always"
           command:
             - "/experiment-executor"
+          env:
+            - name: YASS_EXPERIMENT
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['yass-experiment']
           volumeMounts:
             - mountPath: /shared
               name: shared

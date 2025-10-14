@@ -35,7 +35,7 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: ExperimentDef is the Schema for the Experiment Definition
+        description: ExperimentDefinition defines behaviour and events for an experiment.
         properties:
           apiVersion:
             description: |-
@@ -45,7 +45,7 @@ spec:
               More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           description:
-            description: Description - description of the experiment
+            description: Description of the experiment
             type: string
           kind:
             description: |-
@@ -65,36 +65,54 @@ spec:
                 items:
                   type: object
                 type: array
-              maxDuration:
-                description: |-
-                  A Duration represents the elapsed time between two instants
-                  as an int64 nanosecond count. The representation limits the
-                  largest representable duration to approximately 290 years.
-                format: int64
-                type: integer
-              satBehaviours:
+              behaviours:
                 items:
                   properties:
                     agent:
+                      description: Agent on the satellite
                       properties:
+                        configurationFilesFromConfigMap:
+                          description: Configuration files can be mounted from ConfigMap.
+                          properties:
+                            configMapRef:
+                              type: string
+                            mountPath:
+                              type: string
+                          required:
+                          - configMapRef
+                          - mountPath
+                          type: object
+                        envs:
+                          additionalProperties:
+                            type: string
+                          description: Envs environment variables
+                          type: object
                         image:
+                          description: Container image
                           type: string
-                        parameters:
-                          x-kubernetes-preserve-unknown-fields: true
                       required:
                       - image
                       type: object
+                    fsNode:
+                      description: Name of the satellite / ground station to be configured.
+                      type: string
                     hardwareEvents:
+                      description: What hardware events to expect during the experiment.
                       items:
                         type: object
                       type: array
-                    satName:
-                      type: string
                   required:
                   - agent
-                  - satName
+                  - fsNode
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - fsNode
+                x-kubernetes-list-type: map
+              maxDuration:
+                description: MaxDuration of the experiment
+                format: int64
+                type: integer
             type: object
         type: object
     served: true
@@ -130,6 +148,7 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
+        description: Experiment main object for simulation.
         properties:
           apiVersion:
             description: |-
@@ -152,22 +171,43 @@ spec:
             description: ExperimentSpec defines the desired state of an Experiment
             properties:
               engine:
+                description: Engine defines what engine will be tested during the
+                  experiment.
                 properties:
+                  configurationFilesFromConfigMap:
+                    description: Configuration files can be mounted from ConfigMap.
+                    properties:
+                      configMapRef:
+                        type: string
+                      mountPath:
+                        type: string
+                    required:
+                    - configMapRef
+                    - mountPath
+                    type: object
+                  envs:
+                    additionalProperties:
+                      type: string
+                    description: Envs environment variables
+                    type: object
                   image:
+                    description: Container image
                     type: string
-                  parameters:
-                    x-kubernetes-preserve-unknown-fields: true
                 required:
                 - image
                 type: object
               experimentDefRef:
+                description: Reference to ExperimentDefinition resource.
                 type: string
               layoutDefRef:
+                description: Reference to Layout resource.
                 type: string
               simulationStartTime:
+                description: SimulationStartTime is a starting point of the experiment.
                 format: date-time
                 type: string
               start:
+                description: Start if to start the experiment as soon as it's ready.
                 type: boolean
             required:
             - experimentDefRef
@@ -179,6 +219,7 @@ spec:
             description: ExperimentStatus defines the desired state of an Experiment
             properties:
               Started:
+                description: Started when it was started (real time)
                 format: date-time
                 type: string
               conditions:
@@ -241,7 +282,7 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               ready:
-                description: Ready - ready to be started
+                description: Ready - ready to be started or already started.
                 type: boolean
             required:
             - ready
@@ -257,229 +298,38 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.19.0
-  name: hardwaredefinitions.int.esa.yass
+  name: fsnodes.int.esa.yass
 spec:
   group: int.esa.yass
   names:
-    kind: HardwareDefinition
-    listKind: HardwareDefinitionList
-    plural: hardwaredefinitions
-    singular: hardwaredefinition
-  scope: Cluster
-  versions:
-  - additionalPrinterColumns:
-    - jsonPath: .spec.CPU
-      name: CPU
-      type: string
-    - jsonPath: .spec.Memory
-      name: Memory
-      type: string
-    - jsonPath: .spec.DiskSpace
-      name: DiskSpace
-      type: string
-    name: v1
-    schema:
-      openAPIV3Schema:
-        properties:
-          apiVersion:
-            description: |-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
-            type: string
-          description:
-            type: string
-          kind:
-            description: |-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
-            type: string
-          metadata:
-            type: object
-          spec:
-            properties:
-              CPU:
-                anyOf:
-                - type: integer
-                - type: string
-                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                x-kubernetes-int-or-string: true
-              DiskSpace:
-                anyOf:
-                - type: integer
-                - type: string
-                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                x-kubernetes-int-or-string: true
-              Memory:
-                anyOf:
-                - type: integer
-                - type: string
-                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                x-kubernetes-int-or-string: true
-            required:
-            - CPU
-            - Memory
-            type: object
-        type: object
-    served: true
-    storage: true
-    subresources:
-      status: {}
----
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
-  name: layouts.int.esa.yass
-spec:
-  group: int.esa.yass
-  names:
-    kind: Layout
-    listKind: LayoutList
-    plural: layouts
-    singular: layout
-  scope: Cluster
-  versions:
-  - name: v1
-    schema:
-      openAPIV3Schema:
-        properties:
-          apiVersion:
-            description: |-
-              APIVersion defines the versioned schema of this representation of an object.
-              Servers should convert recognized schemas to the latest internal value, and
-              may reject unrecognized values.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
-            type: string
-          description:
-            type: string
-          kind:
-            description: |-
-              Kind is a string value representing the REST resource this object represents.
-              Servers may infer this from the endpoint the client submits requests to.
-              Cannot be updated.
-              In CamelCase.
-              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
-            type: string
-          metadata:
-            type: object
-          spec:
-            items:
-              properties:
-                earthPosition:
-                  properties:
-                    heightOverSeaLevel:
-                      type: number
-                    lat:
-                      type: number
-                    lng:
-                      type: number
-                  required:
-                  - lat
-                  - lng
-                  type: object
-                hardwareSpec:
-                  properties:
-                    CPU:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    DiskSpace:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                    Memory:
-                      anyOf:
-                      - type: integer
-                      - type: string
-                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
-                      x-kubernetes-int-or-string: true
-                  required:
-                  - CPU
-                  - Memory
-                  type: object
-                hardwareSpecRef:
-                  type: string
-                orbit:
-                  properties:
-                    tle:
-                      items:
-                        type: string
-                      type: array
-                  required:
-                  - tle
-                  type: object
-                rotation:
-                  description: Rotation - to be inlined
-                  properties:
-                    pitch:
-                      type: number
-                    roll:
-                      type: number
-                    yaw:
-                      type: number
-                  type: object
-                satName:
-                  type: string
-              required:
-              - satName
-              type: object
-              x-kubernetes-validations:
-              - message: Exactly one of spec.hardwareSpecRef or spec.hardwareSpec
-                  must be set
-                rule: (has(self.hardwareSpecRef) && !has(self.hardwareSpec)) || (!has(self.hardwareSpecRef)
-                  && has(self.hardwareSpec))
-              - message: Exactly one of spec.orbit or spec.earthPosition must be set
-                rule: (has(self.orbit) && !has(self.earthPosition)) || (!has(self.orbit)
-                  && has(self.earthPosition))
-            type: array
-        type: object
-    served: true
-    storage: true
-    subresources:
-      status: {}
----
-apiVersion: apiextensions.k8s.io/v1
-kind: CustomResourceDefinition
-metadata:
-  annotations:
-    controller-gen.kubebuilder.io/version: v0.19.0
-  name: sats.int.esa.yass
-spec:
-  group: int.esa.yass
-  names:
-    kind: Sat
-    listKind: SatList
-    plural: sats
-    singular: sat
+    kind: FsNode
+    listKind: FsNodeList
+    plural: fsnodes
+    shortNames:
+    - fsns
+    singular: fsnode
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.batteryChargeLevel
+    - jsonPath: .status.ready
+      name: Ready
+      type: string
+    - jsonPath: .status.batteryChargeLevel
       name: BatLev
       type: string
-    - jsonPath: .spec.batteryChargeRate
+    - jsonPath: .status.batteryChargeRate
       name: BatCharge
       type: string
-    - jsonPath: .spec.lowPower
+    - jsonPath: .status.lowPower
       name: LowPower
       type: boolean
-    - jsonPath: .spec.posStr
+    - jsonPath: .status.posStr
       name: PosOverEarth
       type: boolean
     name: v1
     schema:
       openAPIV3Schema:
-        description: Sat is the Schema for the SATs API
+        description: FsNode is the Schema for the FsNode API
         properties:
           apiVersion:
             description: |-
@@ -499,63 +349,121 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec defines the desired state of Sat
+            description: spec defines the desired state of FsNode
             properties:
               agent:
+                description: What agent to be installed.
                 properties:
+                  configurationFilesFromConfigMap:
+                    description: Configuration files can be mounted from ConfigMap.
+                    properties:
+                      configMapRef:
+                        type: string
+                      mountPath:
+                        type: string
+                    required:
+                    - configMapRef
+                    - mountPath
+                    type: object
+                  envs:
+                    additionalProperties:
+                      type: string
+                    description: Envs environment variables
+                    type: object
                   image:
+                    description: Container image
                     type: string
-                  parameters:
-                    x-kubernetes-preserve-unknown-fields: true
                 required:
                 - image
                 type: object
-              engine:
+              earthPosition:
+                description: A position of an object on the Earth.
                 properties:
+                  heightOverSeaLevel:
+                    description: Height over sea level in meters.
+                    type: number
+                  lat:
+                    description: Latitude in numeric format.
+                    type: number
+                  lng:
+                    description: Longitude in numeric format.
+                    type: number
+                required:
+                - lat
+                - lng
+                type: object
+              engine:
+                description: What file system engine to be installed
+                properties:
+                  configurationFilesFromConfigMap:
+                    description: Configuration files can be mounted from ConfigMap.
+                    properties:
+                      configMapRef:
+                        type: string
+                      mountPath:
+                        type: string
+                    required:
+                    - configMapRef
+                    - mountPath
+                    type: object
+                  envs:
+                    additionalProperties:
+                      type: string
+                    description: Envs environment variables
+                    type: object
                   image:
+                    description: Container image
                     type: string
-                  parameters:
-                    x-kubernetes-preserve-unknown-fields: true
                 required:
                 - image
                 type: object
               hardwareSpec:
+                description: Satellite hardware spec.
                 properties:
-                  CPU:
+                  cpu:
                     anyOf:
                     - type: integer
                     - type: string
+                    description: Number of available CPUs.
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
-                  DiskSpace:
+                  diskSpace:
                     anyOf:
                     - type: integer
                     - type: string
+                    description: Available disk space. If not defined then unlimited.
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
-                  Memory:
+                  memory:
                     anyOf:
                     - type: integer
                     - type: string
+                    description: Number of available RAM.
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
                 required:
-                - CPU
-                - Memory
+                - cpu
+                - memory
                 type: object
               hardwareSpecRef:
+                description: Satellite Hardware specification. Field hardwareSpec
+                  has priority over hardwareSpecRef.
                 type: string
               orbit:
+                description: A position of an object as TLE.
                 properties:
                   tle:
+                    description: TLE lines
                     items:
                       type: string
+                    maxItems: 2
+                    minItems: 2
                     type: array
                 required:
                 - tle
                 type: object
               rotation:
-                description: Rotation - to be inlined
+                description: Rotation of an object
                 properties:
                   pitch:
                     type: number
@@ -564,16 +472,16 @@ spec:
                   yaw:
                     type: number
                 type: object
-            required:
-            - orbit
             type: object
             x-kubernetes-validations:
-            - message: Exactly one of spec.hardwareSpecRef or spec.hardwareSpec must
+            - message: Exactly one of spec.orbit or spec.earthPosition must be set
+              rule: (has(self.orbit) && !has(self.earthPosition)) || (!has(self.orbit)
+                && has(self.earthPosition))
+            - message: At least one of spec.hardwareSpecRef or spec.hardwareSpec must
                 be set
-              rule: (has(self.hardwareSpecRef) && !has(self.hardwareSpec)) || (!has(self.hardwareSpecRef)
-                && has(self.hardwareSpec))
+              rule: has(self.hardwareSpecRef) || has(self.hardwareSpec)
           status:
-            description: status defines the observed state of Sat
+            description: status defines the observed state of FsNode
             properties:
               batteryChargeLevel:
                 type: string
@@ -644,14 +552,242 @@ spec:
                 type: boolean
               posStr:
                 type: string
+              ready:
+                type: boolean
             required:
             - batteryChargeLevel
             - batteryChargeRate
             - lowPower
             - posStr
+            - ready
             type: object
         required:
         - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: hardwaredefinitions.int.esa.yass
+spec:
+  group: int.esa.yass
+  names:
+    kind: HardwareDefinition
+    listKind: HardwareDefinitionList
+    plural: hardwaredefinitions
+    singular: hardwaredefinition
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.CPU
+      name: CPU
+      type: string
+    - jsonPath: .spec.Memory
+      name: Memory
+      type: string
+    - jsonPath: .spec.DiskSpace
+      name: DiskSpace
+      type: string
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: HardwareDefinition definition of the hardware installed on the
+          satellite or ground station.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          description:
+            description: Description of the hardware specification.
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              cpu:
+                anyOf:
+                - type: integer
+                - type: string
+                description: Number of available CPUs.
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              diskSpace:
+                anyOf:
+                - type: integer
+                - type: string
+                description: Available disk space. If not defined then unlimited.
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              memory:
+                anyOf:
+                - type: integer
+                - type: string
+                description: Number of available RAM.
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+            required:
+            - cpu
+            - memory
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: layouts.int.esa.yass
+spec:
+  group: int.esa.yass
+  names:
+    kind: Layout
+    listKind: LayoutList
+    plural: layouts
+    singular: layout
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.start
+      name: Start
+      type: boolean
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Layout describe how satellites and groud stations are located
+          in space or/and on the Earth.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          description:
+            description: Description of the layout
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            items:
+              properties:
+                earthPosition:
+                  description: A position of an object on the Earth.
+                  properties:
+                    heightOverSeaLevel:
+                      description: Height over sea level in meters.
+                      type: number
+                    lat:
+                      description: Latitude in numeric format.
+                      type: number
+                    lng:
+                      description: Longitude in numeric format.
+                      type: number
+                  required:
+                  - lat
+                  - lng
+                  type: object
+                fsNode:
+                  type: string
+                hardwareSpec:
+                  description: Satellite hardware spec.
+                  properties:
+                    cpu:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: Number of available CPUs.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    diskSpace:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: Available disk space. If not defined then unlimited.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    memory:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: Number of available RAM.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                  required:
+                  - cpu
+                  - memory
+                  type: object
+                hardwareSpecRef:
+                  description: Satellite Hardware specification. Field hardwareSpec
+                    has priority over hardwareSpecRef.
+                  type: string
+                orbit:
+                  description: A position of an object as TLE.
+                  properties:
+                    tle:
+                      description: TLE lines
+                      items:
+                        type: string
+                      maxItems: 2
+                      minItems: 2
+                      type: array
+                  required:
+                  - tle
+                  type: object
+                rotation:
+                  description: Rotation of an object
+                  properties:
+                    pitch:
+                      type: number
+                    roll:
+                      type: number
+                    yaw:
+                      type: number
+                  type: object
+              required:
+              - fsNode
+              type: object
+              x-kubernetes-validations:
+              - message: Exactly one of spec.orbit or spec.earthPosition must be set
+                rule: (has(self.orbit) && !has(self.earthPosition)) || (!has(self.orbit)
+                  && has(self.earthPosition))
+              - message: At least one of spec.hardwareSpecRef or spec.hardwareSpec
+                  must be set
+                rule: has(self.hardwareSpecRef) || has(self.hardwareSpec)
+            type: array
+            x-kubernetes-list-map-keys:
+            - fsNode
+            x-kubernetes-list-type: map
         type: object
     served: true
     storage: true
@@ -714,197 +850,11 @@ metadata:
   name: yass-manager-role
 rules:
 - apiGroups:
-  - int.esa.yass
+  - '*'
   resources:
-  - experimentdefinitions
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - int.esa.yass
-  resources:
-  - experiments
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - int.esa.yass
-  resources:
-  - experiments/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - int.esa.yass
-  resources:
-  - experiments/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - int.esa.yass
-  resources:
-  - sats
-  verbs:
-  - delete
-  - get
-  - list
-  - watch
-- apiGroups:
-  - yass.int.esa.yass
-  resources:
-  - sats
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - yass.int.esa.yass
-  resources:
-  - sats/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - yass.int.esa.yass
-  resources:
-  - sats/status
-  verbs:
-  - get
-  - patch
-  - update
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: yass-metrics-auth-role
-rules:
-- apiGroups:
-  - authentication.k8s.io
-  resources:
-  - tokenreviews
-  verbs:
-  - create
-- apiGroups:
-  - authorization.k8s.io
-  resources:
-  - subjectaccessreviews
-  verbs:
-  - create
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: yass-metrics-reader
-rules:
-- nonResourceURLs:
-  - /metrics
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: x
-  name: yass-sat-admin-role
-rules:
-- apiGroups:
-  - yass.int.esa.yass
-  resources:
-  - sats
+  - '*'
   verbs:
   - '*'
-- apiGroups:
-  - yass.int.esa.yass
-  resources:
-  - sats/status
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: x
-  name: yass-sat-editor-role
-rules:
-- apiGroups:
-  - yass.int.esa.yass
-  resources:
-  - sats
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - yass.int.esa.yass
-  resources:
-  - sats/status
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: x
-  name: yass-sat-viewer-role
-rules:
-- apiGroups:
-  - yass.int.esa.yass
-  resources:
-  - sats
-  verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - yass.int.esa.yass
-  resources:
-  - sats/status
-  verbs:
-  - get
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  labels:
-    app.kubernetes.io/managed-by: kustomize
-    app.kubernetes.io/name: yass
-  name: yass-yass-admin-role
-rules:
-- apiGroups:
-  - int.esa.yass
-  resources:
-  - experiments
-  - experimentDefs
-  - layouts
-  - nodeTemplates
-  verbs:
-  - '*'
-- apiGroups:
-  - int.esa.yass
-  resources:
-  - experiments/status
-  verbs:
-  - get
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -934,19 +884,6 @@ roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: yass-manager-role
-subjects:
-- kind: ServiceAccount
-  name: yass-controller-manager
-  namespace: yass-system
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-metadata:
-  name: yass-metrics-auth-rolebinding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: yass-metrics-auth-role
 subjects:
 - kind: ServiceAccount
   name: yass-controller-manager

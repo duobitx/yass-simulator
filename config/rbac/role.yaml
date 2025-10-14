@@ -5,71 +5,8 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - int.esa.yass
+  - '*'
   resources:
-  - experimentdefinitions
+  - '*'
   verbs:
-  - get
-  - list
-  - watch
-- apiGroups:
-  - int.esa.yass
-  resources:
-  - experiments
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - int.esa.yass
-  resources:
-  - experiments/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - int.esa.yass
-  resources:
-  - experiments/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - int.esa.yass
-  resources:
-  - sats
-  verbs:
-  - delete
-  - get
-  - list
-  - watch
-- apiGroups:
-  - yass.int.esa.yass
-  resources:
-  - fsnodes
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - yass.int.esa.yass
-  resources:
-  - fsnodes/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - yass.int.esa.yass
-  resources:
-  - fsnodes/status
-  verbs:
-  - get
-  - patch
-  - update
+  - '*'
