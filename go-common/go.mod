@@ -6,7 +6,7 @@ toolchain go1.24.6
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.1
-	github.com/m-szalik/goutils v0.0.0-20251008225836-91df042b2c09
+	github.com/m-szalik/goutils v0.1.0
 	github.com/pkg/errors v0.9.1
 	github.com/sirupsen/logrus v1.9.3
 	google.golang.org/protobuf v1.36.7

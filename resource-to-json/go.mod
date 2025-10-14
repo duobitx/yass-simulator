@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.6
 
 require (
-	github.com/m-szalik/goutils v0.0.0-20251008225836-91df042b2c09
+	github.com/m-szalik/goutils v0.1.0
 	github.com/pkg/errors v0.9.1
 	k8s.io/apimachinery v0.34.0
 	k8s.io/client-go v0.34.0

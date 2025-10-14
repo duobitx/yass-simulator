@@ -61,6 +61,7 @@ func main() {
 	if err != nil {
 		panic(fmt.Sprintf("cannot save file %s :: %s", dstFilename, err))
 	}
+	slog.Info("Completed")
 }
 
 func handleFsNodeResource(ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName) (*map[string]any, error) {
