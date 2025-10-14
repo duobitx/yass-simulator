@@ -65,7 +65,7 @@ type SimpleContainer struct {
 
 	// Envs environment variables
 	// +kubebuilder:validation:Optional
-	Envs map[string]string `json:"envs,omitempty"`
+	Envs map[string]string `json:"envsMap,omitempty"`
 
 	// Configuration files can be mounted from ConfigMap.
 	// +kubebuilder:validation:Optional

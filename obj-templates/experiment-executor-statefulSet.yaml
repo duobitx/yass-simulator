@@ -13,7 +13,8 @@ spec:
       labels:
         app: experiment-executor
     spec:
-#      serviceAccountName: "yass-sa"
+      serviceAccountName: "yass-sa"
+      terminationGracePeriodSeconds: 10
       initContainers:
         - name: resource-to-json-experiment
           image: "ghcr.io/esa-philab/yass/internal-components:latest"
@@ -24,7 +25,7 @@ spec:
             - name: RESOURCE_KIND
               value: "Experiment"
             - name: DST_FILE
-              value: "/shared/experiment.json"
+              value: "/mnt/shared/experiment.json"
             - name: RESOURCE_NAME
               valueFrom:
                 fieldRef:
@@ -34,7 +35,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.namespace
           volumeMounts:
-            - mountPath: /shared
+            - mountPath: /mnt/shared
               name: shared
       containers:
         - name: experiment-executor
@@ -42,14 +43,30 @@ spec:
           imagePullPolicy: "Always"
           command:
             - "/experiment-executor"
+          ports:
+            - containerPort: 8080
           env:
             - name: YASS_EXPERIMENT
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.annotations['yass-experiment']
+            - name: EXPERIMENT_FILE
+              value: "/mnt/shared/experiment.json"
           volumeMounts:
-            - mountPath: /shared
+            - mountPath: /mnt/shared
               name: shared
+          readinessProbe:
+            httpGet:
+              port: 8080
+              path: "/"
+            periodSeconds: 6
+            initialDelaySeconds: 12
+          livenessProbe:
+            httpGet:
+              port: 8080
+              path: "/"
+            periodSeconds: 5
+            initialDelaySeconds: 12
       volumes:
         - name: shared
           emptyDir:

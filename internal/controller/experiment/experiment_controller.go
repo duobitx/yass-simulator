@@ -4,9 +4,13 @@
 package experiment
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
@@ -17,6 +21,7 @@ import (
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -81,7 +86,7 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		if experiment.Status.ExperimentState != yassv1.ExperimentStateReady {
+		if experiment.Status.ExperimentState == yassv1.ExperimentStateInit {
 			return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
 		}
 	}
@@ -93,7 +98,8 @@ func (r *ExperimentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.recorder = mgr.GetEventRecorderFor("experiment-controller")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&yassv1.Experiment{}).
-		Named("experiment").
+		Owns(&yassv1.FsNode{}).
+		Named("experiment-controller").
 		Complete(r)
 }
 
@@ -125,6 +131,10 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 		{"messaging-service.yaml", "messaging", &v1.Service{}, nil},
 		{"experiment-executor-statefulSet.yaml", "experiment-executor", &appsv1.StatefulSet{}, modAddExperimentAnnotation(experiment.Name)},
 		{"experiment-executor-service.yaml", "experiment-executor", &v1.Service{}, nil},
+		{"yass-sa-role-binding.yaml", "yass-sa-role-binding", &rbacv1.ClusterRoleBinding{}, func(object client.Object) {
+			rbacClusterRoleBinding := object.(*rbacv1.ClusterRoleBinding)
+			rbacClusterRoleBinding.Subjects[0].Namespace = experiment.Namespace
+		}},
 	}
 	joinErrHelper := &goutils.JoinErrorHelper{}
 	for _, cDef := range componentDefinitions {
@@ -151,12 +161,25 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 		return err
 	}
 
+	var failedComponents []string
 	ready := collections.AllMatch(experiment.Status.Conditions, func(element *metav1.Condition) bool {
+		if element.Status == metav1.ConditionFalse {
+			failedComponents = append(failedComponents, element.Type)
+		}
 		return element.Status == metav1.ConditionTrue
 	})
 	if experiment.Status.ExperimentState == yassv1.ExperimentStateInit && ready {
 		experiment.Status.ExperimentState = yassv1.ExperimentStateReady
-		err = r.startExperiment(ctx, experiment)
+		err = r.httpExperimentExecutor("start", nil, experiment)
+		if err != nil {
+			return errors.Wrap(err, "cannot start experiment")
+		}
+	}
+	if !ready && (experiment.Status.ExperimentState == yassv1.ExperimentStateReady || experiment.Status.ExperimentState == yassv1.ExperimentStateOngoing) {
+		experiment.Status.ExperimentState = yassv1.ExperimentStateErrored
+		message := fmt.Sprintf("one or more components failed %s", strings.Join(failedComponents, ","))
+		r.recorder.Eventf(experiment, v1.EventTypeWarning, "componentFailed", message)
+		err = r.httpExperimentExecutor("error-report", []byte(message), experiment)
 		if err != nil {
 			return errors.Wrap(err, "cannot start experiment")
 		}
@@ -355,9 +378,18 @@ func (r *ExperimentReconciler) createFsNodeResource(ctx context.Context, namespa
 	return nil
 }
 
-func (r *ExperimentReconciler) startExperiment(ctx context.Context, experiment *yassv1.Experiment) error {
-	// TODO call experiment executor
-	experiment.Status.ExperimentState = yassv1.ExperimentStateOngoing
-
+func (r *ExperimentReconciler) httpExperimentExecutor(endpoint string, body []byte, experiment *yassv1.Experiment) error {
+	response, err := http.Post(fmt.Sprintf("http://experiment-executor.%s.svc.cluster.local:8080/%s", experiment.Namespace, endpoint), goutils.BoolToStr(body != nil, "application/json", ""), bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	if response.StatusCode >= 400 {
+		body, _ := io.ReadAll(response.Body)
+		r.recorder.Eventf(experiment, v1.EventTypeWarning, "experimentStarted", "unable to start experiment - %s", string(body))
+	} else {
+		body, _ := io.ReadAll(response.Body)
+		r.recorder.Eventf(experiment, v1.EventTypeNormal, "experimentStarted", "experiment started - %s", string(body))
+		experiment.Status.ExperimentState = yassv1.ExperimentStateOngoing
+	}
 	return nil
 }

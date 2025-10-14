@@ -58,7 +58,7 @@ spec:
                     - configMapRef
                     - mountPath
                     type: object
-                  envs:
+                  envsMap:
                     additionalProperties:
                       type: string
                     description: Envs environment variables

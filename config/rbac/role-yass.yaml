@@ -15,6 +15,14 @@ rules:
 - apiGroups:
   - int.esa.yass
   resources:
+  - layouts
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - int.esa.yass
+  resources:
   - experiments
   verbs:
   - get
@@ -26,14 +34,6 @@ rules:
   - experiments/status
   verbs:
   - get
-- apiGroups:
-  - int.esa.yass
-  resources:
-  - sats
-  verbs:
-  - get
-  - list
-  - watch
 - apiGroups:
   - int.esa.yass
   resources:

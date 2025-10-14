@@ -50,6 +50,7 @@ type ExperimentSpec struct {
 	// Engine defines what engine will be tested during the experiment.
 	Engine SimpleContainer `json:"engine,omitempty"`
 	// SimulationStartTime is a starting point of the experiment.
+	// +optional
 	SimulationStartTime metav1.Time `json:"simulationStartTime"`
 	// Start if to start the experiment as soon as it's ready.
 	Start bool `json:"start"`

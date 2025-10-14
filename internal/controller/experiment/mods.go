@@ -6,6 +6,7 @@ import (
 
 	"github.com/ESA-PhiLab/yass-operator/internal/controller"
 	appsv1 "k8s.io/api/apps/v1"
+	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -26,6 +27,8 @@ func modAddExperimentAnnotation(experimentName string) func(object client.Object
 			obj.Spec.Template.Annotations = _addAnnotation(obj.Spec.Template.Annotations, controller.LabelExperiment, experimentName)
 		case *appsv1.StatefulSet:
 			obj.Spec.Template.Annotations = _addAnnotation(obj.Spec.Template.Annotations, controller.LabelExperiment, experimentName)
+		case *v1.ConfigMap:
+			obj.Annotations = _addAnnotation(obj.Annotations, controller.LabelExperiment, experimentName)
 		default:
 			slog.Default().Error(fmt.Sprintf("modAddExperimentAnnotation:: unsupported type %T", obj))
 		}

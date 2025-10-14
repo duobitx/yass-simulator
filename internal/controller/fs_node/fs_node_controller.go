@@ -47,7 +47,7 @@ const (
 	sharedVolumeName   = "fs-node-shared-volume"
 )
 
-var enginePorts = map[int]v1.Protocol{
+var engineOpenPorts = map[int]v1.Protocol{
 	3000: v1.ProtocolTCP, 3001: v1.ProtocolTCP, 3002: v1.ProtocolTCP, 3003: v1.ProtocolTCP, 3004: v1.ProtocolTCP, 3005: v1.ProtocolTCP, 3006: v1.ProtocolTCP,
 	3007: v1.ProtocolTCP, 3008: v1.ProtocolTCP, 3009: v1.ProtocolTCP, 3010: v1.ProtocolTCP,
 	3011: v1.ProtocolUDP, 3012: v1.ProtocolUDP, 3013: v1.ProtocolUDP, 3014: v1.ProtocolUDP, 3015: v1.ProtocolUDP,
@@ -132,7 +132,8 @@ func (r *FsNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 func (r *FsNodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&yassv1.FsNode{}).
-		Named("fsNode").
+		Named("fsNode-controller").
+		Owns(&v1.Pod{}).
 		Complete(r)
 }
 
@@ -162,7 +163,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 	experimentName := fsNode.Labels[controller.LabelExperiment]
 	// create Pod
 	var _enginePorts []v1.ContainerPort
-	for port, prot := range enginePorts {
+	for port, prot := range engineOpenPorts {
 		_enginePorts = append(_enginePorts, v1.ContainerPort{ContainerPort: int32(port), Protocol: prot})
 	}
 	_enginePorts = append(_enginePorts, v1.ContainerPort{ContainerPort: int32(8080)})
@@ -183,7 +184,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 			image: r.Configuration.InternalComponentImage,
 			mods: []modFunc{
 				cmd("/world-controller"),
-				modFileProbes("worldController.txt"),
+				modHttpProbes(8801),
 				modEnvFromField("POD_IP", "status.podIP"),
 				modEnvFromField("NAMESPACE", "metadata.namespace"),
 				modEnvs(map[string]string{"RESOURCE_NAME": fsNode.Name}),
@@ -205,7 +206,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 			image: fsNode.Spec.Engine.Image,
 			ports: _enginePorts,
 			mods: []modFunc{
-				modVolumeMount(engineVolumeName, "/var/data", false),
+				modVolumeMount(engineVolumeName, "/mnt/engine", false),
 				modFor(fsNode.Spec.Engine),
 				rootFSReadOnly(),
 				modResourcesLimit(&engineResources),
@@ -231,13 +232,13 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 			},
 		},
 		Spec: v1.PodSpec{
-			TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
 			Volumes: []v1.Volume{
 				{Name: sharedVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}}, // mounted by default under /shared
 				{Name: engineVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: diskSizeLimit}}},
 				{Name: agentTMPVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
 			},
-			//ServiceAccountName: controller.ServiceAccountName, // TODO co z tym ????
+			TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
+			ServiceAccountName:            "yass-sa",
 		},
 	}
 
@@ -248,7 +249,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		ImagePullPolicy: r.Configuration.InternalComponentImagePullPolicy,
 	}
 	modMountSharedVolume(false)(pod, initContainer)
-	modEnvs(map[string]string{"DST_FILE": "/shared/fs-node.json", "RESOURCE_KIND": fsNode.Kind, "RESOURCE_NAME": fsNode.Name})(pod, initContainer)
+	modEnvs(map[string]string{"DST_FILE": "/mnt/shared/fs-node.json", "RESOURCE_KIND": fsNode.Kind, "RESOURCE_NAME": fsNode.Name})(pod, initContainer)
 	modEnvFromField("NAMESPACE", "metadata.namespace")(pod, initContainer)
 	pod.Spec.InitContainers = []v1.Container{*initContainer}
 
@@ -286,11 +287,11 @@ func (r *FsNodeReconciler) createOrUpdateFsNodeService(ctx context.Context, fsNo
 		Name:      fsNode.Name,
 	}
 	err := r.Get(ctx, objKey, fsNodeService)
-	if err != nil { // exists
+	if err == nil { // exists
 		r.updateStatusConditionForObject(fsNode, ctype, fsNodeService, nil)
 		return nil
 	}
-	if !apierrors.IsNotFound(err) { // unknown error
+	if !apierrors.IsNotFound(err) { // unexpected error
 		r.updateStatusConditionForObject(fsNode, ctype, fsNodeService, err)
 		return err
 	}
@@ -300,7 +301,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodeService(ctx context.Context, fsNo
 		controller.LabelExperiment: fsNode.Labels[controller.LabelExperiment],
 	}
 	var _engineServicePorts []v1.ServicePort
-	for port, proto := range enginePorts {
+	for port, proto := range engineOpenPorts {
 		_engineServicePorts = append(_engineServicePorts, v1.ServicePort{
 			Name:       strings.ToLower(fmt.Sprintf("port%d%s", port, proto)),
 			Protocol:   proto,

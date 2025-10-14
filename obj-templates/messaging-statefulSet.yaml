@@ -13,10 +13,12 @@ spec:
       labels:
         app: messaging
     spec:
+      serviceAccountName: yass-sa
+      terminationGracePeriodSeconds: 10
       containers:
         - name: mosquitto
-          image: "ghcr.io/esa-philab/yass/eclipse-mosquitto:latest"
-          imagePullPolicy: "Always"  # TODO
+          image: "ghcr.io/esa-philab/yass/eclipse-mosquitto:20251018t012153"
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 1883
               name: mqtt
@@ -30,3 +32,13 @@ spec:
               port: 1883
             initialDelaySeconds: 5
             periodSeconds: 10
+#          volumeMounts:
+#            - mountPath: /mosquitto/data
+#              name: data
+#            - mountPath: /mosquitto/log
+#              name: log
+#      volumes:
+#        - name: data
+#          emptyDir: {}
+#        - name: log
+#          emptyDir: {}

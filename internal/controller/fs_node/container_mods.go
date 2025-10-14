@@ -6,6 +6,7 @@ import (
 	v2 "github.com/ESA-PhiLab/yass-operator/api/v1"
 	"github.com/ESA-PhiLab/yass-operator/internal/controller"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 type modFunc func(pod *v1.Pod, container *v1.Container)
@@ -27,7 +28,7 @@ func rootFSReadOnly() modFunc {
 }
 
 func modMountSharedVolume(ro bool) modFunc {
-	montPath := "/shared"
+	montPath := "/mnt/shared"
 	return modComposite(
 		modEnvs(map[string]string{"SHARED_VOLUME_PATH": montPath}),
 		modVolumeMount(sharedVolumeName, montPath, ro),
@@ -51,14 +52,14 @@ func modVolumeMount(volumeName, mountPoint string, ro bool) modFunc {
 	}
 }
 
-func modFileProbes(filename string) modFunc {
+func modFileProbes() modFunc {
+	const filename = "/tmp/probe.txt"
+	commands := []string{"/bin/ls", "-c", filename} // see internal-components->docker_tools
 	fileProbe := &v1.Probe{
 		ProbeHandler: v1.ProbeHandler{
-			Exec: &v1.ExecAction{
-				Command: []string{"/file_probe.sh"}, // see internal-components->docker_tools
-			},
+			Exec: &v1.ExecAction{Command: commands},
 		},
-		InitialDelaySeconds: 2,
+		InitialDelaySeconds: 8,
 		TimeoutSeconds:      1,
 		PeriodSeconds:       3,
 		SuccessThreshold:    1,
@@ -68,10 +69,49 @@ func modFileProbes(filename string) modFunc {
 	return modComposite(
 		modEnvs(map[string]string{"PROBE_FILE": filename}),
 		func(pod *v1.Pod, container *v1.Container) {
-			container.ReadinessProbe = fileProbe
-			container.LivenessProbe = fileProbe
+			container.ReadinessProbe = fileProbe.DeepCopy()
+			container.LivenessProbe = fileProbe.DeepCopy()
 		},
 	)
+}
+func modHttpProbes(port int) modFunc {
+	const portName = "http-probe"
+	fileProbe := &v1.Probe{
+		ProbeHandler: v1.ProbeHandler{
+			HTTPGet: &v1.HTTPGetAction{
+				Path:   "/",
+				Port:   intstr.IntOrString{Type: intstr.String, StrVal: portName},
+				Scheme: "HTTP",
+			},
+		},
+		InitialDelaySeconds: 8,
+		TimeoutSeconds:      1,
+		PeriodSeconds:       3,
+		SuccessThreshold:    1,
+		FailureThreshold:    2,
+	}
+
+	return func(pod *v1.Pod, container *v1.Container) {
+		container.ReadinessProbe = fileProbe.DeepCopy()
+		container.LivenessProbe = fileProbe.DeepCopy()
+		if container.Ports == nil {
+			container.Ports = []v1.ContainerPort{}
+		}
+		portFound := false
+		for _, cp := range container.Ports {
+			if cp.ContainerPort == int32(port) {
+				portFound = true
+				break
+			}
+		}
+		if !portFound {
+			container.Ports = append(container.Ports, v1.ContainerPort{
+				Name:          portName,
+				ContainerPort: int32(port),
+				Protocol:      "TCP",
+			})
+		}
+	}
 }
 
 func modEnvs(vars map[string]string) modFunc {
