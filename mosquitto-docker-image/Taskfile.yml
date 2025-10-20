@@ -1,0 +1,32 @@
+version: '3'
+
+vars:
+  IMAGE_NAME: 'ghcr.io/esa-philab/yass/eclipse-mosquitto'
+  TAG:
+    sh: date '+%Y%m%dt%H%M%S'
+  DOCKER: 'docker'
+
+silent: true
+
+tasks:
+  docker-build:
+    desc: Build MOSQUITTO image tagged with TAG and latest
+    cmds:
+      - "{{.DOCKER}} build -t {{.IMAGE_NAME}}:{{.TAG}} -f Dockerfile ."
+      - "{{.DOCKER}} tag {{.IMAGE_NAME}}:{{.TAG}} {{.IMAGE_NAME}}:latest"
+
+  docker-push:
+    desc: Push images with TAG and latest
+    sources:
+      - mosquitto.conf
+      - Dockerfile
+    deps:
+      - "docker-build"
+    cmds:
+      - "{{.DOCKER}} push {{.IMAGE_NAME}}:{{.TAG}}"
+      - "{{.DOCKER}} push {{.IMAGE_NAME}}:latest"
+
+  default:
+    desc: Run docker-build and docker-push
+    cmds:
+      - task: docker-push

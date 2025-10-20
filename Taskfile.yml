@@ -1,0 +1,44 @@
+version: '3'
+
+vars:
+  IMAGE_NAME: 'ghcr.io/esa-philab/yass/internal-components'
+  TAG:
+    sh: date '+%Y%m%dt%H%M%S'
+  DOCKER: 'docker'
+
+silent: true
+
+tasks:
+
+  deps:
+    desc: Build prerequisite artifacts from submodules (go-common, resource-to-json, world-controller)
+    cmds:
+      - task -d go-common tools
+      - task -d go-common proto
+      - task -d resource-to-json build
+      - task -d world-controller build
+      - task -d experiment-executor build
+      - task -d mosquitto-docker-image docker-push
+
+  docker-build:
+    desc: Build root Docker image tagged with TAG and latest
+    deps:
+      - deps
+    cmds:
+      - "{{.DOCKER}} build -t {{.IMAGE_NAME}}:{{.TAG}} -f Dockerfile ."
+      - "{{.DOCKER}} tag {{.IMAGE_NAME}}:{{.TAG}} {{.IMAGE_NAME}}:latest"
+
+  docker-push:
+    desc: Push images with TAG and latest
+    deps:
+      - "docker-build"
+    cmds:
+      - "{{.DOCKER}} push {{.IMAGE_NAME}}:{{.TAG}}"
+      - "{{.DOCKER}} push {{.IMAGE_NAME}}:latest"
+
+  default:
+    desc: Run deps, docker-build and docker-push
+    deps: [deps]
+    cmds:
+      - task: docker-build
+      - task: docker-push

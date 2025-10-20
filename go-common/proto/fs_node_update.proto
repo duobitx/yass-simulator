@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package yass.fs;
+
+option go_package = "github.com/ESA-PhiLab/yass-internal-components/go-common/proto;proto";
+
+message FsNodeUpdate {
+  string id = 1;
+
+  bool in_shadow = 2;
+
+  optional string pos_str = 3;
+
+  // Last update timestamp as Unix seconds.
+  int64 updated_unix_sec = 6;
+}
