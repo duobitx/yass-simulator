@@ -21,8 +21,9 @@ struct common comm, *pcom;
 double radiusearthkm = 6378.137;
 
 
-int n_sat=0, cont_flag=1;
-time_t tm;
+int n_sat=0, n_bs=1, cont_flag=1;
+time_t tm, tm_start;
+float accel=1.0;
 
 
 std::vector<libsgp4::Tle>  V_tle;
@@ -111,7 +112,7 @@ int calc_pos()
   double  d, PI = 3.1415926;
   int k,l; 
   
-  pcom->busy=1; pcom->nsat=n_sat;
+  pcom->busy=1; pcom->nsat=n_sat; pcom->nbs=n_bs;
   info = gmtime( &tm );
   sprintf(pcom->utc_dttm,"%4d-%02d-%02d %02d:%02d:%02d\n",info->tm_year+1900,info->tm_mon+1,info->tm_mday,info->tm_hour,info->tm_min,info->tm_sec);
   sgp4dttm = libsgp4::DateTime(info->tm_year+1900,info->tm_mon+1,info->tm_mday,info->tm_hour,info->tm_min,info->tm_sec);
@@ -122,14 +123,21 @@ int calc_pos()
     //psat->h=sqrt(pos.x*pos.x+pos.y*pos.y+pos.z*pos.z) - radiusearthkm;
     libsgp4::CoordGeodetic geo = eci.ToGeodetic();
     psat->lat=180.0*geo.latitude/PI; psat->lon=180.0*geo.longitude/PI; psat->alt=geo.altitude;
-
    }
-  for(k=0;k<n_sat;k++) { psat=pcom->sat + k;
+
+  psat=pcom->sat + n_sat;  psat->lat=52.164313494928955; psat->lon=21.022268460902644; psat->alt=0.118; 
+  for(k=n_sat;k<n_sat+n_bs;k++) { psat=pcom->sat + k;
+  	libsgp4::Eci bs = libsgp4::Eci(sgp4dttm,psat->lat, psat->lon, psat->alt);
+    pos = bs.Position();  psat->x=pos.x; psat->y=pos.y; psat->z=pos.z;
+   } 		
+  
+  for(k=0;k<n_sat+n_bs;k++) { psat=pcom->sat + k;
     psat->nref=0;
     for(l=0;l<n_sat;l++) if( k != l && (d=dist(k,l)) > 0.0 ) { psat->sat_ref[psat->nref].sid=l; psat->sat_ref[psat->nref++].dist=d;}
     //qsort(psat->sat_ref,psat->nref,sizeof(struct sat_ref_dscr),refcmp);
    }
   pcom->busy=0; 
+  //std::cout << sgp4dttm << " " << pcom->sat[n_sat].nref <<  " " << pcom->sat[n_sat].x <<  " " << pcom->sat[n_sat].y << std::endl;	
   return 0;
 }
 
@@ -138,13 +146,35 @@ static void int_hnd(int s)
 cont_flag=0;
 }
 
+static int dttmverif(char *arg)
+{ struct tm tm;
+  time_t t;;
+  int d,m,y,h,mn;
+
+  if( strlen(arg) != 16 || arg[4] != '-' || arg[7] != '-' || arg[10] != 'T' || arg[13] != ':' ) return 1;
+  h=mn=0;
+  sscanf(arg,"%4d-%2d-%2dT%2d:%2d",&y,&m,&d,&h,&mn);
+  tm.tm_mday = d; tm.tm_mon = m-1; tm.tm_year=  y-1900; tm.tm_hour=h; tm.tm_min=mn; tm.tm_sec=tm.tm_isdst=0; 
+  t=timegm(&tm);
+  if( tm.tm_mday != d || tm.tm_mon+1 != m || tm.tm_year+1900 != y || tm.tm_hour != h || tm.tm_min != mn ) return 1;
+  tm_start=t;
+  return 0;
+}
 
 
-int main()
+
+int main(int argc, char **argv)
 {   libsgp4::Vector pos;
     const char* file_name = "tle_100.txt";
-    time_t t1,t2;
+    time_t t0,t1,t2;
     int k, shm;
+    char *pc;
+    
+    time(&tm_start);
+    if( argc > 1 ) {
+    	if( dttmverif(argv[1]) ) { fprintf(stderr,"wrong literal %s\n",argv[1]); exit(8); }
+    	if( argc > 2 ) { accel=strtof(argv[2],&pc); if( *pc || accel < 1.0 )  {  fprintf(stderr,"Wrong acceleration factor\n"); exit(8); } }
+     }
 
     sgp4dttm = libsgp4::DateTime(2025,10,1);
 
@@ -162,13 +192,14 @@ int main()
     signal(7,int_hnd);
     signal(2,int_hnd);
    	
-    time(&t1);
+    time(&t0); t1=t0;
     while(1) {
       if( !cont_flag ) { printf("signal received\n"); break; }
       usleep(200000); // 200 ms
       time(&t2);
       if(t1 != t2 ) {
-        tm = t1 = t2;
+        t1 = t2;
+        tm=tm_start + (time_t)(accel*(t2-t0));
         calc_pos();
       }
     }

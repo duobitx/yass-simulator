@@ -11,6 +11,7 @@ import (
 type Common struct {
     Busy    int32
     Nsat    int32
+    Nbs     int32
     UtcDttm [32]byte
 }
 
@@ -49,7 +50,7 @@ func main() {
             break
          }
        }
-      fmt.Println("Busy: ", common.Busy, ", nsat:", common.Nsat, ", UTC:", utcStr)
+      fmt.Println("Busy: ", common.Busy, ", nsat:", common.Nsat, ", nbs:", common.Nbs, " UTC:", utcStr)
       time.Sleep(2 * time.Second)
     }
 }

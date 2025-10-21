@@ -13,7 +13,7 @@ struct sat_pos_dscr {
  
 
 struct common  {
-    int busy, nsat;
+    int busy, nsat, nbs;
     char utc_dttm[32];
     struct sat_pos_dscr sat[MAXSAT];
 };
