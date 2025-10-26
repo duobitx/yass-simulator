@@ -1,7 +1,7 @@
 version: '3'
 
 vars:
-  IMAGE_NAME: 'ghcr.io/esa-philab/yass/internal-components'
+  IMAGE_NAME: 'ghcr.io/duobitx/yass/internal-components'
   TAG:
     sh: date '+%Y%m%dt%H%M%S'
   DOCKER: 'docker'

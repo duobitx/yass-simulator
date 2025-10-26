@@ -1,9 +1,8 @@
 version: '3'
 
 vars:
-    IMAGE_NAME: 'ghcr.io/esa-philab/yass/eclipse-mosquitto'
-    TAG:
-      sh: date '+%Y%m%dt%H%M%S'
+    IMAGE_NAME: 'ghcr.io/duobitx/yass/eclipse-mosquitto'
+    TAG: 'v1'
     DOCKER: 'docker'
 
 silent: true
@@ -30,3 +29,4 @@ tasks:
     desc: Run docker-build and docker-push
     cmds:
       - task: docker-push
+
