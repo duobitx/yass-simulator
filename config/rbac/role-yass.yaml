@@ -8,43 +8,38 @@ rules:
   - int.esa.yass
   resources:
   - experimentdefinitions
-  verbs:
-  - get
-  - list
-  - watch
+  verbs: [ "get", "list", "watch", "create" ]
 - apiGroups:
   - int.esa.yass
   resources:
   - layouts
-  verbs:
-  - get
-  - list
-  - watch
+  verbs: [ "get", "list", "watch" ]
 - apiGroups:
   - int.esa.yass
   resources:
   - experiments
-  verbs:
-  - get
-  - list
-  - watch
+  verbs: [ "get", "list", "watch","update", "patch" ]
 - apiGroups:
   - int.esa.yass
   resources:
   - experiments/status
-  verbs:
-  - get
+  verbs: [ "get", "list", "watch", "create", "update", "patch", "delete" ]
 - apiGroups:
   - int.esa.yass
   resources:
   - fsnodes
-  verbs:
-  - get
-  - list
-  - watch
+  verbs: [ "get", "list", "watch", "create", "update", "patch", "delete" ]
 - apiGroups:
   - int.esa.yass
   resources:
   - fsnodes/status
-  verbs:
-  - get
+  verbs: [ "get", "list", "watch", "create", "update", "patch", "delete" ]
+- apiGroups: [""]
+  resources: ["*"]
+  verbs: [ "get", "list", "watch", "create", "update", "patch", "delete" ]
+- apiGroups: ["apps"]
+  resources: ["*"]
+  verbs: [ "get", "list", "watch", "create", "update", "patch", "delete" ]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["clusterrolebindings"]
+  verbs: [ "get", "list", "watch", "create", "update", "patch", "delete" ]

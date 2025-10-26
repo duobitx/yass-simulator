@@ -26,7 +26,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o ma
 FROM gcr.io/distroless/static:nonroot
 WORKDIR /
 COPY --from=builder /workspace/manager .
-ADD obj-templates /
+ADD obj-templates ./obj-templates
 USER 65532:65532
 
 ENTRYPOINT ["/manager"]

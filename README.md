@@ -48,11 +48,12 @@ kubectl -n yass-system apply -f dist/install.yaml
 kubectl -n yass-system create -f docker-secret.yaml
 kubectl -n yass-system patch serviceaccount yass-controller-manager -p '{"imagePullSecrets": [{"name": "docker-secret"}]}'
 kubectl -n yass-system patch serviceaccount default -p '{"imagePullSecrets": [{"name": "docker-secret"}]}'
+# try to redownload image after imagePullSecrets is applied
+kubectl -n yass-system delete `kubectl -n yass-system get pod -o name|grep yass-controller` 
 ```
 
 ### 3. Prepare namespace for an experiment ("default")
 ```shell
 #kubect create namespace default  
 kubectl -n default create -f docker-secret.yaml
-kubectl -n default patch serviceaccount default -p '{"imagePullSecrets": [{"name": "docker-secret"}]}'
 ```
