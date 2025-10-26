@@ -1,0 +1,21 @@
+version: '3'
+
+vars:
+  TARGETARCH: 'amd64'
+  TARGETOS:   'linux'
+
+silent: true
+
+tasks:
+  build:
+    desc: Build the geo-calculator
+    dir: './V5'
+    sources:
+      - '**/*'
+    cmds:
+      - g++ -o ../geo_calc geo_calc.cc -L. -lsgp4 -ljansson
+
+  default:
+    desc: Alias to build
+    cmds:
+      - task: build

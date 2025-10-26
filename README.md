@@ -15,6 +15,14 @@ Task tool - [taskfile.dev](https://taskfile.dev/)
 sudo snap install task --classic
 ```
 
+### Gcc
+
 ### Golang toolchain
+
+### Jansson lib
+```shell
+sudo apt install libjansson-dev
+```
+
 
 ### Make

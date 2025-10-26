@@ -18,6 +18,7 @@ tasks:
       - task -d resource-to-json build
       - task -d world-controller build
       - task -d experiment-executor build
+      - task -d geo-calculator build
       - task -d mosquitto-docker-image docker-push
 
   docker-build:

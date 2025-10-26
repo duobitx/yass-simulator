@@ -13,6 +13,9 @@ COPY world-controller/main ./world-controller
 
 # Experiment executor
 COPY experiment-executor/main ./experiment-executor
+COPY geo-calculator/geo_calc ./geo_calc
+
+
 EXPOSE 8080
 
 

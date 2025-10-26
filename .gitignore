@@ -21,3 +21,4 @@ bin/*
 world-controller/world-controller
 resource-to-json/resource-to-json
 main
+geo_calc

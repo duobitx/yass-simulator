@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal"
+	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal/geocalc"
 	"github.com/gorilla/mux"
 	"k8s.io/apimachinery/pkg/util/rand"
 
@@ -48,6 +49,15 @@ func main() {
 		defer cancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			slog.Error("HTTP server shutdown error", "error", err)
+		}
+	}()
+
+	errCh := geocalc.RunGeoCalc(ctx)
+	go func() {
+		err := <-errCh
+		if err != nil {
+			slog.Default().Error("geocalc error", "error", err)
+			cancel()
 		}
 	}()
 
