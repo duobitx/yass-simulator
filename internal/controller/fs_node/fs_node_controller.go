@@ -36,15 +36,17 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
 )
 
 const (
-	engineVolumeName   = "engine-volume"
-	agentTMPVolumeName = "agent-tmp-volume"
-	sharedVolumeName   = "fs-node-shared-volume"
+	engineVolumeName                = "engine-volume"
+	agentTMPVolumeName              = "agent-tmp-volume"
+	sharedVolumeName                = "fs-node-shared-volume"
+	removeFsNodeComponentsFinalizer = "fsnode-controller/cleanup"
 )
 
 var engineOpenPorts = map[int]v1.Protocol{
@@ -86,46 +88,69 @@ func (r *FsNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 	err := r.Get(ctx, req.NamespacedName, &fsNode)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
-			logger.Info("FsNode deleted", "name", req.NamespacedName)
-			err := r.removeFsNode(ctx, req)
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, err
-	} else {
-		requeue, err := r.updateHardwareSpec(ctx, &fsNode)
-		if requeue {
-			return ctrl.Result{RequeueAfter: 500 * time.Millisecond}, nil
-		}
-		defer func() {
-			fsNode.Status.Ready = collections.AllMatch(fsNode.Status.Conditions, func(element *metav1.Condition) bool {
-				return element.Status == metav1.ConditionTrue
-			})
-			err := r.Status().Update(ctx, &fsNode)
-			if err != nil {
-				logger.Error(err, "error updating fsNode status")
-			}
-		}()
-		if err != nil {
-			r.updateStatusCondition(&fsNode, "hardwareSpec", err.Error(), "hardwareNotAssigned", false)
-		} else {
-			r.updateStatusCondition(&fsNode, "hardwareSpec", "", "hardwareAssigned", true)
-		}
-		experimentName := fsNode.Labels[controller.LabelExperiment]
-		if experimentName == "" {
-			r.updateStatusCondition(&fsNode, "experimentAssigned", fmt.Sprintf("no %s label found", controller.LabelExperiment), "noExperimentLabel", false)
-			return ctrl.Result{RequeueAfter: 500 * time.Millisecond}, nil
-		}
-		r.updateStatusCondition(&fsNode, "experimentAssigned", "experiment assigned", "experimentLabelFound", true)
-		err = r.createOrUpdateFsNodePod(ctx, &fsNode)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		err = r.createOrUpdateFsNodeService(ctx, &fsNode)
-		if err != nil {
-			return ctrl.Result{}, err
+			return ctrl.Result{}, nil // ignore not found
 		}
 		return ctrl.Result{}, err
 	}
+
+	if !fsNode.ObjectMeta.DeletionTimestamp.IsZero() {
+		// The object is being deleted
+		if controllerutil.ContainsFinalizer(&fsNode, removeFsNodeComponentsFinalizer) {
+			// Run cleanup logic
+			logger.Info("FsNode deleted", "name", req.NamespacedName)
+			err = r.removeFsNode(ctx, req)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			controllerutil.RemoveFinalizer(&fsNode, removeFsNodeComponentsFinalizer)
+			if err := r.Update(ctx, &fsNode); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
+	}
+
+	// Add finalizer if not present
+	if !controllerutil.ContainsFinalizer(&fsNode, removeFsNodeComponentsFinalizer) {
+		controllerutil.AddFinalizer(&fsNode, removeFsNodeComponentsFinalizer)
+		if err := r.Update(ctx, &fsNode); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
+	requeue, err := r.updateHardwareSpec(ctx, &fsNode)
+	if requeue {
+		return ctrl.Result{RequeueAfter: 500 * time.Millisecond}, nil
+	}
+	defer func() {
+		fsNode.Status.Ready = collections.AllMatch(fsNode.Status.Conditions, func(element *metav1.Condition) bool {
+			return element.Status == metav1.ConditionTrue
+		})
+		err := r.Status().Update(ctx, &fsNode)
+		if err != nil {
+			logger.Error(err, "error updating fsNode status")
+		}
+	}()
+	if err != nil {
+		r.updateStatusCondition(&fsNode, "hardwareSpec", err.Error(), "hardwareNotAssigned", false)
+	} else {
+		r.updateStatusCondition(&fsNode, "hardwareSpec", "", "hardwareAssigned", true)
+	}
+	experimentName := fsNode.Labels[controller.LabelExperiment]
+	if experimentName == "" {
+		r.updateStatusCondition(&fsNode, "experimentAssigned", fmt.Sprintf("no %s label found", controller.LabelExperiment), "noExperimentLabel", false)
+		return ctrl.Result{RequeueAfter: 500 * time.Millisecond}, nil
+	}
+	r.updateStatusCondition(&fsNode, "experimentAssigned", "experiment assigned", "experimentLabelFound", true)
+	err = r.createOrUpdateFsNodePod(ctx, &fsNode)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	err = r.createOrUpdateFsNodeService(ctx, &fsNode)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, err
 }
 
 // SetupWithManager sets up the controller with the Manager.

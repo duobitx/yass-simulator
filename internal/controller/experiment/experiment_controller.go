@@ -31,6 +31,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -61,6 +62,11 @@ type ExperimentReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.22.1/pkg/reconcile
+
+const (
+	removeFsNodesFinalizer = "experiment-controller/cleanup-fsNodes"
+)
+
 func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logf.FromContext(ctx)
 	logger.Info(fmt.Sprintf("req %+v", req))
@@ -68,28 +74,51 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	var experiment yassv1.Experiment
 	err := r.Get(ctx, req.NamespacedName, &experiment)
 	if err != nil {
-		if apierrors.IsNotFound(err) { // Resource experiment was deleted
-			logger.Info("Experiment deleted", "name", req.NamespacedName)
-			err = r.deleteExperimentObjects(ctx, req.NamespacedName.Namespace, req.Name)
-			return ctrl.Result{}, err
+		if apierrors.IsNotFound(err) { // Resource not found - ignore
+			return ctrl.Result{}, nil
 		}
 		return ctrl.Result{}, err
-	} else {
-		if experiment.Status.ExperimentState == "" {
-			experiment.Status.ExperimentState = yassv1.ExperimentStateInit
+	}
+	if !experiment.ObjectMeta.DeletionTimestamp.IsZero() {
+		// The object is being deleted
+		if controllerutil.ContainsFinalizer(&experiment, removeFsNodesFinalizer) {
+			// Run cleanup logic
+			logger.Info("Experiment deleted", "name", req.NamespacedName)
+			err = r.deleteExperimentObjects(ctx, req.NamespacedName.Namespace, req.Name)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
+			controllerutil.RemoveFinalizer(&experiment, removeFsNodesFinalizer)
+			if err := r.Update(ctx, &experiment); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
-		err = r.createOrUpdateExperiment(ctx, req, &experiment)
-		upErr := r.Status().Update(ctx, &experiment)
-		if upErr != nil {
-			logger.Error(upErr, "cannot update experiment status")
-		}
-		if err != nil {
+		return ctrl.Result{}, nil
+	}
+
+	// Add finalizer if not present
+	if !controllerutil.ContainsFinalizer(&experiment, removeFsNodesFinalizer) {
+		controllerutil.AddFinalizer(&experiment, removeFsNodesFinalizer)
+		if err := r.Update(ctx, &experiment); err != nil {
 			return ctrl.Result{}, err
 		}
-		if experiment.Status.ExperimentState == yassv1.ExperimentStateInit {
-			return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
-		}
 	}
+
+	if experiment.Status.ExperimentState == "" {
+		experiment.Status.ExperimentState = yassv1.ExperimentStateInit
+	}
+	err = r.createOrUpdateExperiment(ctx, req, &experiment)
+	upErr := r.Status().Update(ctx, &experiment)
+	if upErr != nil {
+		logger.Error(upErr, "cannot update experiment status")
+	}
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	if experiment.Status.ExperimentState == yassv1.ExperimentStateInit {
+		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
+	}
+
 	return ctrl.Result{}, nil
 }
 
