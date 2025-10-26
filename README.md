@@ -44,11 +44,10 @@ kubectl create secret docker-registry docker-secret \
 ### 2. Install Yass operator
 ```shell
 # Prepare namespace for yass operator
-kubectl create namespace yass-system
-kubectl -n yass-system create -f docker-secret.yaml
-# Install operator
 kubectl -n yass-system apply -f dist/install.yaml
+kubectl -n yass-system create -f docker-secret.yaml
 kubectl -n yass-system patch serviceaccount yass-controller-manager -p '{"imagePullSecrets": [{"name": "docker-secret"}]}'
+kubectl -n yass-system patch serviceaccount default -p '{"imagePullSecrets": [{"name": "docker-secret"}]}'
 ```
 
 ### 3. Prepare namespace for an experiment ("default")
