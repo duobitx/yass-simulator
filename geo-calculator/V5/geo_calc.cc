@@ -193,7 +193,7 @@ int calc_pos()
   sgp4dttm = libsgp4::DateTime(info->tm_year+1900,info->tm_mon+1,info->tm_mday,info->tm_hour,info->tm_min,info->tm_sec);
 
   for(k=0;k<n_sat;k++) { psat=pcom->sat + k;
-//    strcpy(psat->name, V_tle[k].Name().c_str());
+    strcpy(psat->name, V_tle[k].Name().c_str());
     libsgp4::Eci eci =  V_sgp4[k].FindPosition(sgp4dttm); pos=eci.Position();
     psat->x=pos.x; psat->y=pos.y; psat->z=pos.z;
     //psat->h=sqrt(pos.x*pos.x+pos.y*pos.y+pos.z*pos.z) - radiusearthkm;
@@ -202,7 +202,7 @@ int calc_pos()
    }
 
   for(k=0;k<n_bs;k++) { psat=pcom->sat + n_sat + k;
-//    strcpy(psat->name, V_bs[k].name);
+    strcpy(psat->name, V_bs[k].name);
     psat->lat=V_bs[k].lat; psat->lon=V_bs[k].lon; psat->alt=V_bs[k].alt;
     libsgp4::Eci bs = libsgp4::Eci(sgp4dttm,psat->lat, psat->lon, psat->alt);
     pos = bs.Position();  psat->x=pos.x; psat->y=pos.y; psat->z=pos.z;

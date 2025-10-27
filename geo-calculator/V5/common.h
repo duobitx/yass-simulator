@@ -6,6 +6,7 @@
 struct sat_ref_dscr { int sid; float dist; };
 
 struct sat_pos_dscr {
+   char name[32];
    double x, y, z, lat, lon, alt;
    int nref;
    struct sat_ref_dscr sat_ref[MAXSAT];  
