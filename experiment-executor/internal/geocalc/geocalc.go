@@ -19,13 +19,6 @@ import (
 
 const shmFilePath = "/dev/shm/geo_calc_shared_memory"
 
-type Common struct {
-	Busy    int32
-	Nsat    int32
-	Nbs     int32
-	UtcDttm [32]byte
-}
-
 func run(ctx context.Context, name string, args ...string) error {
 	cmd := exec.CommandContext(ctx, name, args...)
 	stdout, err := cmd.StdoutPipe()
@@ -89,7 +82,7 @@ func run(ctx context.Context, name string, args ...string) error {
 	return nil
 }
 
-func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration) error {
+func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration, chOut chan<- *GeoCalcUpdate) error {
 	shmFile, err := os.Open(shmFilePath)
 	if err != nil {
 		return fmt.Errorf("cannot open %s:: %w ", shmFilePath, err)
@@ -98,7 +91,7 @@ func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration) error 
 	data, err := syscall.Mmap(
 		int(shmFile.Fd()),
 		0,
-		int(unsafe.Sizeof(Common{})),
+		int(unsafe.Sizeof(common{})),
 		syscall.PROT_READ,
 		syscall.MAP_SHARED,
 	)
@@ -106,7 +99,7 @@ func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration) error 
 		return fmt.Errorf("mmap error:: %w", err)
 	}
 	defer func() { _ = syscall.Munmap(data) }()
-	common := (*Common)(unsafe.Pointer(&data[0]))
+	commonMem := (*common)(unsafe.Pointer(&data[0]))
 
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
@@ -115,40 +108,52 @@ func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration) error 
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			utcStr := string(common.UtcDttm[:])
-			for i, c := range utcStr {
-				if c == 0 {
-					utcStr = utcStr[:i]
-					break
+			timeout := time.Now().Add(200 * time.Millisecond)
+			for {
+				if commonMem.Busy > 0 {
+					if time.Now().After(timeout) {
+						slog.Default().Error("cannot convert geoUpdate as it is still busy")
+						break
+					}
+					time.Sleep(2 * time.Millisecond)
+					continue
 				}
+				update, err := Convert(commonMem)
+				if err != nil {
+					slog.Default().Error("cannot convert geoUpdate", "error", err)
+				} else {
+					chOut <- update
+				}
+				break
 			}
-			slog.Default().Info(fmt.Sprintf("GeoCalc: Busy: %d, nsat: %d, nbs %d, utc: %s", common.Busy, common.Nsat, common.Nbs, utcStr))
 		}
-
 	}
 }
 
-func RunGeoCalc(ctx context.Context) <-chan error {
+func RunGeoCalc(ctx context.Context, interval time.Duration) (<-chan *GeoCalcUpdate, <-chan error) {
+	chOut := make(chan *GeoCalcUpdate)
 	chErr := make(chan error, 1)
 	go func() {
-		err := run(ctx, "stdbuf", "-oL", "-eL", "./geo_calc", "./experiment.json")
+		//err := run(ctx, "stdbuf", "-oL", "-eL", "./geo_calc", "./experiment.json")
+		err := run(ctx, "./geo_calc", "./experiment.json")
 		if err != nil {
 			chErr <- err
 		}
 		close(chErr)
+		close(chOut)
 	}()
-	fileCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
+	fileCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	err := WaitForFile(fileCtx, shmFilePath)
 	if err != nil {
-		chErr <- err
+		chErr <- errors2.Wrapf(err, "waiting for file %s", shmFilePath)
 	} else {
 		go func() {
-			err := readFromGeoCalcBlocking(ctx, 2*time.Second)
+			err := readFromGeoCalcBlocking(ctx, interval, chOut)
 			if err != nil {
 				chErr <- errors2.Wrap(err, "readFromGeoCalc")
 			}
 		}()
 	}
-	return chErr
+	return chOut, chErr
 }

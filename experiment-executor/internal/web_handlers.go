@@ -23,7 +23,7 @@ func (t *AppType) handleRoot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t *AppType) handleStartExperiment(w http.ResponseWriter, r *http.Request) {
-	err := t.Start()
+	err := t.Start(t.mainCtx)
 	if handleError(err, w) {
 		return
 	}

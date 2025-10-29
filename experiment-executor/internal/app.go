@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"sync"
 	"time"
 
 	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal/eclock"
+	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal/geocalc"
 	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal/model"
 	"github.com/ESA-PhiLab/yass-internal-components/go-common/cmodel"
 	"github.com/ESA-PhiLab/yass-internal-components/go-common/com"
@@ -102,75 +102,54 @@ func NewApp(ctx context.Context, facade com.Facade) (*AppType, error) {
 	return app, nil
 }
 
-func (t *AppType) Start() error {
+func (t *AppType) Start(ctxParent context.Context) error {
 	if t.clock != nil {
 		return errors.New("experiment already started")
 	}
-	whenStart := time.Now()
-	if t.ExperimentDefData.StartTime != nil {
-		whenStart = *t.ExperimentDefData.StartTime
-	}
-	slog.Default().Info("starting experiment", "startTime", whenStart, "maxDuration", t.ExperimentDefData.MaxDuration)
-	t.clock = eclock.NewExperimentRealClock(t.mainCtx, whenStart, t.ExperimentDefData.MaxDuration)
+	ctx, cancel := context.WithCancelCause(ctxParent)
+	var experimentEndAt time.Time
+	dataCh, errCh := geocalc.RunGeoCalc(ctx, 2*time.Second)
+	timeSourceCh := make(chan time.Time)
 	go func() {
+		var lastTime time.Time
+		defer close(timeSourceCh)
 		for {
 			select {
-			case <-t.clock.Done():
-				err := t.sendTimeUpdate(t.clock.Now(), false)
+			case err := <-errCh:
 				if err != nil {
-					slog.Default().Error("error sending final time update", "error", err)
+					slog.Default().Error("geocalc error", "error", err)
 				}
-				err = t.experimentCompletedUpdateExperimentResource()
+			case upd := <-dataCh:
+				timeSourceCh <- upd.CurrentTime
+				lastTime = upd.CurrentTime
+				if !experimentEndAt.IsZero() && experimentEndAt.After(upd.CurrentTime) {
+					t.sendTimeUpdate(upd.CurrentTime, false)
+					cancel(errors.New("experiment time ended"))
+				} else {
+					t.sendTimeUpdate(upd.CurrentTime, true)
+					t.handleGeoUpdate(ctx, upd)
+				}
+				err := t.experimentCompletedUpdateExperimentResource()
 				if err != nil {
 					slog.Default().Error("error updating experiment.status resource", "error", err)
 				}
+			case <-ctx.Done():
+				t.sendTimeUpdate(lastTime, false)
 				return
-			case now := <-t.clock.Tick():
-				err := t.sendUpdates(now)
-				if err != nil {
-					slog.Default().Error("error sending mock update", "error", err)
-				}
 			}
 		}
 	}()
-	return nil
-}
-
-func (t *AppType) sendUpdates(now time.Time) error {
-	t.nodesLock.Lock()
-	defer t.nodesLock.Unlock()
-	joinErr := &goutils.JoinErrorHelper{}
-	wg := sync.WaitGroup{}
-	for _, fsNode := range t.ExperimentDefData.FsNodes {
-		name := fsNode.Name
-		geoResult, err := calculatePosition(&fsNode, now) // no multithread is supported
-		if err != nil {
-			joinErr.Append(errors.Wrapf(err, "cannot calculate position for %s", name))
-			continue
-		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			err2 := t.sendGeoUpdate(name, geoResult)
-			if err2 != nil {
-				joinErr.Append(errors.Wrapf(err2, "cannot send geoUpdate to %s", name))
-			}
-		}()
-		wg.Wait()
-		err = t.sendTimeUpdate(now, true)
-		joinErr.Append(err)
+	experimentClock, err := eclock.NewExperimentClock(ctx, timeSourceCh, t.ExperimentDefData.MaxDuration)
+	if err != nil {
+		return errors.Wrapf(err, "NewExperimentClock")
 	}
-	return joinErr.AsError()
-}
-
-func calculatePosition(fsn *cmodel.ExperimentFsNode, t time.Time) (*model.GeoResult, error) {
-	// return nil, errors.New("calculatePosition:: implement me")
-	// TODO
-	return &model.GeoResult{
-		X: rand.Float32() * 10.0,
-		Y: rand.Float32() * 10.0,
-		Z: rand.Float32() * 10.0,
-	}, nil
+	startAt := experimentClock.Now()
+	if t.ExperimentDefData.MaxDuration != nil {
+		experimentEndAt = startAt.Add(*t.ExperimentDefData.MaxDuration)
+	}
+	slog.Default().Info("starting experiment", "startTime", startAt, "maxDuration", t.ExperimentDefData.MaxDuration)
+	t.clock = experimentClock
+	return nil
 }
 
 func (t *AppType) sendGeoUpdate(fsnName string, gr *model.GeoResult) error {
@@ -208,6 +187,24 @@ func (t *AppType) experimentCompletedUpdateExperimentResource() error {
 	if exp.Status.ExperimentState == yassv1.ExperimentStateOngoing {
 		exp.Status.ExperimentState = yassv1.ExperimentStateCompleted
 		return t.k8sClient.Status().Update(t.mainCtx, exp)
+	}
+	return nil
+}
+
+func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate) error {
+	for fsName, data := range upd.FsNodeInfos {
+		networkParams := make([]model.GeoResultNetworkParamEntry, 0) // TODO
+		gr := &model.GeoResult{
+			X:             data.X,
+			Y:             data.Y,
+			Z:             data.Z,
+			Alt:           data.Alt,
+			NetworkParams: networkParams,
+		}
+		err := t.sendGeoUpdate(fsName, gr)
+		if err != nil {
+			return errors.Wrapf(err, "cannot send geoUpdate to %s", fsName)
+		}
 	}
 	return nil
 }

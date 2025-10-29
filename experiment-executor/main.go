@@ -52,15 +52,6 @@ func main() {
 		}
 	}()
 
-	errCh := geocalc.RunGeoCalc(ctx)
-	go func() {
-		err := <-errCh
-		if err != nil {
-			slog.Default().Error("geocalc error", "error", err)
-			cancel()
-		}
-	}()
-
 	slog.Info("StartupCompleted....")
 
 	err = app.Start()             // FIXME

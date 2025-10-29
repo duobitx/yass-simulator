@@ -31,7 +31,14 @@ func (e *eClock) Now() time.Time {
 	return e.now
 }
 
-func NewExperimentClock(ctx context.Context, startAt time.Time, tickInterval, tickDelta time.Duration, maxDuration *time.Duration) EClock {
+func NewExperimentClock(ctx context.Context, timeSource <-chan time.Time, maxDuration *time.Duration) (EClock, error) {
+	var startAt time.Time
+	select {
+	case t := <-timeSource:
+		startAt = t
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
 	instance := &eClock{
 		now:  startAt,
 		done: make(chan struct{}),
@@ -41,31 +48,20 @@ func NewExperimentClock(ctx context.Context, startAt time.Time, tickInterval, ti
 		end := startAt.Add(*maxDuration)
 		instance.end = &end
 	}
-	ti := time.NewTicker(tickInterval)
 	go func() {
 		defer func() {
-			ti.Stop()
 			close(instance.done)
 			close(instance.t)
 		}()
 		for {
 			select {
-			case <-ti.C:
-				now := instance.now.Add(tickDelta)
-				if instance.end != nil && instance.end.Before(now) {
-					now = instance.now
-				}
-				instance.now = now
-				instance.t <- now
+			case tNow := <-timeSource:
+				instance.now = tNow
+				instance.t <- tNow
 			case <-ctx.Done():
 				return
 			}
 		}
 	}()
-	return instance
-}
-
-func NewExperimentRealClock(ctx context.Context, startAt time.Time, maxDuration *time.Duration) EClock {
-	tickInterval := 1000 * time.Millisecond
-	return NewExperimentClock(ctx, startAt, tickInterval, tickInterval, maxDuration)
+	return instance, nil
 }
