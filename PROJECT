@@ -13,7 +13,7 @@ resources:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: int.esa
+  domain: int.esa.yass
   group: yass
   kind: Experiment
   path: github.com/ESA-PhiLab/yass-operator/api/v1
@@ -33,7 +33,25 @@ resources:
   controller: false
   domain: int.esa.yass
   group: yass
-  kind: experimentDefinition
+  kind: ExperimentDefinition
+  path: github.com/ESA-PhiLab/yass-operator/api/v1
+  version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: false
+  domain: int.esa.yass
+  group: yass
+  kind: HardwareDefinition
+  path: github.com/ESA-PhiLab/yass-operator/api/v1
+  version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: false
+  domain: int.esa.yass
+  group: yass
+  kind: Layout
   path: github.com/ESA-PhiLab/yass-operator/api/v1
   version: v1
 version: "3"
