@@ -201,7 +201,21 @@ func (t *AppType) experimentCompletedUpdateExperimentResource() error {
 
 func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate) error {
 	for _, data := range upd.FsNodeInfos {
-		networkParams := make([]model.GeoResultNetworkParamEntry, 0) // TODO
+		networkParams := make([]*model.GeoResultNetworkParamEntry, len(data.ReachableFsNodes))
+		for i := 0; i < len(networkParams); i++ {
+			np := &model.GeoResultNetworkParamEntry{}
+			ipFsState, ok := t.nodes[data.ReachableFsNodes[i].To]
+			if !ok {
+				return fmt.Errorf("cannot resolve IP for fsNode %s, no fsStateEntry", data.ReachableFsNodes[i].To)
+			}
+			np.IP = ipFsState.IP
+			np.Distance = data.ReachableFsNodes[i].Distance
+			err := t.calculateNetworkParam(data, data.ReachableFsNodes[i].To, np)
+			if err != nil {
+				return errors.Wrapf(err, "cannot calculate network param between %+v for %+v", data, np)
+			}
+			networkParams[i] = np
+		}
 		gr := &model.GeoResult{
 			X:             data.X,
 			Y:             data.Y,
@@ -214,5 +228,14 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate)
 			return errors.Wrapf(err, "cannot send geoUpdate to %s", data.Name)
 		}
 	}
+	return nil
+}
+
+func (t *AppType) calculateNetworkParam(fsNodeMain *geocalc.FsNodeInfo, dstName string, dst *model.GeoResultNetworkParamEntry) error {
+	// TODO
+	_ = fsNodeMain
+	_ = dstName
+	dst.Delay = 0.01 * dst.Distance
+	dst.PackageLoss = 0.01
 	return nil
 }

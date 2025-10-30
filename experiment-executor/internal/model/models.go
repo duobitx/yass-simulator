@@ -10,11 +10,12 @@ type GeoResult struct {
 	Y             float32
 	Z             float32
 	Alt           float32
-	NetworkParams []GeoResultNetworkParamEntry
+	NetworkParams []*GeoResultNetworkParamEntry
 }
 
 type GeoResultNetworkParamEntry struct {
-	IP string
+	IP       string
+	Distance float32
 	// TODO Network params
 	Delay       float32
 	PackageLoss float32
