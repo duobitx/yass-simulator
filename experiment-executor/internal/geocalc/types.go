@@ -1,21 +1,28 @@
 package geocalc
 
-import "time"
+import (
+	"time"
+)
 
 type GeoCalcUpdate struct {
-	BusyCount          int
 	SatCount           int
 	GroundStationCount int
 	CurrentTime        time.Time
-	FsNodeInfos        map[string]FsNodeInfo
+	FsNodeInfos        []*FsNodeInfo
+}
+
+type DistanceInfo struct {
+	Distance float32
+	To       string
 }
 
 type FsNodeInfo struct {
-	Name string
-	X    float32
-	Y    float32
-	Z    float32
-	Lat  float32
-	Lng  float32
-	Alt  float32
+	Name             string
+	X                float32
+	Y                float32
+	Z                float32
+	Lat              float32
+	Lng              float32
+	Alt              float32
+	ReachableFsNodes []DistanceInfo
 }

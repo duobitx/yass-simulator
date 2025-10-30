@@ -123,18 +123,26 @@ func (t *AppType) Start(ctxParent context.Context) error {
 				timeSourceCh <- upd.CurrentTime
 				lastTime = upd.CurrentTime
 				if !experimentEndAt.IsZero() && experimentEndAt.After(upd.CurrentTime) {
-					t.sendTimeUpdate(upd.CurrentTime, false)
+					if err := t.sendTimeUpdate(upd.CurrentTime, false); err != nil {
+						slog.Default().Error("cannot send time update", "error", err)
+					}
 					cancel(errors.New("experiment time ended"))
 				} else {
-					t.sendTimeUpdate(upd.CurrentTime, true)
-					t.handleGeoUpdate(ctx, upd)
+					if err := t.sendTimeUpdate(upd.CurrentTime, true); err != nil {
+						slog.Default().Error("cannot send time update", "error", err)
+					}
+					if err := t.handleGeoUpdate(ctx, upd); err != nil {
+						slog.Default().Error("cannot send geo update", "error", err)
+					}
 				}
 				err := t.experimentCompletedUpdateExperimentResource()
 				if err != nil {
 					slog.Default().Error("error updating experiment.status resource", "error", err)
 				}
 			case <-ctx.Done():
-				t.sendTimeUpdate(lastTime, false)
+				if err := t.sendTimeUpdate(lastTime, false); err != nil {
+					slog.Default().Error("cannot send time update after ctx canceled", "error", err)
+				}
 				return
 			}
 		}
@@ -192,7 +200,7 @@ func (t *AppType) experimentCompletedUpdateExperimentResource() error {
 }
 
 func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate) error {
-	for fsName, data := range upd.FsNodeInfos {
+	for _, data := range upd.FsNodeInfos {
 		networkParams := make([]model.GeoResultNetworkParamEntry, 0) // TODO
 		gr := &model.GeoResult{
 			X:             data.X,
@@ -201,9 +209,9 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate)
 			Alt:           data.Alt,
 			NetworkParams: networkParams,
 		}
-		err := t.sendGeoUpdate(fsName, gr)
+		err := t.sendGeoUpdate(data.Name, gr)
 		if err != nil {
-			return errors.Wrapf(err, "cannot send geoUpdate to %s", fsName)
+			return errors.Wrapf(err, "cannot send geoUpdate to %s", data.Name)
 		}
 	}
 	return nil

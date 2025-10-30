@@ -1,6 +1,7 @@
 package geocalc
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -14,28 +15,48 @@ func Convert(input *common) (*GeoCalcUpdate, error) {
 		return nil, errors.Wrapf(err, "cannot parse time '%s'", timeStr)
 	}
 	fsCount := int(input.Nsat + input.Nbs)
-	fsNodes := make(map[string]FsNodeInfo)
+	fsNodesList := make([]*FsNodeInfo, fsCount)
+	fsNodesByNrRef := make(map[int32]*FsNodeInfo)
 	for i := 0; i < fsCount; i++ {
 		sat := input.Sats[i]
 		satName := convBytesToString(sat.Name[:])
 		fsn := FsNodeInfo{
-			Name: satName,
-			X:    float32(sat.X),
-			Y:    float32(sat.Y),
-			Z:    float32(sat.Z),
-			Lat:  float32(sat.Lat),
-			Lng:  float32(sat.Lng),
-			Alt:  float32(sat.Alt),
+			Name:             satName,
+			X:                float32(sat.X),
+			Y:                float32(sat.Y),
+			Z:                float32(sat.Z),
+			Lat:              float32(sat.Lat),
+			Lng:              float32(sat.Lng),
+			Alt:              float32(sat.Alt),
+			ReachableFsNodes: make([]DistanceInfo, 0),
 		}
-		fsNodes[satName] = fsn
+		fsNodesByNrRef[sat.NRef] = &fsn
+		fsNodesList[i] = &fsn
 	}
+	for i := 0; i < fsCount; i++ {
+		currSat := input.Sats[i]
+		distances := make([]DistanceInfo, 0)
+		for _, entry := range currSat.SatRef {
+			toFs, ok := fsNodesByNrRef[entry.Sid]
+			if !ok {
+				return nil, fmt.Errorf("cannot find fsNode for sid number = %d", entry.Sid)
+			}
+			distance := DistanceInfo{
+				Distance: entry.Dist,
+				To:       toFs.Name,
+			}
+			distances = append(distances, distance)
+		}
+		fsNodesList[i].ReachableFsNodes = distances
+	}
+
 	up := &GeoCalcUpdate{
-		BusyCount:          int(input.Busy),
 		SatCount:           int(input.Nsat),
 		GroundStationCount: int(input.Nsat),
 		CurrentTime:        tNow,
-		FsNodeInfos:        fsNodes,
+		FsNodeInfos:        fsNodesList,
 	}
+
 	return up, nil
 }
 
