@@ -87,29 +87,38 @@ type ExperimentCustomValidator struct {
 var _ webhook.CustomValidator = &ExperimentCustomValidator{}
 
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Experiment.
-func (v *ExperimentCustomValidator) ValidateCreate(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
+func (v *ExperimentCustomValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	experiment, ok := obj.(*yassv1.Experiment)
 	if !ok {
 		return nil, fmt.Errorf("expected a Experiment object but got %T", obj)
 	}
 	experimentlog.Info("Validation for Experiment upon creation", "name", experiment.GetName())
-
-	// TODO(user): fill in your validation logic upon object creation.
-
-	return nil, nil
+	return v.validateModification(ctx, obj)
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Experiment.
-func (v *ExperimentCustomValidator) ValidateUpdate(_ context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
+func (v *ExperimentCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
 	experiment, ok := newObj.(*yassv1.Experiment)
 	if !ok {
 		return nil, fmt.Errorf("expected a Experiment object for the newObj but got %T", newObj)
 	}
 	experimentlog.Info("Validation for Experiment upon update", "name", experiment.GetName())
+	return v.validateModification(ctx, newObj)
+}
+
+func (v *ExperimentCustomValidator) validateModification(_ context.Context, newObj runtime.Object) (admission.Warnings, error) {
+	experiment, ok := newObj.(*yassv1.Experiment)
+	if !ok {
+		return nil, fmt.Errorf("expected a Experiment object for the newObj but got %T", newObj)
+	}
+	experimentlog.Info("Validation for Experiment upon create/update", "name", experiment.GetName())
 
 	// TODO(user): fill in your validation logic upon object update.
-
-	return nil, nil
+	warnings := admission.Warnings{}
+	if experiment.Spec.SimulationStartTime.IsZero() {
+		warnings = append(warnings, ".spec.simulationStartTime is empty")
+	}
+	return warnings, nil
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type Experiment.
