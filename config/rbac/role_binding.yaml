@@ -11,5 +11,5 @@ roleRef:
   name: yass-role
 subjects:
 - kind: ServiceAccount
-  name: controller-manager
-  namespace: system
+  name: yass-controller-manager
+  namespace: yass-system

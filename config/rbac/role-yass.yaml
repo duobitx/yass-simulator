@@ -12,6 +12,11 @@ rules:
 - apiGroups:
   - int.esa.yass
   resources:
+  - hardwaredefinitions
+  verbs: [ "get", "list", "watch" ]
+- apiGroups:
+  - int.esa.yass
+  resources:
   - layouts
   verbs: [ "get", "list", "watch" ]
 - apiGroups:
