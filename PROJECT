@@ -18,6 +18,10 @@ resources:
   kind: Experiment
   path: github.com/ESA-PhiLab/yass-operator/api/v1
   version: v1
+  webhooks:
+    defaulting: true
+    validation: true
+    webhookVersion: v1
 - api:
     crdVersion: v1
     namespaced: true
@@ -30,7 +34,6 @@ resources:
 - api:
     crdVersion: v1
     namespaced: true
-  controller: false
   domain: int.esa.yass
   group: yass
   kind: ExperimentDefinition
@@ -39,7 +42,6 @@ resources:
 - api:
     crdVersion: v1
     namespaced: true
-  controller: false
   domain: int.esa.yass
   group: yass
   kind: HardwareDefinition
@@ -48,7 +50,6 @@ resources:
 - api:
     crdVersion: v1
     namespaced: true
-  controller: false
   domain: int.esa.yass
   group: yass
   kind: Layout

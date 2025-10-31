@@ -41,7 +41,13 @@ kubectl create secret docker-registry docker-secret \
   --docker-email=YOUR_EMAIL \
   --dry-run=client -o yaml > docker-secret.yaml
 ```
-### 2. Install Yass operator
+
+### 2. Install certmanager
+```shell
+kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.19.1/cert-manager.yaml
+```
+
+### 3. Install Yass operator
 ```shell
 # Prepare namespace for yass operator
 kubectl -n yass-system apply -f dist/install.yaml
@@ -52,8 +58,9 @@ kubectl -n yass-system patch serviceaccount default -p '{"imagePullSecrets": [{"
 kubectl -n yass-system delete `kubectl -n yass-system get pod -o name|grep yass-controller` 
 ```
 
-### 3. Prepare namespace for an experiment ("default")
+### 4. Prepare namespace for an experiment ("default")
 ```shell
 #kubect create namespace default  
 kubectl -n default create -f docker-secret.yaml
 ```
+

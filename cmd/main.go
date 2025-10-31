@@ -21,10 +21,11 @@ import (
 	"flag"
 	"os"
 
+	"github.com/m-szalik/goutils"
+
 	"github.com/ESA-PhiLab/yass-operator/internal/config"
 	"github.com/ESA-PhiLab/yass-operator/internal/controller/experiment"
 	"github.com/ESA-PhiLab/yass-operator/internal/controller/fs_node"
-	"github.com/m-szalik/goutils"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -41,6 +42,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
+	webhookv1 "github.com/ESA-PhiLab/yass-operator/internal/webhook/v1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -202,6 +204,13 @@ func main() {
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "FsNode")
 		os.Exit(1)
+	}
+	// nolint:goconst
+	if os.Getenv("ENABLE_WEBHOOKS") != "false" {
+		if err := webhookv1.SetupExperimentWebhookWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create webhook", "webhook", "Experiment")
+			os.Exit(1)
+		}
 	}
 	// +kubebuilder:scaffold:builder
 
