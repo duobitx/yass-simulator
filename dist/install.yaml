@@ -861,6 +861,14 @@ rules:
 - apiGroups:
   - int.esa.yass
   resources:
+  - hardwaredefinitions
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - int.esa.yass
+  resources:
   - layouts
   verbs:
   - get
@@ -1001,6 +1009,23 @@ spec:
     app.kubernetes.io/name: x
     control-plane: controller-manager
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: yass-operator
+  name: yass-webhook-service
+  namespace: yass-system
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 9443
+  selector:
+    app.kubernetes.io/name: yass-operator
+    control-plane: controller-manager
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -1029,6 +1054,7 @@ spec:
         - --metrics-bind-address=:8443
         - --leader-elect
         - --health-probe-bind-address=:8081
+        - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
         command:
         - /manager
         image: ghcr.io/duobitx/yass/yass-operators:latest
@@ -1039,7 +1065,10 @@ spec:
           initialDelaySeconds: 15
           periodSeconds: 20
         name: manager
-        ports: []
+        ports:
+        - containerPort: 9443
+          name: webhook-server
+          protocol: TCP
         readinessProbe:
           httpGet:
             path: /readyz
@@ -1059,11 +1088,118 @@ spec:
             drop:
             - ALL
           readOnlyRootFilesystem: true
-        volumeMounts: []
+        volumeMounts:
+        - mountPath: /tmp/k8s-webhook-server/serving-certs
+          name: webhook-certs
+          readOnly: true
       securityContext:
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       serviceAccountName: yass-controller-manager
       terminationGracePeriodSeconds: 10
-      volumes: []
+      volumes:
+      - name: webhook-certs
+        secret:
+          secretName: webhook-server-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: yass-operator
+  name: yass-metrics-certs
+  namespace: yass-system
+spec:
+  dnsNames:
+  - SERVICE_NAME.SERVICE_NAMESPACE.svc
+  - SERVICE_NAME.SERVICE_NAMESPACE.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: yass-selfsigned-issuer
+  secretName: metrics-server-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: yass-operator
+  name: yass-serving-cert
+  namespace: yass-system
+spec:
+  dnsNames:
+  - yass-webhook-service.yass-system.svc
+  - yass-webhook-service.yass-system.svc.cluster.local
+  issuerRef:
+    kind: Issuer
+    name: yass-selfsigned-issuer
+  secretName: webhook-server-cert
+---
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  labels:
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/name: yass-operator
+  name: yass-selfsigned-issuer
+  namespace: yass-system
+spec:
+  selfSigned: {}
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: yass-system/yass-serving-cert
+  name: yass-mutating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: yass-webhook-service
+      namespace: yass-system
+      path: /mutate-yass-int-esa-yass-v1-experiment
+  failurePolicy: Fail
+  name: mexperiment-v1.kb.io
+  rules:
+  - apiGroups:
+    - yass.int.esa.yass
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - experiments
+  sideEffects: None
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  annotations:
+    cert-manager.io/inject-ca-from: yass-system/yass-serving-cert
+  name: yass-validating-webhook-configuration
+webhooks:
+- admissionReviewVersions:
+  - v1
+  clientConfig:
+    service:
+      name: yass-webhook-service
+      namespace: yass-system
+      path: /validate-yass-int-esa-yass-v1-experiment
+  failurePolicy: Fail
+  name: vexperiment-v1.kb.io
+  rules:
+  - apiGroups:
+    - yass.int.esa.yass
+    apiVersions:
+    - v1
+    operations:
+    - CREATE
+    - UPDATE
+    resources:
+    - experiments
+  sideEffects: None

@@ -302,6 +302,9 @@ func (r *ExperimentReconciler) createExperimentComponentIfRequired(ctx context.C
 }
 
 func (r *ExperimentReconciler) updateStatusConditionForExperimentObject(exp *yassv1.Experiment, compName string, obj client.Object, extra error) {
+	if compName == "" {
+		return
+	}
 	ctype := fmt.Sprintf("%s-%s", compName, obj.GetObjectKind().GroupVersionKind().Kind)
 	var condition *metav1.Condition
 	found := false
