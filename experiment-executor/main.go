@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal"
-	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal/geocalc"
 	"github.com/gorilla/mux"
 	"k8s.io/apimachinery/pkg/util/rand"
 
@@ -54,8 +53,10 @@ func main() {
 
 	slog.Info("StartupCompleted....")
 
-	err = app.Start()             // FIXME
-	goutils.ExitOnError(err, 111) // FIXME mock
+	if goutils.Env("AUTOSTART", false) {
+		err = app.Start(ctx)          // FIXME
+		goutils.ExitOnError(err, 111) // FIXME mock
+	}
 
 	err = srv.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {

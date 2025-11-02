@@ -120,7 +120,7 @@ func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration, chOut 
 				}
 				update, err := Convert(commonMem)
 				if err != nil {
-					slog.Default().Error("cannot convert geoUpdate", "error", err)
+					slog.Default().Error("cannot convert geoCalc response to geoUpdate", "error", err)
 				} else {
 					chOut <- update
 				}
@@ -142,7 +142,7 @@ func RunGeoCalc(ctx context.Context, interval time.Duration) (<-chan *GeoCalcUpd
 		close(chErr)
 		close(chOut)
 	}()
-	fileCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	fileCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	err := WaitForFile(fileCtx, shmFilePath)
 	if err != nil {

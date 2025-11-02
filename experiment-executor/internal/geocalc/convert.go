@@ -1,6 +1,7 @@
 package geocalc
 
 import (
+	"bytes"
 	"fmt"
 	"strings"
 	"time"
@@ -39,6 +40,8 @@ func Convert(input *common) (*GeoCalcUpdate, error) {
 		for _, entry := range currSat.SatRef {
 			toFs, ok := fsNodesByNrRef[entry.Sid]
 			if !ok {
+				str := dump(input)
+				fmt.Println(str)
 				return nil, fmt.Errorf("cannot find fsNode for sid number = %d", entry.Sid)
 			}
 			distance := DistanceInfo{
@@ -58,6 +61,23 @@ func Convert(input *common) (*GeoCalcUpdate, error) {
 	}
 
 	return up, nil
+}
+
+func dump(input *common) string {
+	buf := bytes.Buffer{}
+	buf.WriteString(fmt.Sprintf("Time: %s\n", convBytesToString(input.UtcDttm[:])))
+	buf.WriteString(fmt.Sprintf("Busy: %d NSat: %d Nbs: %d\n", input.Busy, input.Nsat, input.Nbs))
+	count := int(input.Nsat + input.Nbs)
+	for i := 0; i < count; i++ {
+		sat := input.Sats[i]
+		buf.WriteString(fmt.Sprintf(" Node:%s NRef:%d X:%.2f Y:%.2f Z:%.2f Lat:%.2f Lng: %.2f Alt: %.2f\n", convBytesToString(sat.Name[:]), sat.NRef, sat.X, sat.Y, sat.Z, sat.Lat, sat.Lng, sat.Alt))
+		refIds := make([]int, count)
+		for j := 0; j < count; j++ {
+			refIds[j] = int(sat.SatRef[j].Sid)
+		}
+		buf.WriteString(fmt.Sprintf("   Refs: %+v\n", refIds))
+	}
+	return buf.String()
 }
 
 func convBytesToString(buff []byte) string {

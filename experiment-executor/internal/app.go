@@ -160,17 +160,6 @@ func (t *AppType) Start(ctxParent context.Context) error {
 	return nil
 }
 
-func (t *AppType) sendGeoUpdate(fsnName string, gr *model.GeoResult) error {
-	pos := fmt.Sprintf("x=%.2f,y=%.2f,z=%.2f", gr.X, gr.Y, gr.Z)
-	obj := &proto.FsNodeUpdate{
-		Id:                fsnName,
-		InShadow:          false,
-		UpdatedUnixMillis: time.Now().UnixMilli(),
-		PosStr:            &pos,
-	}
-	return t.facade.Publish(t.mainCtx, fmt.Sprintf("updates/%s", fsnName), 0, true, obj)
-}
-
 func (t *AppType) sendTimeUpdate(now time.Time, ongoing bool) error {
 	obj := &proto.TimeUpdate{
 		Ongoing: ongoing,
@@ -200,15 +189,16 @@ func (t *AppType) experimentCompletedUpdateExperimentResource() error {
 }
 
 func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate) error {
+	nowMillis := t.clock.Now().UnixMilli()
 	for _, data := range upd.FsNodeInfos {
-		networkParams := make([]*model.GeoResultNetworkParamEntry, len(data.ReachableFsNodes))
+		networkParams := make([]*proto.FsNodeUpdateNetworkParamEntry, len(data.ReachableFsNodes))
 		for i := 0; i < len(networkParams); i++ {
-			np := &model.GeoResultNetworkParamEntry{}
+			np := &proto.FsNodeUpdateNetworkParamEntry{}
 			ipFsState, ok := t.nodes[data.ReachableFsNodes[i].To]
 			if !ok {
 				return fmt.Errorf("cannot resolve IP for fsNode %s, no fsStateEntry", data.ReachableFsNodes[i].To)
 			}
-			np.IP = ipFsState.IP
+			np.Ip = ipFsState.IP
 			np.Distance = data.ReachableFsNodes[i].Distance
 			err := t.calculateNetworkParam(data, data.ReachableFsNodes[i].To, np)
 			if err != nil {
@@ -216,26 +206,29 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate)
 			}
 			networkParams[i] = np
 		}
-		gr := &model.GeoResult{
-			X:             data.X,
-			Y:             data.Y,
-			Z:             data.Z,
-			Alt:           data.Alt,
-			NetworkParams: networkParams,
+		gr := &proto.FsNodeUpdate{
+			Name:              data.Name,
+			InShadow:          false, // TODO later v2
+			PosStr:            fmt.Sprintf("x=%.2f,y=%.2f,z=%.2f,lat=%.2f,lng=%.2f", data.X, data.Y, data.Z, data.Lat, data.Lng),
+			X:                 data.X,
+			Y:                 data.Y,
+			Z:                 data.Z,
+			Lat:               data.Lat,
+			Lng:               data.Lng,
+			Alt:               data.Alt,
+			NetworkParams:     networkParams,
+			UpdatedUnixMillis: nowMillis,
 		}
-		err := t.sendGeoUpdate(data.Name, gr)
-		if err != nil {
-			return errors.Wrapf(err, "cannot send geoUpdate to %s", data.Name)
-		}
+		return t.facade.Publish(t.mainCtx, fmt.Sprintf("updates/%s", data.Name), 0, true, gr)
 	}
 	return nil
 }
 
-func (t *AppType) calculateNetworkParam(fsNodeMain *geocalc.FsNodeInfo, dstName string, dst *model.GeoResultNetworkParamEntry) error {
+func (t *AppType) calculateNetworkParam(fsNodeMain *geocalc.FsNodeInfo, dstName string, dst *proto.FsNodeUpdateNetworkParamEntry) error {
 	// TODO
 	_ = fsNodeMain
 	_ = dstName
-	dst.Delay = 0.01 * dst.Distance
+	dst.PackageDelay = 0.01 * dst.Distance
 	dst.PackageLoss = 0.01
 	return nil
 }
