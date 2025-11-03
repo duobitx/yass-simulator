@@ -226,23 +226,19 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 				modMountSharedVolume(true),
 			},
 		},
-		{
-			name:  "engine",
-			image: fsNode.Spec.Engine.Image,
-			ports: _enginePorts,
-			mods: []modFunc{
-				modVolumeMount(engineVolumeName, "/mnt/engine", false),
-				modFor(fsNode.Spec.Engine),
-				rootFSReadOnly(),
-				modResourcesLimit(&engineResources),
-				modMountSharedVolume(false),
-			},
-		},
 	}
 	var diskSizeLimit *resource.Quantity = nil
 	terminationGracePeriodSeconds := int64(8)
 	if fsNode.Spec.HardwareSpec != nil {
 		diskSizeLimit = fsNode.Spec.HardwareSpec.DiskSpace
+	}
+	podSpec := fsNode.Spec.EnginePodTemplate.Template.Spec.DeepCopy()
+	podSpec.TerminationGracePeriodSeconds = &terminationGracePeriodSeconds
+	podSpec.ServiceAccountName = "yass-sa"
+	podSpec.Volumes = []v1.Volume{
+		{Name: sharedVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}}, // mounted by default under /shared
+		{Name: engineVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: diskSizeLimit}}},
+		{Name: agentTMPVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
 	}
 	pod = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -256,17 +252,8 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 				*metav1.NewControllerRef(fsNode, v1.SchemeGroupVersion.WithKind("FsNode")),
 			},
 		},
-		Spec: v1.PodSpec{
-			Volumes: []v1.Volume{
-				{Name: sharedVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}}, // mounted by default under /shared
-				{Name: engineVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: diskSizeLimit}}},
-				{Name: agentTMPVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
-			},
-			TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
-			ServiceAccountName:            "yass-sa",
-		},
+		Spec: *podSpec,
 	}
-
 	initContainer := &v1.Container{
 		Name:            "resource-to-json-fsnode",
 		Command:         []string{"/resource-to-json"},

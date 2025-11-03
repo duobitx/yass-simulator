@@ -17,6 +17,7 @@ limitations under the License.
 package v1
 
 import (
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -25,7 +26,7 @@ type FsNodeSpec struct {
 	EmbeddedHardware `json:",inline"`
 	EmbeddedPosition `json:",inline"`
 	// What file system engine to be installed
-	Engine SimpleContainer `json:"engine,omitempty"`
+	EnginePodTemplate v1.PodTemplate `json:"enginePodTemplate,omitempty"`
 	// What agent to be installed.
 	Agent SimpleContainer `json:"agent,omitempty"`
 }
