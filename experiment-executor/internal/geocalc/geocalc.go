@@ -37,6 +37,7 @@ func run(ctx context.Context, name string, args ...string) error {
 	slog.Default().Info(fmt.Sprintf("Process %s %v started", name, args), "pid", pid)
 	go func() {
 		<-ctx.Done()
+		slog.Default().Info("closing geo_calc due to", "ctxError", ctx.Err())
 		proc, err := os.FindProcess(pid)
 		if err != nil {
 			slog.Default().Warn("Error finding process", "error", err)
@@ -109,22 +110,28 @@ func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration, chOut 
 			return ctx.Err()
 		case <-ticker.C:
 			timeout := time.Now().Add(200 * time.Millisecond)
+		busyLoop:
 			for {
-				if commonMem.Busy > 0 {
-					if time.Now().After(timeout) {
-						slog.Default().Error("cannot convert geoUpdate as it is still busy")
-						break
+				select {
+				case <-ctx.Done():
+					return ctx.Err()
+				default:
+					if commonMem.Busy > 0 {
+						if time.Now().After(timeout) {
+							slog.Default().Error("cannot convert geoUpdate as it is still busy")
+							break busyLoop
+						}
+						time.Sleep(2 * time.Millisecond)
+						continue
 					}
-					time.Sleep(2 * time.Millisecond)
-					continue
+					update, err := Convert(commonMem)
+					if err != nil {
+						slog.Default().Error("cannot convert geoCalc response to geoUpdate", "error", err)
+					} else {
+						chOut <- update
+					}
+					break busyLoop
 				}
-				update, err := Convert(commonMem)
-				if err != nil {
-					slog.Default().Error("cannot convert geoCalc response to geoUpdate", "error", err)
-				} else {
-					chOut <- update
-				}
-				break
 			}
 		}
 	}
@@ -143,12 +150,15 @@ func RunGeoCalc(ctx context.Context, interval time.Duration) (<-chan *GeoCalcUpd
 		close(chOut)
 	}()
 	fileCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer cancel()
+	defer func() {
+		cancel()
+	}()
 	err := WaitForFile(fileCtx, shmFilePath)
 	if err != nil {
 		chErr <- errors2.Wrapf(err, "waiting for file %s", shmFilePath)
 	} else {
 		go func() {
+			slog.Default().Info("Reading form geo_calc started")
 			err := readFromGeoCalcBlocking(ctx, interval, chOut)
 			if err != nil {
 				chErr <- errors2.Wrap(err, "readFromGeoCalc")

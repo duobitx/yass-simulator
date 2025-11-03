@@ -10,56 +10,52 @@ import (
 )
 
 func Convert(input *common) (*GeoCalcUpdate, error) {
-	timeStr := strings.TrimSpace(convBytesToString(input.UtcDttm[:]))
+	timeStr := convBytesToString(input.UtcDttm[:])
 	tNow, err := time.ParseInLocation(time.DateTime, timeStr, time.UTC)
 	if err != nil {
 		return nil, errors.Wrapf(err, "cannot parse time '%s'", timeStr)
 	}
 	fsCount := int(input.Nsat + input.Nbs)
 	fsNodesList := make([]*FsNodeInfo, fsCount)
-	fsNodesByNrRef := make(map[int32]*FsNodeInfo)
+	fsNodesByNrRef := make(map[int]*FsNodeInfo)
 	for i := 0; i < fsCount; i++ {
 		sat := input.Sats[i]
 		satName := convBytesToString(sat.Name[:])
 		fsn := FsNodeInfo{
-			Name:             satName,
-			X:                float32(sat.X),
-			Y:                float32(sat.Y),
-			Z:                float32(sat.Z),
-			Lat:              float32(sat.Lat),
-			Lng:              float32(sat.Lng),
-			Alt:              float32(sat.Alt),
-			ReachableFsNodes: make([]DistanceInfo, 0),
+			Name: satName,
+			X:    float32(sat.X),
+			Y:    float32(sat.Y),
+			Z:    float32(sat.Z),
+			Lat:  float32(sat.Lat),
+			Lng:  float32(sat.Lng),
+			Alt:  float32(sat.Alt),
 		}
-		fsNodesByNrRef[sat.NRef] = &fsn
+		fsNodesByNrRef[i] = &fsn
 		fsNodesList[i] = &fsn
 	}
 	for i := 0; i < fsCount; i++ {
 		currSat := input.Sats[i]
-		distances := make([]DistanceInfo, 0)
-		for _, entry := range currSat.SatRef {
-			toFs, ok := fsNodesByNrRef[entry.Sid]
+		distances := make([]DistanceInfo, currSat.NRef)
+		for j := 0; j < int(currSat.NRef); j++ {
+			visibilityRecord := currSat.SatRef[j]
+			toFs, ok := fsNodesByNrRef[int(visibilityRecord.Sid)]
 			if !ok {
-				str := dump(input)
-				fmt.Println(str)
-				return nil, fmt.Errorf("cannot find fsNode for sid number = %d", entry.Sid)
+				return nil, fmt.Errorf("cannot find fsNode for sid number = %d", visibilityRecord.Sid)
 			}
-			distance := DistanceInfo{
-				Distance: entry.Dist,
+			distances[j] = DistanceInfo{
+				Distance: visibilityRecord.Dist,
 				To:       toFs.Name,
 			}
-			distances = append(distances, distance)
 		}
 		fsNodesList[i].ReachableFsNodes = distances
 	}
 
 	up := &GeoCalcUpdate{
 		SatCount:           int(input.Nsat),
-		GroundStationCount: int(input.Nsat),
+		GroundStationCount: int(input.Nbs),
 		CurrentTime:        tNow,
 		FsNodeInfos:        fsNodesList,
 	}
-
 	return up, nil
 }
 
@@ -70,7 +66,7 @@ func dump(input *common) string {
 	count := int(input.Nsat + input.Nbs)
 	for i := 0; i < count; i++ {
 		sat := input.Sats[i]
-		buf.WriteString(fmt.Sprintf(" Node:%s NRef:%d X:%.2f Y:%.2f Z:%.2f Lat:%.2f Lng: %.2f Alt: %.2f\n", convBytesToString(sat.Name[:]), sat.NRef, sat.X, sat.Y, sat.Z, sat.Lat, sat.Lng, sat.Alt))
+		buf.WriteString(fmt.Sprintf(" Node:%3d:%s NRef:%d X:%.2f Y:%.2f Z:%.2f Lat:%.2f Lng:%.2f Alt:%.2fkm\n", i, convBytesToString(sat.Name[:]), sat.NRef, sat.X, sat.Y, sat.Z, sat.Lat, sat.Lng, sat.Alt))
 		refIds := make([]int, count)
 		for j := 0; j < count; j++ {
 			refIds[j] = int(sat.SatRef[j].Sid)
@@ -89,5 +85,5 @@ func convBytesToString(buff []byte) string {
 		}
 	}
 	buff = buff[:j]
-	return string(buff)
+	return strings.TrimSpace(string(buff))
 }

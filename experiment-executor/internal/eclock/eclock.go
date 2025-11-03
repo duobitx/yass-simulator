@@ -2,6 +2,7 @@ package eclock
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -9,14 +10,24 @@ type EClock interface {
 	Done() <-chan struct{}
 	Now() time.Time
 	Tick() <-chan time.Time
+	SetTime(newTime time.Time)
 }
 
 type eClock struct {
-	now   time.Time
-	end   *time.Time
-	delta time.Duration
-	done  chan struct{}
-	t     chan time.Time
+	now    time.Time
+	end    *time.Time
+	delta  time.Duration
+	done   chan struct{}
+	t      chan time.Time
+	cancel context.CancelCauseFunc
+}
+
+func (e *eClock) SetTime(newTime time.Time) {
+	e.now = newTime
+	e.t <- newTime
+	if e.end != nil && newTime.After(*e.end) {
+		e.cancel(fmt.Errorf("experiment clock stopped"))
+	}
 }
 
 func (e *eClock) Tick() <-chan time.Time {
@@ -31,14 +42,7 @@ func (e *eClock) Now() time.Time {
 	return e.now
 }
 
-func NewExperimentClock(ctx context.Context, timeSource <-chan time.Time, maxDuration *time.Duration) (EClock, error) {
-	var startAt time.Time
-	select {
-	case t := <-timeSource:
-		startAt = t
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
+func NewExperimentClock(parentCtx context.Context, startAt time.Time, maxDuration *time.Duration) (EClock, error) {
 	instance := &eClock{
 		now:  startAt,
 		done: make(chan struct{}),
@@ -48,20 +52,14 @@ func NewExperimentClock(ctx context.Context, timeSource <-chan time.Time, maxDur
 		end := startAt.Add(*maxDuration)
 		instance.end = &end
 	}
+	ctx, cancel := context.WithCancelCause(parentCtx)
+	instance.cancel = cancel
 	go func() {
 		defer func() {
 			close(instance.done)
 			close(instance.t)
 		}()
-		for {
-			select {
-			case tNow := <-timeSource:
-				instance.now = tNow
-				instance.t <- tNow
-			case <-ctx.Done():
-				return
-			}
-		}
+		<-ctx.Done()
 	}()
 	return instance, nil
 }

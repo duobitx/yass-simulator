@@ -109,10 +109,8 @@ func (t *AppType) Start(ctxParent context.Context) error {
 	ctx, cancel := context.WithCancelCause(ctxParent)
 	var experimentEndAt time.Time
 	dataCh, errCh := geocalc.RunGeoCalc(ctx, 2*time.Second)
-	timeSourceCh := make(chan time.Time)
 	go func() {
 		var lastTime time.Time
-		defer close(timeSourceCh)
 		for {
 			select {
 			case err := <-errCh:
@@ -120,13 +118,13 @@ func (t *AppType) Start(ctxParent context.Context) error {
 					slog.Default().Error("geocalc error", "error", err)
 				}
 			case upd := <-dataCh:
-				timeSourceCh <- upd.CurrentTime
 				lastTime = upd.CurrentTime
-				if !experimentEndAt.IsZero() && experimentEndAt.After(upd.CurrentTime) {
-					if err := t.sendTimeUpdate(upd.CurrentTime, false); err != nil {
+				if !experimentEndAt.IsZero() && !experimentEndAt.After(lastTime) {
+					if err := t.sendTimeUpdate(lastTime, false); err != nil {
 						slog.Default().Error("cannot send time update", "error", err)
 					}
-					cancel(errors.New("experiment time ended"))
+					slog.Default().Info("experiment time ended", "shouldEndAt", experimentEndAt, "now", lastTime)
+					cancel(fmt.Errorf("experiment time ended, shouldEndAt=%s, now=%s", experimentEndAt, lastTime))
 				} else {
 					if err := t.sendTimeUpdate(upd.CurrentTime, true); err != nil {
 						slog.Default().Error("cannot send time update", "error", err)
@@ -147,11 +145,14 @@ func (t *AppType) Start(ctxParent context.Context) error {
 			}
 		}
 	}()
-	experimentClock, err := eclock.NewExperimentClock(ctx, timeSourceCh, t.ExperimentDefData.MaxDuration)
+	startAt := time.Now()
+	if t.ExperimentDefData.StartTime != nil {
+		startAt = *t.ExperimentDefData.StartTime
+	}
+	experimentClock, err := eclock.NewExperimentClock(ctx, startAt, t.ExperimentDefData.MaxDuration)
 	if err != nil {
 		return errors.Wrapf(err, "NewExperimentClock")
 	}
-	startAt := experimentClock.Now()
 	if t.ExperimentDefData.MaxDuration != nil {
 		experimentEndAt = startAt.Add(*t.ExperimentDefData.MaxDuration)
 	}
@@ -170,7 +171,7 @@ func (t *AppType) sendTimeUpdate(now time.Time, ongoing bool) error {
 
 func (t *AppType) experimentCompletedUpdateExperimentResource() error {
 	if t.namespace == "" {
-		slog.Default().Warn("namespace not set")
+		slog.Default().Warn("namespace not set, experiment resource will not be updated")
 		return nil
 	}
 	exp := &yassv1.Experiment{}
@@ -189,16 +190,18 @@ func (t *AppType) experimentCompletedUpdateExperimentResource() error {
 }
 
 func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate) error {
-	nowMillis := t.clock.Now().UnixMilli()
+	now := t.clock.Now()
+	nowMillis := now.UnixMilli()
 	for _, data := range upd.FsNodeInfos {
 		networkParams := make([]*proto.FsNodeUpdateNetworkParamEntry, len(data.ReachableFsNodes))
 		for i := 0; i < len(networkParams); i++ {
 			np := &proto.FsNodeUpdateNetworkParamEntry{}
 			ipFsState, ok := t.nodes[data.ReachableFsNodes[i].To]
 			if !ok {
-				return fmt.Errorf("cannot resolve IP for fsNode %s, no fsStateEntry", data.ReachableFsNodes[i].To)
+				// FIXME return fmt.Errorf("cannot resolve IP for fsNode %s, no fsStateEntry", data.ReachableFsNodes[i].To)
+			} else {
+				np.Ip = ipFsState.IP
 			}
-			np.Ip = ipFsState.IP
 			np.Distance = data.ReachableFsNodes[i].Distance
 			err := t.calculateNetworkParam(data, data.ReachableFsNodes[i].To, np)
 			if err != nil {
