@@ -72,9 +72,18 @@ func (m *mqttFacade) Unsubscribe(topic string) error {
 }
 
 func (m *mqttFacade) Publish(_ context.Context, topic string, qos byte, retained bool, payloadObj any) error {
-	buff, err := MsgMarshall(payloadObj)
-	if err != nil {
-		return err
+	var buff []byte
+	switch x := payloadObj.(type) {
+	case string:
+		buff = []byte(x)
+	case []byte:
+		buff = x
+	default:
+		tmp, err := MsgMarshall(payloadObj)
+		if err != nil {
+			return err
+		}
+		buff = tmp
 	}
 	token := m.client.Publish(topic, qos, retained, buff)
 	if !token.WaitTimeout(timeout) {

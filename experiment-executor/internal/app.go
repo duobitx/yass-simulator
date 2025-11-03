@@ -22,6 +22,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
+const (
+	experimentEndTopic = "experiment/end-request"
+)
+
 type AppType struct {
 	mainCtx           context.Context
 	facade            com.Facade
@@ -106,9 +110,38 @@ func (t *AppType) Start(ctxParent context.Context) error {
 	if t.clock != nil {
 		return errors.New("experiment already started")
 	}
-	ctx, cancel := context.WithCancelCause(ctxParent)
+	experimentCtx, cancel := context.WithCancelCause(ctxParent)
+	err := t.facade.Publish(experimentCtx, experimentEndTopic, 0, true, "")
+	if err != nil {
+		return errors.Wrapf(err, "cannot publis to %s", experimentEndTopic)
+	}
+	err = t.facade.Subscribe(experimentEndTopic, func(sCtx context.Context, topic string, retained bool, data []byte) {
+		if len(data) > 0 {
+			req := &proto.AgentExperimentEndRequest{}
+			err := com.MsgUnmarshall(data, req)
+			if err != nil {
+				slog.Default().Warn("cannot unmarshal content from topic", "topic", experimentEndTopic, "error", err)
+				return
+			}
+			var endErr *ExperimentEndError
+			switch req.Status {
+			case proto.Status_EXPERIMENT_END_REQUEST_FAILURE:
+				endErr = NewExperimentEndErrorWithComment(ExperimentEndDueToScenarioFailure, req.Comment)
+			case proto.Status_EXPERIMENT_END_REQUEST_SUCCESS:
+				endErr = NewExperimentEndErrorWithComment(ExperimentEndDueToScenarioSuccess, req.Comment)
+			default:
+				endErr = NewExperimentEndErrorWithCause(ExperimentEndDueToUnexpectedError, fmt.Errorf("unsuported value fro req.Status - %d", req.Status))
+			}
+			if endErr != nil {
+				cancel(endErr)
+			}
+		}
+	})
+	if err != nil {
+		return errors.Wrapf(err, "cannot subscribe to %s", experimentEndTopic)
+	}
 	var experimentEndAt time.Time
-	dataCh, errCh := geocalc.RunGeoCalc(ctx, 2*time.Second)
+	dataCh, errCh := geocalc.RunGeoCalc(experimentCtx, 2*time.Second)
 	go func() {
 		var lastTime time.Time
 		for {
@@ -124,12 +157,12 @@ func (t *AppType) Start(ctxParent context.Context) error {
 						slog.Default().Error("cannot send time update", "error", err)
 					}
 					slog.Default().Info("experiment time ended", "shouldEndAt", experimentEndAt, "now", lastTime)
-					cancel(fmt.Errorf("experiment time ended, shouldEndAt=%s, now=%s", experimentEndAt, lastTime))
+					cancel(NewExperimentEndError(ExperimentEndDueToTimeout))
 				} else {
 					if err := t.sendTimeUpdate(upd.CurrentTime, true); err != nil {
 						slog.Default().Error("cannot send time update", "error", err)
 					}
-					if err := t.handleGeoUpdate(ctx, upd); err != nil {
+					if err := t.handleGeoUpdate(experimentCtx, upd); err != nil {
 						slog.Default().Error("cannot send geo update", "error", err)
 					}
 				}
@@ -137,9 +170,9 @@ func (t *AppType) Start(ctxParent context.Context) error {
 				if err != nil {
 					slog.Default().Error("error updating experiment.status resource", "error", err)
 				}
-			case <-ctx.Done():
+			case <-experimentCtx.Done():
 				if err := t.sendTimeUpdate(lastTime, false); err != nil {
-					slog.Default().Error("cannot send time update after ctx canceled", "error", err)
+					slog.Default().Error("cannot send time update after experimentCtx canceled", "error", err)
 				}
 				return
 			}
@@ -149,7 +182,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 	if t.ExperimentDefData.StartTime != nil {
 		startAt = *t.ExperimentDefData.StartTime
 	}
-	experimentClock, err := eclock.NewExperimentClock(ctx, startAt, t.ExperimentDefData.MaxDuration)
+	experimentClock, err := eclock.NewExperimentClock(experimentCtx, startAt, t.ExperimentDefData.MaxDuration)
 	if err != nil {
 		return errors.Wrapf(err, "NewExperimentClock")
 	}
