@@ -43,6 +43,9 @@ resources:
   kind: Layout
   path: github.com/ESA-PhiLab/yass-operator/api/v1
   version: v1
+  webhooks:
+    validation: true
+    webhookVersion: v1
 - api:
     crdVersion: v1
     namespaced: true
