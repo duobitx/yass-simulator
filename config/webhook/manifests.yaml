@@ -10,12 +10,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /mutate-yass-int-esa-yass-v1-experiment
+      path: /mutate-int-esa-yass-v1-experiment
   failurePolicy: Fail
   name: mexperiment-v1.kb.io
   rules:
   - apiGroups:
-    - yass.int.esa.yass
+    - int.esa.yass
     apiVersions:
     - v1
     operations:
@@ -36,12 +36,12 @@ webhooks:
     service:
       name: webhook-service
       namespace: system
-      path: /validate-yass-int-esa-yass-v1-experiment
+      path: /validate-int-esa-yass-v1-experiment
   failurePolicy: Fail
   name: vexperiment-v1.kb.io
   rules:
   - apiGroups:
-    - yass.int.esa.yass
+    - int.esa.yass
     apiVersions:
     - v1
     operations:

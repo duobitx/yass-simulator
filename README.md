@@ -50,7 +50,8 @@ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/
 ### 3. Install Yass operator
 ```shell
 # Prepare namespace for yass operator
-kubectl -n yass-system apply -f dist/install.yaml
+# Use server-side apply to avoid large annotation errors on big CRDs
+kubectl -n yass-system apply --server-side -f dist/install.yaml
 kubectl -n yass-system create -f docker-secret.yaml
 kubectl -n yass-system patch serviceaccount yass-controller-manager -p '{"imagePullSecrets": [{"name": "docker-secret"}]}'
 kubectl -n yass-system patch serviceaccount default -p '{"imagePullSecrets": [{"name": "docker-secret"}]}'

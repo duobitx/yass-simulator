@@ -27,6 +27,7 @@ import (
 	"github.com/m-szalik/goutils"
 	"github.com/m-szalik/goutils/collections"
 	"github.com/pkg/errors"
+	"gopkg.in/inf.v0"
 	v1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -227,18 +228,44 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 			},
 		},
 	}
+
+	engineContainerSpecs := []containerSpec{}
+	for _, engineContainer := range fsNode.Spec.EngineContainers {
+		cs := containerSpec{
+			name:  engineContainer.Name,
+			image: engineContainer.Image,
+			ports: engineContainer.Ports,
+			mods: []modFunc{
+				modVolumeMount(engineVolumeName, "/mnt/engine", false),
+				rootFSReadOnly(),
+				modMountSharedVolume(false),
+			},
+		}
+		engineContainerSpecs = append(engineContainerSpecs, cs)
+	}
+	divider := len(engineContainerSpecs)
+	if divider > 0 {
+		if fsNode.Spec.HardwareSpec != nil {
+			resourceRequirements := &v1.ResourceRequirements{Limits: v1.ResourceList{}}
+			cpu := divideQuantityByInt(fsNode.Spec.HardwareSpec.CPU, int64(divider))
+			if cpu != nil {
+				resourceRequirements.Limits[v1.ResourceCPU] = *cpu
+			}
+			mem := divideQuantityByInt(fsNode.Spec.HardwareSpec.Memory, int64(divider))
+			if cpu != nil {
+				resourceRequirements.Limits[v1.ResourceMemory] = *mem
+			}
+			for _, engineContainerSpec := range engineContainerSpecs {
+				resourceRequirementsCopy := resourceRequirements.DeepCopy()
+				engineContainerSpec.mods = append(engineContainerSpec.mods, modResourcesLimit(resourceRequirementsCopy))
+			}
+		}
+	}
+
 	var diskSizeLimit *resource.Quantity = nil
 	terminationGracePeriodSeconds := int64(8)
 	if fsNode.Spec.HardwareSpec != nil {
 		diskSizeLimit = fsNode.Spec.HardwareSpec.DiskSpace
-	}
-	podSpec := fsNode.Spec.EnginePodTemplate.Template.Spec.DeepCopy()
-	podSpec.TerminationGracePeriodSeconds = &terminationGracePeriodSeconds
-	podSpec.ServiceAccountName = "yass-sa"
-	podSpec.Volumes = []v1.Volume{
-		{Name: sharedVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}}, // mounted by default under /shared
-		{Name: engineVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: diskSizeLimit}}},
-		{Name: agentTMPVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
 	}
 	pod = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -252,8 +279,17 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 				*metav1.NewControllerRef(fsNode, v1.SchemeGroupVersion.WithKind("FsNode")),
 			},
 		},
-		Spec: *podSpec,
+		Spec: v1.PodSpec{
+			Volumes: []v1.Volume{
+				{Name: sharedVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}}, // mounted by default under /shared
+				{Name: engineVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: diskSizeLimit}}},
+				{Name: agentTMPVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
+			},
+			TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
+			ServiceAccountName:            "yass-sa",
+		},
 	}
+
 	initContainer := &v1.Container{
 		Name:            "resource-to-json-fsnode",
 		Command:         []string{"/resource-to-json"},
@@ -437,4 +473,21 @@ func (r *FsNodeReconciler) updateStatusCondition(fsNode *yassv1.FsNode, ctype, m
 	if !found {
 		fsNode.Status.Conditions = append(fsNode.Status.Conditions, condition)
 	}
+}
+
+func divideQuantityByInt(q *resource.Quantity, n int64) *resource.Quantity {
+	if n == 0 {
+		panic("divide by zero")
+	}
+	if q == nil {
+		return nil
+	}
+	const scale = 3          // 0 for integer, 3 for milli, etc.
+	qDec := q.AsDec()        // *inf.Dec (this may promote internally)
+	nDec := inf.NewDec(n, 0) // integer divisor
+	out := new(inf.Dec).QuoRound(qDec, nDec, scale, inf.RoundHalfUp)
+	if out == nil {
+		return nil
+	}
+	return resource.NewDecimalQuantity(*out, resource.DecimalSI)
 }

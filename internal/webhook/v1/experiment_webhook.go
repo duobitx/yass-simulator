@@ -43,7 +43,7 @@ func SetupExperimentWebhookWithManager(mgr ctrl.Manager) error {
 
 // TODO(user): EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 
-// +kubebuilder:webhook:path=/mutate-yass-int-esa-yass-v1-experiment,mutating=true,failurePolicy=fail,sideEffects=None,groups=yass.int.esa.yass,resources=experiments,verbs=create;update,versions=v1,name=mexperiment-v1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/mutate-int-esa-yass-v1-experiment,mutating=true,failurePolicy=fail,sideEffects=None,groups=int.esa.yass,resources=experiments,verbs=create;update,versions=v1,name=mexperiment-v1.kb.io,admissionReviewVersions=v1
 
 // ExperimentCustomDefaulter struct is responsible for setting default values on the custom resource of the
 // Kind Experiment when those are created or updated.
@@ -73,7 +73,7 @@ func (d *ExperimentCustomDefaulter) Default(_ context.Context, obj runtime.Objec
 // TODO(user): change verbs to "verbs=create;update;delete" if you want to enable deletion validation.
 // NOTE: The 'path' attribute must follow a specific pattern and should not be modified directly here.
 // Modifying the path for an invalid path can cause API server errors; failing to locate the webhook.
-// +kubebuilder:webhook:path=/validate-yass-int-esa-yass-v1-experiment,mutating=false,failurePolicy=fail,sideEffects=None,groups=yass.int.esa.yass,resources=experiments,verbs=create;update,versions=v1,name=vexperiment-v1.kb.io,admissionReviewVersions=v1
+// +kubebuilder:webhook:path=/validate-int-esa-yass-v1-experiment,mutating=false,failurePolicy=fail,sideEffects=None,groups=int.esa.yass,resources=experiments,verbs=create;update,versions=v1,name=vexperiment-v1.kb.io,admissionReviewVersions=v1
 
 // ExperimentCustomValidator struct is responsible for validating the Experiment resource
 // when it is created, updated, or deleted.

@@ -6,7 +6,7 @@ cliVersion: 4.9.0
 domain: int.esa
 layout:
 - go.kubebuilder.io/v4
-projectName: yass-operator
+projectName: yass
 repo: github.com/ESA-PhiLab/yass-operator
 resources:
 - api:
