@@ -1,4 +1,4 @@
-module github.com/ESA-PhiLab/yass-internal-components/world-controller
+module github.com/duobitx/yass-internal-components/world-controller
 
 go 1.24.0
 

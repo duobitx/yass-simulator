@@ -1,4 +1,4 @@
-module github.com/ESA-PhiLab/yass-internal-components/experiment-executor
+module github.com/duobitx/yass-internal-components/experiment-executor
 
 go 1.24.0
 

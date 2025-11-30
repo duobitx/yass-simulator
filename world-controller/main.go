@@ -9,13 +9,13 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/com"
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/proto"
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/startup"
-	"github.com/ESA-PhiLab/yass-internal-components/world-controller/consts"
-	"github.com/ESA-PhiLab/yass-internal-components/world-controller/internal"
-	"github.com/ESA-PhiLab/yass-internal-components/world-controller/internal/model"
-	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
+	"github.com/duobitx/yass-internal-components/go-common/com"
+	"github.com/duobitx/yass-internal-components/go-common/proto"
+	"github.com/duobitx/yass-internal-components/go-common/startup"
+	"github.com/duobitx/yass-internal-components/world-controller/consts"
+	"github.com/duobitx/yass-internal-components/world-controller/internal"
+	"github.com/duobitx/yass-internal-components/world-controller/internal/model"
+	yassv1 "github.com/duobitx/yass-operator/api/v1"
 	"github.com/m-szalik/goutils"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/json"
@@ -50,6 +50,7 @@ func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
 		return err
 	}
 	fsNode.Status.PosStr = dataObj.GetPosStr()
+
 	return a.k8sClient.Status().Update(ctx, fsNode)
 }
 

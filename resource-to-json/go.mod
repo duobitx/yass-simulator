@@ -1,4 +1,4 @@
-module github.com/ESA-PhiLab/yass-internal-components/resource-to-json
+module github.com/duobitx/yass-internal-components/resource-to-json
 
 go 1.24.0
 

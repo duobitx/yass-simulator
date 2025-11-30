@@ -7,13 +7,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal/eclock"
-	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal/geocalc"
-	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal/model"
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/cmodel"
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/com"
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/proto"
-	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
+	"github.com/duobitx/yass-internal-components/experiment-executor/internal/eclock"
+	"github.com/duobitx/yass-internal-components/experiment-executor/internal/geocalc"
+	"github.com/duobitx/yass-internal-components/experiment-executor/internal/model"
+	"github.com/duobitx/yass-internal-components/go-common/cmodel"
+	"github.com/duobitx/yass-internal-components/go-common/com"
+	"github.com/duobitx/yass-internal-components/go-common/proto"
+	yassv1 "github.com/duobitx/yass-operator/api/v1"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -94,7 +94,7 @@ func NewApp(ctx context.Context, facade com.Facade) (*AppType, error) {
 		namespace:         goutils.Env("NAMESPACE", ""),
 	}
 
-	err = facade.Subscribe("/online-states/#", func(sCtx context.Context, topic string, retained bool, data []byte) {
+	err = facade.Subscribe("online-states/#", func(sCtx context.Context, topic string, retained bool, data []byte) {
 		err := app.handleOnlineUpdate(sCtx, data)
 		if err != nil {
 			slog.Error("error handling incoming update data", "data", string(data), "topic", topic, "error", err)
@@ -245,7 +245,7 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate)
 		gr := &proto.FsNodeUpdate{
 			Name:              data.Name,
 			InShadow:          false, // TODO later v2
-			PosStr:            fmt.Sprintf("x=%.2f,y=%.2f,z=%.2f,lat=%.2f,lng=%.2f", data.X, data.Y, data.Z, data.Lat, data.Lng),
+			PosStr:            fmt.Sprintf("lat=%.2f,lng=%.2f", data.Lat, data.Lng),
 			X:                 data.X,
 			Y:                 data.Y,
 			Z:                 data.Z,

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/cmodel"
-	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
+	"github.com/duobitx/yass-internal-components/go-common/cmodel"
+	yassv1 "github.com/duobitx/yass-operator/api/v1"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"

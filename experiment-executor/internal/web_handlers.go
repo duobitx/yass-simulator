@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/consts"
+	"github.com/duobitx/yass-internal-components/experiment-executor/consts"
 	"github.com/gorilla/mux"
 )
 

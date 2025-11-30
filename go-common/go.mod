@@ -1,4 +1,4 @@
-module github.com/ESA-PhiLab/yass-internal-components/go-common
+module github.com/duobitx/yass-internal-components/go-common
 
 go 1.24.0
 
