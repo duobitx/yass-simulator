@@ -1,8 +1,9 @@
-go 1.24.0
+go 1.25
 
 use (
 	./experiment-executor
 	./go-common
 	./resource-to-json
 	./world-controller
+	./yass-operator
 )
