@@ -20,13 +20,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ESA-PhiLab/yass-operator/internal/validation"
+	"github.com/duobitx/yass-operator/internal/validation"
 	"github.com/m-szalik/goutils"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
+	yassv1 "github.com/duobitx/yass-operator/api/v1"
 )
 
 // SetupLayoutWebhookWithManager registers the webhook for Layout in the manager.

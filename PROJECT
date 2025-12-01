@@ -7,7 +7,7 @@ domain: int.esa
 layout:
 - go.kubebuilder.io/v4
 projectName: yass
-repo: github.com/ESA-PhiLab/yass-operator
+repo: github.com/duobitx/yass-operator
 resources:
 - api:
     crdVersion: v1
@@ -16,7 +16,7 @@ resources:
   domain: int.esa
   group: yass
   kind: Experiment
-  path: github.com/ESA-PhiLab/yass-operator/api/v1
+  path: github.com/duobitx/yass-operator/api/v1
   version: v1
   webhooks:
     defaulting: true
@@ -29,7 +29,7 @@ resources:
   domain: int.esa
   group: yass
   kind: FsNode
-  path: github.com/ESA-PhiLab/yass-operator/api/v1
+  path: github.com/duobitx/yass-operator/api/v1
   version: v1
   webhooks:
     validation: true
@@ -41,7 +41,7 @@ resources:
   domain: int.esa
   group: yass
   kind: Layout
-  path: github.com/ESA-PhiLab/yass-operator/api/v1
+  path: github.com/duobitx/yass-operator/api/v1
   version: v1
   webhooks:
     validation: true
@@ -52,7 +52,7 @@ resources:
   domain: int.esa
   group: yass
   kind: ExperimentDefinition
-  path: github.com/ESA-PhiLab/yass-operator/api/v1
+  path: github.com/duobitx/yass-operator/api/v1
   version: v1
 - api:
     crdVersion: v1
@@ -60,7 +60,7 @@ resources:
   domain: int.esa
   group: yass
   kind: HardwareDefinition
-  path: github.com/ESA-PhiLab/yass-operator/api/v1
+  path: github.com/duobitx/yass-operator/api/v1
   version: v1
 - api:
     crdVersion: v1
@@ -68,6 +68,6 @@ resources:
   domain: int.esa
   group: yass
   kind: Layout
-  path: github.com/ESA-PhiLab/yass-operator/api/v1
+  path: github.com/duobitx/yass-operator/api/v1
   version: v1
 version: "3"

@@ -3,8 +3,8 @@ package fs_node
 import (
 	"fmt"
 
-	v2 "github.com/ESA-PhiLab/yass-operator/api/v1"
-	"github.com/ESA-PhiLab/yass-operator/internal/controller"
+	v2 "github.com/duobitx/yass-operator/api/v1"
+	"github.com/duobitx/yass-operator/internal/controller"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )

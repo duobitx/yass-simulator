@@ -13,9 +13,9 @@ import (
 	"strings"
 	"time"
 
-	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
-	"github.com/ESA-PhiLab/yass-operator/internal/config"
-	"github.com/ESA-PhiLab/yass-operator/internal/controller"
+	yassv1 "github.com/duobitx/yass-operator/api/v1"
+	"github.com/duobitx/yass-operator/internal/config"
+	"github.com/duobitx/yass-operator/internal/controller"
 	"github.com/m-szalik/goutils"
 	"github.com/m-szalik/goutils/collections"
 	"github.com/pkg/errors"

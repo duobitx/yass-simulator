@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ESA-PhiLab/yass-operator/internal/config"
-	"github.com/ESA-PhiLab/yass-operator/internal/controller"
+	"github.com/duobitx/yass-operator/internal/config"
+	"github.com/duobitx/yass-operator/internal/controller"
 	"github.com/m-szalik/goutils"
 	"github.com/m-szalik/goutils/collections"
 	"github.com/pkg/errors"
@@ -40,7 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
+	yassv1 "github.com/duobitx/yass-operator/api/v1"
 )
 
 const (

@@ -23,9 +23,9 @@ import (
 
 	"github.com/m-szalik/goutils"
 
-	"github.com/ESA-PhiLab/yass-operator/internal/config"
-	"github.com/ESA-PhiLab/yass-operator/internal/controller/experiment"
-	"github.com/ESA-PhiLab/yass-operator/internal/controller/fs_node"
+	"github.com/duobitx/yass-operator/internal/config"
+	"github.com/duobitx/yass-operator/internal/controller/experiment"
+	"github.com/duobitx/yass-operator/internal/controller/fs_node"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -41,8 +41,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
-	webhookv1 "github.com/ESA-PhiLab/yass-operator/internal/webhook/v1"
+	yassv1 "github.com/duobitx/yass-operator/api/v1"
+	webhookv1 "github.com/duobitx/yass-operator/internal/webhook/v1"
 	// +kubebuilder:scaffold:imports
 )
 

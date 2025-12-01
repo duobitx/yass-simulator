@@ -39,7 +39,7 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
+	yassv1 "github.com/duobitx/yass-operator/api/v1"
 	// +kubebuilder:scaffold:imports
 )
 

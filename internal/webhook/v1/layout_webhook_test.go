@@ -20,7 +20,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
+	yassv1 "github.com/duobitx/yass-operator/api/v1"
 	// TODO (user): Add any additional imports if needed
 )
 
