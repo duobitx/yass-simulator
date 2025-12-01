@@ -25,7 +25,6 @@ import (
 	"github.com/duobitx/yass-operator/internal/config"
 	"github.com/duobitx/yass-operator/internal/controller"
 	"github.com/m-szalik/goutils"
-	"github.com/m-szalik/goutils/collections"
 	"github.com/pkg/errors"
 	"gopkg.in/inf.v0"
 	v1 "k8s.io/api/core/v1"
@@ -124,7 +123,7 @@ func (r *FsNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{RequeueAfter: 500 * time.Millisecond}, nil
 	}
 	defer func() {
-		fsNode.Status.Ready = collections.AllMatch(fsNode.Status.Conditions, func(element *metav1.Condition) bool {
+		fsNode.Status.Ready = goutils.AllMatch(fsNode.Status.Conditions, func(element *metav1.Condition) bool {
 			return element.Status == metav1.ConditionTrue
 		})
 		err := r.Status().Update(ctx, &fsNode)
@@ -319,6 +318,13 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 	pod.Spec.Containers = containers
 	pod.Spec.AutomountServiceAccountToken = &True
 
+	for _, volume := range fsNode.Spec.EngineVolumes {
+		if volume.ConfigMap != nil || volume.Secret != nil {
+			pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
+		} else {
+			return fmt.Errorf("invalid volume %s, allowed ConfigMap or Secret type only", volume.Name)
+		}
+	}
 	err = r.Create(ctx, pod)
 	if apierrors.IsAlreadyExists(err) {
 		err = nil

@@ -1,5 +1,7 @@
 package v1
 
+import corev1 "k8s.io/api/core/v1"
+
 type Orbit struct {
 	// TLE lines
 	//+kubebuilder:validation:MinItems=2
@@ -70,4 +72,10 @@ type SimpleContainer struct {
 	// Configuration files can be mounted from ConfigMap.
 	// +kubebuilder:validation:Optional
 	ConfigurationFilesFromConfigMap *SimpleContainerConfigFiles `json:"configurationFilesFromConfigMap"`
+}
+
+type EngineSpec struct {
+	// What file system engine to be installed
+	EngineContainers []corev1.Container `json:"engineContainers,omitempty"`
+	EngineVolumes    []corev1.Volume    `json:"engineVolumes"`
 }

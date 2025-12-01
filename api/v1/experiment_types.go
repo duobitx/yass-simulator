@@ -1,7 +1,6 @@
 package v1
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -47,9 +46,8 @@ type ExperimentSpec struct {
 	// Reference to ExperimentDefinition resource.
 	ExperimentDefRef string `json:"experimentDefRef"`
 	// Reference to Layout resource.
-	LayoutDefRef string `json:"layoutDefRef"`
-	// Engine defines what engine will be tested during the experiment.
-	EngineContainers []corev1.Container `json:"engineContainers,omitempty"`
+	LayoutDefRef string     `json:"layoutDefRef"`
+	EngineSpec   EngineSpec `json:",inline"`
 	// SimulationStartTime is a starting point of the experiment.
 	// +optional
 	SimulationStartTime metav1.Time `json:"simulationStartTime"`

@@ -17,7 +17,6 @@ import (
 	"github.com/duobitx/yass-operator/internal/config"
 	"github.com/duobitx/yass-operator/internal/controller"
 	"github.com/m-szalik/goutils"
-	"github.com/m-szalik/goutils/collections"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -191,7 +190,7 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 	}
 
 	var failedComponents []string
-	ready := collections.AllMatch(experiment.Status.Conditions, func(element *metav1.Condition) bool {
+	ready := goutils.AllMatch(experiment.Status.Conditions, func(element *metav1.Condition) bool {
 		if element.Status == metav1.ConditionFalse {
 			failedComponents = append(failedComponents, element.Type)
 		}
@@ -338,7 +337,7 @@ func (r *ExperimentReconciler) updateStatusConditionForExperimentObject(exp *yas
 		newReason = "notReady"
 		switch x := obj.(type) {
 		case *v1.Pod:
-			ready = collections.AllMatch(x.Status.Conditions, func(element v1.PodCondition) bool {
+			ready = goutils.AllMatch(x.Status.Conditions, func(element v1.PodCondition) bool {
 				return element.Status == v1.ConditionTrue
 			})
 		case *appsv1.StatefulSet:
@@ -400,7 +399,7 @@ func (r *ExperimentReconciler) createFsNodeResource(ctx context.Context, namespa
 			Spec: yassv1.FsNodeSpec{
 				EmbeddedHardware: layoutItem.EmbeddedHardware,
 				EmbeddedPosition: layoutItem.EmbeddedPosition,
-				EngineContainers: experiment.Spec.EngineContainers,
+				EngineSpec:       experiment.Spec.EngineSpec,
 				Agent:            behaviour.Agent,
 			},
 		}
