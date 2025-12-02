@@ -1,21 +1,26 @@
 # Yass kubernetes operator
 
 ## Components
+
 ### Yass experiment controller
 
 ### Yass satellite controller
 
 
 ## Build
+
 ```shell
 make docker-build docker-push build-installer
 ```
+
 Commit and push `dist/install.yaml`.
 
 
 
 ## Yass Operator Installation
-### Presentments
+
+### Prerequisites
+
 1. kubectl installed
 2. Github account with access to PhiLab organisation
 3. Kubernetes cluster with admin privileges.
