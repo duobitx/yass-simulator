@@ -77,5 +77,6 @@ type SimpleContainer struct {
 type EngineSpec struct {
 	// What file system engine to be installed
 	EngineContainers []corev1.Container `json:"engineContainers,omitempty"`
-	EngineVolumes    []corev1.Volume    `json:"engineVolumes"`
+	// +kubebuilder:validation:Optional
+	EngineVolumes []corev1.Volume `json:"engineVolumes,omitempty"`
 }
