@@ -56,7 +56,7 @@ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/
 ```shell
 # Prepare namespace for yass operator
 # Use server-side apply to avoid large annotation errors on big CRDs
-kubectl -n yass-system apply --server-side -f dist/install.yaml
+kubectl -n yass-system apply -f dist/install.yaml
 kubectl -n yass-system create -f docker-secret.yaml
 kubectl -n yass-system patch serviceaccount yass-controller-manager -p '{"imagePullSecrets": [{"name": "docker-secret"}]}'
 kubectl -n yass-system patch serviceaccount default -p '{"imagePullSecrets": [{"name": "docker-secret"}]}'
@@ -69,4 +69,10 @@ kubectl -n yass-system delete `kubectl -n yass-system get pod -o name|grep yass-
 #kubect create namespace default  
 kubectl -n default create -f docker-secret.yaml
 ```
-
+### 5. Build local operator image
+```shell
+make docker-build
+docker tag ghcr.io/duobitx/yass/yass-operators:latest ghcr.io/duobitx/yass/yass-operators:yourTAG
+# edit and update image tag
+kubectl -n yass-system edit deployments.apps yass-controller-manager 
+```

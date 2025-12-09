@@ -6,3 +6,8 @@ images:
 - name: controller
   newName: ghcr.io/duobitx/yass/yass-operators
   newTag: latest
+patches:
+- path: image-pull-policy-patch.yaml
+  target:
+    kind: Deployment
+    name: controller-manager
