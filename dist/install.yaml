@@ -3582,7 +3582,6 @@ spec:
                 description: Start if to start the experiment as soon as it's ready.
                 type: boolean
             required:
-            - engineVolumes
             - experimentDefRef
             - layoutDefRef
             - start
@@ -7218,8 +7217,6 @@ spec:
                   yaw:
                     type: number
                 type: object
-            required:
-            - engineVolumes
             type: object
             x-kubernetes-validations:
             - message: Exactly one of spec.orbit or spec.earthPosition must be set

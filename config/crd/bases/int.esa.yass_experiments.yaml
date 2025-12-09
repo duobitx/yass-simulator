@@ -3461,7 +3461,6 @@ spec:
                 description: Start if to start the experiment as soon as it's ready.
                 type: boolean
             required:
-            - engineVolumes
             - experimentDefRef
             - layoutDefRef
             - start

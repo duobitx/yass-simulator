@@ -27,3 +27,4 @@ go.work
 *~
 manager
 docker-secret.yaml
+.github/TOKEN
