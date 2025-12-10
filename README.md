@@ -72,7 +72,7 @@ kubectl -n default create -f docker-secret.yaml
 ### 5. Build local operator image
 ```shell
 make docker-build
-docker tag ghcr.io/duobitx/yass/yass-operators:latest ghcr.io/duobitx/yass/yass-operators:yourTAG
+docker tag ghcr.io/duobitx/yass-operator:latest ghcr.io/duobitx/yass-operator:yourTAG
 # edit and update image tag
 kubectl -n yass-system edit deployments.apps yass-controller-manager 
 ```
