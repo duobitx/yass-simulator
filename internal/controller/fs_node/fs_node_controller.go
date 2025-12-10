@@ -228,37 +228,37 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		},
 	}
 
-	engineContainerSpecs := []containerSpec{}
-	for _, engineContainer := range fsNode.Spec.EngineContainers {
-		cs := containerSpec{
-			name:  engineContainer.Name,
-			image: engineContainer.Image,
-			ports: engineContainer.Ports,
-			mods: []modFunc{
-				modVolumeMount(engineVolumeName, "/mnt/engine", false),
-				rootFSReadOnly(),
-				modMountSharedVolume(false),
-			},
-		}
-		engineContainerSpecs = append(engineContainerSpecs, cs)
-	}
-	divider := len(engineContainerSpecs)
+	var ecResourceRequirements *v1.ResourceRequirements
+	divider := len(fsNode.Spec.EngineContainers)
 	if divider > 0 {
 		if fsNode.Spec.HardwareSpec != nil {
-			resourceRequirements := &v1.ResourceRequirements{Limits: v1.ResourceList{}}
+			ecResourceRequirements = &v1.ResourceRequirements{Limits: v1.ResourceList{}}
 			cpu := divideQuantityByInt(fsNode.Spec.HardwareSpec.CPU, int64(divider))
 			if cpu != nil {
-				resourceRequirements.Limits[v1.ResourceCPU] = *cpu
+				ecResourceRequirements.Limits[v1.ResourceCPU] = *cpu
 			}
 			mem := divideQuantityByInt(fsNode.Spec.HardwareSpec.Memory, int64(divider))
 			if cpu != nil {
-				resourceRequirements.Limits[v1.ResourceMemory] = *mem
-			}
-			for _, engineContainerSpec := range engineContainerSpecs {
-				resourceRequirementsCopy := resourceRequirements.DeepCopy()
-				engineContainerSpec.mods = append(engineContainerSpec.mods, modResourcesLimit(resourceRequirementsCopy))
+				ecResourceRequirements.Limits[v1.ResourceMemory] = *mem
 			}
 		}
+	}
+
+	engineContainers := []v1.Container{}
+	for _, engineContainer := range fsNode.Spec.EngineContainers {
+		eContainer := engineContainer.DeepCopy()
+		if ecResourceRequirements != nil {
+			eContainer.Resources = *ecResourceRequirements
+		}
+		if eContainer.VolumeMounts == nil {
+			eContainer.VolumeMounts = []v1.VolumeMount{}
+		}
+		eContainer.VolumeMounts = append(eContainer.VolumeMounts, v1.VolumeMount{
+			Name:      engineVolumeName,
+			MountPath: "/mnt/engine",
+			ReadOnly:  false,
+		})
+		engineContainers = append(engineContainers, engineContainer)
 	}
 
 	var diskSizeLimit *resource.Quantity = nil
@@ -315,6 +315,8 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		}
 		containers = append(containers, *container)
 	}
+
+	containers = append(containers, engineContainers...)
 	pod.Spec.Containers = containers
 	pod.Spec.AutomountServiceAccountToken = &True
 
