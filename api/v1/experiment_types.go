@@ -1,6 +1,7 @@
 package v1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -46,13 +47,18 @@ type ExperimentSpec struct {
 	// Reference to ExperimentDefinition resource.
 	ExperimentDefRef string `json:"experimentDefRef"`
 	// Reference to Layout resource.
-	LayoutDefRef string     `json:"layoutDefRef"`
-	EngineSpec   EngineSpec `json:",inline"`
+	LayoutDefRef string `json:"layoutDefRef"`
 	// SimulationStartTime is a starting point of the experiment.
 	// +optional
 	SimulationStartTime metav1.Time `json:"simulationStartTime"`
 	// Start if to start the experiment as soon as it's ready.
 	Start bool `json:"start"`
+
+	// What file system engine to be installed
+	//+kubebuilder:validation:MinItems=1
+	EngineContainers []corev1.Container `json:"engineContainers,omitempty"`
+	// +kubebuilder:validation:Optional
+	EngineVolumes []corev1.Volume `json:"engineVolumes,omitempty"`
 }
 
 // ExperimentStatus defines the desired state of an Experiment

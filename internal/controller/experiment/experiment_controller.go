@@ -399,7 +399,8 @@ func (r *ExperimentReconciler) createFsNodeResource(ctx context.Context, namespa
 			Spec: yassv1.FsNodeSpec{
 				EmbeddedHardware: layoutItem.EmbeddedHardware,
 				EmbeddedPosition: layoutItem.EmbeddedPosition,
-				EngineSpec:       experiment.Spec.EngineSpec,
+				EngineContainers: experiment.Spec.EngineContainers,
+				EngineVolumes:    experiment.Spec.EngineVolumes,
 				Agent:            behaviour.Agent,
 			},
 		}
