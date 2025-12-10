@@ -7814,7 +7814,7 @@ spec:
         - --webhook-cert-path=/tmp/k8s-webhook-server/serving-certs
         command:
         - /manager
-        image: ghcr.io/duobitx/yass/yass-operators:latest
+        image: ghcr.io/duobitx/yass-operator:latest
         imagePullPolicy: IfNotPresent
         livenessProbe:
           httpGet:
