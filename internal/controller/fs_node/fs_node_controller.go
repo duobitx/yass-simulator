@@ -93,7 +93,7 @@ func (r *FsNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, err
 	}
 
-	if !fsNode.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !fsNode.DeletionTimestamp.IsZero() {
 		// The object is being deleted
 		if controllerutil.ContainsFinalizer(&fsNode, removeFsNodeComponentsFinalizer) {
 			// Run cleanup logic
@@ -187,11 +187,14 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 	// POD not found we need to create the POD
 	experimentName := fsNode.Labels[controller.LabelExperiment]
 	// create Pod
-	var _enginePorts []v1.ContainerPort
-	for port, prot := range engineOpenPorts {
-		_enginePorts = append(_enginePorts, v1.ContainerPort{ContainerPort: int32(port), Protocol: prot})
-	}
-	_enginePorts = append(_enginePorts, v1.ContainerPort{ContainerPort: int32(8080)})
+
+	// FIXME: commented as _enginePorts are not used
+	// var _enginePorts []v1.ContainerPort
+	// for port, prot := range engineOpenPorts {
+	// 	_enginePorts = append(_enginePorts, v1.ContainerPort{ContainerPort: int32(port), Protocol: prot})
+	// }
+	// _enginePorts = append(_enginePorts, v1.ContainerPort{ContainerPort: int32(8080)})
+
 	engineResources := v1.ResourceRequirements{Limits: map[v1.ResourceName]resource.Quantity{}}
 	if fsNode.Spec.HardwareSpec != nil {
 		if fsNode.Spec.HardwareSpec.CPU != nil && !fsNode.Spec.HardwareSpec.CPU.IsZero() {
@@ -202,7 +205,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		}
 	}
 	// TODO mount
-	var containers []v1.Container
+	containers := make([]v1.Container, 0)
 	containerSpecs := []containerSpec{
 		{
 			name:  "world-controller",
@@ -301,10 +304,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 	pod.Spec.InitContainers = []v1.Container{*initContainer}
 
 	for _, cs := range containerSpecs {
-		container, err := r.createFsNodeContainerTemplate(fsNode, cs)
-		if err != nil {
-			return errors.Wrap(err, fmt.Sprintf("cannot create container template %s", cs.name))
-		}
+		container := r.createFsNodeContainerTemplate(fsNode, cs)
 		if container == nil {
 			return fmt.Errorf("cannot create container template %s, nil returned without error", cs.name)
 		}
@@ -356,7 +356,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodeService(ctx context.Context, fsNo
 		controller.LabelFsNode:     fsNode.Name,
 		controller.LabelExperiment: fsNode.Labels[controller.LabelExperiment],
 	}
-	var _engineServicePorts []v1.ServicePort
+	_engineServicePorts := make([]v1.ServicePort, 0)
 	for port, proto := range engineOpenPorts {
 		_engineServicePorts = append(_engineServicePorts, v1.ServicePort{
 			Name:       strings.ToLower(fmt.Sprintf("port%d%s", port, proto)),
@@ -387,14 +387,11 @@ func (r *FsNodeReconciler) createOrUpdateFsNodeService(ctx context.Context, fsNo
 	return err
 }
 
-func (r *FsNodeReconciler) createFsNodeContainerTemplate(fsNode *yassv1.FsNode, cs containerSpec) (*v1.Container, error) {
+func (r *FsNodeReconciler) createFsNodeContainerTemplate(fsNode *yassv1.FsNode, cs containerSpec) *v1.Container {
 	experimentName := fsNode.Labels[controller.LabelExperiment]
 	envVars := []v1.EnvVar{
 		{Name: controller.NormalizeEnvName(controller.LabelFsNode), Value: fsNode.Name},
 		{Name: controller.NormalizeEnvName(controller.LabelExperiment), Value: experimentName},
-	}
-	for _, ev := range envVars {
-		ev.Name = strings.ToUpper(strings.ReplaceAll(ev.Name, "-", "_"))
 	}
 	container := v1.Container{
 		Name:            cs.name,
@@ -406,7 +403,7 @@ func (r *FsNodeReconciler) createFsNodeContainerTemplate(fsNode *yassv1.FsNode, 
 		ReadinessProbe:  nil,
 		ImagePullPolicy: r.Configuration.InternalComponentImagePullPolicy,
 	}
-	return &container, nil
+	return &container
 }
 
 func (r *FsNodeReconciler) updateHardwareSpec(ctx context.Context, fsNode *yassv1.FsNode) (bool, error) {
@@ -441,7 +438,6 @@ func (r *FsNodeReconciler) updateStatusConditionForObject(fsNode *yassv1.FsNode,
 		newReason = "error"
 	} else {
 		newMessage = ""
-		newReason = "notReady"
 		switch x := obj.(type) {
 		case *v1.Pod:
 			newStatus = x.Status.Phase == v1.PodRunning || x.Status.Phase == v1.PodSucceeded

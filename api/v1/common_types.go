@@ -2,8 +2,8 @@ package v1
 
 type Orbit struct {
 	// TLE lines
-	//+kubebuilder:validation:MinItems=2
-	//+kubebuilder:validation:MaxItems=2
+	// +kubebuilder:validation:MinItems=2
+	// +kubebuilder:validation:MaxItems=2
 	TLE []string `json:"tle"`
 }
 

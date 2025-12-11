@@ -78,12 +78,12 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		return ctrl.Result{}, err
 	}
-	if !experiment.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !experiment.DeletionTimestamp.IsZero() {
 		// The object is being deleted
 		if controllerutil.ContainsFinalizer(&experiment, removeFsNodesFinalizer) {
 			// Run cleanup logic
 			logger.Info("Experiment deleted", "name", req.NamespacedName)
-			err = r.deleteExperimentObjects(ctx, req.NamespacedName.Namespace, req.Name)
+			err = r.deleteExperimentObjects(ctx, req.Namespace, req.Name)
 			if err != nil {
 				return ctrl.Result{}, err
 			}
@@ -181,7 +181,7 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 	joinErrHelper = &goutils.JoinErrorHelper{}
 	if layoutDef.Spec != nil {
 		for _, satItem := range layoutDef.Spec {
-			err = r.createFsNodeResource(ctx, req.NamespacedName.Namespace, experiment, &exDef, &satItem)
+			err = r.createFsNodeResource(ctx, req.Namespace, experiment, &exDef, &satItem)
 			joinErrHelper.Append(err)
 		}
 	}
@@ -321,8 +321,8 @@ func (r *ExperimentReconciler) updateStatusConditionForExperimentObject(exp *yas
 			Reason: "undefined",
 		}
 	}
-	newStatus := condition.Status
-	newReason := condition.Reason
+	var newStatus metav1.ConditionStatus
+	var newReason string
 	newMessage := ""
 	if extra != nil {
 		newStatus = metav1.StatusFailure

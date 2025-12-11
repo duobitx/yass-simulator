@@ -55,7 +55,7 @@ type ExperimentSpec struct {
 	Start bool `json:"start"`
 
 	// What file system engine to be installed
-	//+kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MinItems=1
 	EngineContainers []corev1.Container `json:"engineContainers,omitempty"`
 	// +kubebuilder:validation:Optional
 	EngineVolumes []corev1.Volume `json:"engineVolumes,omitempty"`
