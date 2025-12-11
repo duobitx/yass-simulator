@@ -32,7 +32,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	webappv1 "github.com/duobitx/yass-operator/api/v1"
 	yassv1 "github.com/duobitx/yass-operator/api/v1"
 	// +kubebuilder:scaffold:imports
 )
@@ -60,9 +59,6 @@ var _ = BeforeSuite(func() {
 	ctx, cancel = context.WithCancel(context.TODO())
 
 	var err error
-	err = webappv1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
-
 	err = yassv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
