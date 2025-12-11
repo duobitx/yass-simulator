@@ -30,6 +30,3 @@ ADD obj-templates ./obj-templates
 USER 65532:65532
 
 ENTRYPOINT ["/manager"]
-
-# Label required for GHCR integration
-LABEL org.opencontainers.image.source=https://github.com/duobitx/yass-operator
