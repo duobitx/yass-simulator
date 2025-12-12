@@ -20,7 +20,6 @@ import (
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -154,15 +153,10 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(ctx context.Context, req
 		objSrc   client.Object
 		mod      func(object client.Object)
 	}{
-		{"yaas-serviceaccount.yaml", "yass-sa", &v1.ServiceAccount{}, nil},
 		{"messaging-statefulSet.yaml", "messaging", &appsv1.StatefulSet{}, modAddExperimentAnnotation(experiment.Name)},
 		{"messaging-service.yaml", "messaging", &v1.Service{}, nil},
 		{"experiment-executor-statefulSet.yaml", "experiment-executor", &appsv1.StatefulSet{}, modAddExperimentAnnotation(experiment.Name)},
 		{"experiment-executor-service.yaml", "experiment-executor", &v1.Service{}, nil},
-		{"yass-sa-role-binding.yaml", "yass-sa-role-binding", &rbacv1.ClusterRoleBinding{}, func(object client.Object) {
-			rbacClusterRoleBinding := object.(*rbacv1.ClusterRoleBinding)
-			rbacClusterRoleBinding.Subjects[0].Namespace = experiment.Namespace
-		}},
 	}
 	joinErrHelper := &goutils.JoinErrorHelper{}
 	for _, cDef := range componentDefinitions {
