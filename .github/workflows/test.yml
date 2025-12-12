@@ -11,10 +11,10 @@ jobs:
       - name: Clone the code
         uses: actions/checkout@v4
 
-      # - name: Setup Go
-      #   uses: actions/setup-go@v5
-      #   with:
-      #     go-version-file: go.mod
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
 
       - name: Running Tests
         run: go test ./...
