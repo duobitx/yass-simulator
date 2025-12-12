@@ -17,6 +17,4 @@ jobs:
       #     go-version-file: go.mod
 
       - name: Running Tests
-        run: |
-          go mod tidy
-          go test ./...
+        run: go test ./...
