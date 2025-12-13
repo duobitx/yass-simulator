@@ -11,3 +11,7 @@ patches:
   target:
     kind: Deployment
     name: controller-manager
+- path: envs-patch.yaml
+  target:
+    kind: Deployment
+    name: controller-manager
