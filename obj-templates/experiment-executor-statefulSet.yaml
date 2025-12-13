@@ -13,7 +13,7 @@ spec:
       labels:
         app: experiment-executor
     spec:
-      serviceAccountName: "yass-sa"
+      serviceAccountName: "yass-experiment-sa"
       terminationGracePeriodSeconds: 10
       initContainers:
         - name: resource-to-json-experiment

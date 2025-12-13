@@ -59,6 +59,7 @@ kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/
 # wait for cert manager to start
 kubectl wait -n cert-manager --for=condition=Available deployment --all --timeout=300s
 ```
+Wait for cert manager to start.
 
 
 ### 3. Install Yass operator

@@ -229,7 +229,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 				{Name: agentTMPVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
 			},
 			TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
-			ServiceAccountName:            "yass-sa",
+			ServiceAccountName:            "yass-experiment-sa",
 		},
 	}
 
