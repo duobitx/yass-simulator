@@ -47,7 +47,7 @@ type NamespaceReconciler struct {
 
 func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := logf.FromContext(ctx)
-	nsName := req.NamespacedName.Name
+	nsName := req.Name
 	var ns v1.Namespace
 	err := r.Get(ctx, req.NamespacedName, &ns)
 	if err != nil {
@@ -81,7 +81,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	logger.Info("Starting orchestration of the namespace", "namespace", nsName)
 	// copy docker secret
 	var dockerSecret v1.Secret
-	err = r.Client.Get(ctx, client.ObjectKey{Namespace: r.SourceNamespace, Name: dockerSecretName}, &dockerSecret)
+	err = r.Get(ctx, client.ObjectKey{Namespace: r.SourceNamespace, Name: dockerSecretName}, &dockerSecret)
 	if err != nil {
 		return ctrl.Result{}, fmt.Errorf("cannot get secret from %s/%s:: %w", r.SourceNamespace, dockerSecretName, err)
 	}
@@ -122,14 +122,14 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	})
 	if !alreadyBound {
 		crb.Subjects = append(crb.Subjects, subject)
-		err = r.Client.Update(ctx, &crb)
+		err = r.Update(ctx, &crb)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 		logger.Info("Cluster role binding updated", "subject", subject, "clusterRoleBinding", yassClusterRoleBindingName)
 	}
 	if controllerutil.AddFinalizer(&ns, finalizerName) {
-		err = r.Client.Update(ctx, &ns)
+		err = r.Update(ctx, &ns)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -168,7 +168,7 @@ func (r *NamespaceReconciler) removeServiceAccountFromClusterRoleBinding(ctx con
 		}
 		return !remove
 	})
-	err = r.Client.Update(ctx, &crb)
+	err = r.Update(ctx, &crb)
 	if err != nil {
 		return err
 	}
