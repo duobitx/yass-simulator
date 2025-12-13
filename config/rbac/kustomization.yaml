@@ -6,10 +6,11 @@ resources:
 # if your manager will use a service account that exists at
 # runtime. Be sure to update RoleBinding and ClusterRoleBinding
 # subjects if changing service account names.
-- role.yaml
+- manager-role.yaml
+- manager-role_binding.yaml
 - service_account.yaml
-- role-yass.yaml
-- role_binding.yaml
+- experiment-role.yaml
+- experiment-role_binding.yaml
 - leader_election_role.yaml
 - leader_election_role_binding.yaml
 # The following RBAC configurations are used to protect

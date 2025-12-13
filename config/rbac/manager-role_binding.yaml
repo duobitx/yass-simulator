@@ -8,7 +8,7 @@ metadata:
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
-  name: yass-role
+  name: yass-manager-role
 subjects:
 - kind: ServiceAccount
   name: yass-controller-manager

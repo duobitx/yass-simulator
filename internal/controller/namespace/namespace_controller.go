@@ -20,11 +20,11 @@ import (
 )
 
 const (
-	finalizerName       = "yass/namespace-controller"
-	requestedLabel      = "yass-namespace"
-	dockerSecretName    = "docker-secret"
-	saName              = "yass-sa"
-	yassRoleBindingName = "yass-sa-role-binding"
+	finalizerName              = "yass/namespace-controller"
+	requestedLabel             = "yass-namespace"
+	dockerSecretName           = "docker-secret"
+	saName                     = "yass-experiment-sa"
+	yassClusterRoleBindingName = "yass-experiment-rolebinding"
 )
 
 // Yass Namespace reconciles an Namespace object
@@ -108,7 +108,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	logger.Info("service account created", "opResult", opResult, "sa", saName)
 	// update cluster role binding - add new sa
 	var crb rbacv1.ClusterRoleBinding
-	err = r.Get(ctx, client.ObjectKey{Name: yassRoleBindingName}, &crb)
+	err = r.Get(ctx, client.ObjectKey{Name: yassClusterRoleBindingName}, &crb)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -126,7 +126,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		if err != nil {
 			return ctrl.Result{}, err
 		}
-		logger.Info("Cluster role binding updated", "subject", subject, "clusterRoleBinding", yassRoleBindingName)
+		logger.Info("Cluster role binding updated", "subject", subject, "clusterRoleBinding", yassClusterRoleBindingName)
 	}
 	if controllerutil.AddFinalizer(&ns, finalizerName) {
 		err = r.Client.Update(ctx, &ns)
@@ -156,7 +156,7 @@ func (r *NamespaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 func (r *NamespaceReconciler) removeServiceAccountFromClusterRoleBinding(ctx context.Context, nsName string) error {
 	var crb rbacv1.ClusterRoleBinding
-	err := r.Get(ctx, client.ObjectKey{Name: yassRoleBindingName}, &crb)
+	err := r.Get(ctx, client.ObjectKey{Name: yassClusterRoleBindingName}, &crb)
 	if err != nil {
 		return err
 	}
@@ -173,7 +173,7 @@ func (r *NamespaceReconciler) removeServiceAccountFromClusterRoleBinding(ctx con
 		return err
 	}
 
-	logf.FromContext(ctx).Info("Cluster role binding updated - subject removed", "subject", removedSubject, "clusterRoleBinding", yassRoleBindingName)
+	logf.FromContext(ctx).Info("Cluster role binding updated - subject removed", "subject", removedSubject, "clusterRoleBinding", yassClusterRoleBindingName)
 	return nil
 }
 
