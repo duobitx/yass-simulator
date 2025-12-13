@@ -43,19 +43,21 @@ kubectl create namespace yass-system
 ```
 
 3. Create `docker-registry` secret
+
 ```shell
-kubectl -n yass-sytem create secret docker-registry docker-secret \
+vim -o .github/{USER,TOKEN,EMAIL}  # adjust your secrets
+kubectl -n yass-system create secret docker-registry docker-secret \
   --docker-server=https://ghcr.io/v1/ \
-  --docker-username=YOUR_GITHUB_USERNAME \
-  --docker-password=GENERATED_TOKEN \
-  --docker-email=YOUR_EMAIL
+  --docker-username=$(<.github/USER) \
+  --docker-password=$(<.github/TOKEN) \
+  --docker-email=$(<.github/EMAIL)
 ```
 
 ### 2. Install cert-manager
 ```shell
 kubectl apply -f https://github.com/cert-manager/cert-manager/releases/download/v1.19.1/cert-manager.yaml
 # wait for cert manager to start
-kubectl wait -namespace cert-manager --for=condition=Available deployment --all --timeout=300s
+kubectl wait -n cert-manager --for=condition=Available deployment --all --timeout=300s
 ```
 
 
@@ -68,7 +70,8 @@ If you want to modify version of `internal components` edit envs-patch.yaml and 
 kubectl -n yass-system apply -f dist/install.yaml
 kubectl -n yass-system patch serviceaccount yass-controller-manager -p '{"imagePullSecrets": [{"name": "docker-secret"}]}'
 # try to redownload image after imagePullSecrets is applied
-kubectl -n yass-system delete `kubectl -n yass-system get pod -o name|grep yass-controller` 
+kubectl -n yass-system delete `kubectl -n yass-system get pod -o name|grep yass-controller`
+kubectl wait -n yass-system --for=condition=Available deployment --all --timeout=300s
 ```
 
 ### 4. Prepare namespace for an experiment ("default")
@@ -83,5 +86,5 @@ kubectl create namespace "${NS}" && kubectl label namespace "${NS}" yass-namespa
 make docker-build
 docker tag ghcr.io/duobitx/yass-operator:latest ghcr.io/duobitx/yass-operator:yourTAG
 # edit and update image tag
-kubectl -n yass-system edit deployments.apps yass-controller-manager 
+kubectl -n yass-system edit deployments.apps yass-controller-manager
 ```
