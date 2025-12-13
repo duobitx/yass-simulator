@@ -205,65 +205,6 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		}
 	}
 	// TODO mount
-	containers := make([]v1.Container, 0)
-	containerSpecs := []containerSpec{
-		{
-			name:  "world-controller",
-			image: r.Configuration.InternalComponentImage,
-			mods: []modFunc{
-				cmd("/world-controller"),
-				modHttpProbes(8801),
-				modEnvFromField("POD_IP", "status.podIP"),
-				modEnvFromField("NAMESPACE", "metadata.namespace"),
-				modEnvs(map[string]string{"RESOURCE_NAME": fsNode.Name}),
-				modMountSharedVolume(false),
-			},
-		},
-		{
-			name:  "agent",
-			image: fsNode.Spec.Agent.Image,
-			ports: nil,
-			mods: []modFunc{
-				modVolumeMount(agentTMPVolumeName, "/tmp", false),
-				modFor(fsNode.Spec.Agent),
-				modMountSharedVolume(true),
-			},
-		},
-	}
-
-	var ecResourceRequirements *v1.ResourceRequirements
-	divider := len(fsNode.Spec.EngineContainers)
-	if divider > 0 {
-		if fsNode.Spec.HardwareSpec != nil {
-			ecResourceRequirements = &v1.ResourceRequirements{Limits: v1.ResourceList{}}
-			cpu := divideQuantityByInt(fsNode.Spec.HardwareSpec.CPU, int64(divider))
-			if cpu != nil {
-				ecResourceRequirements.Limits[v1.ResourceCPU] = *cpu
-			}
-			mem := divideQuantityByInt(fsNode.Spec.HardwareSpec.Memory, int64(divider))
-			if cpu != nil {
-				ecResourceRequirements.Limits[v1.ResourceMemory] = *mem
-			}
-		}
-	}
-
-	engineContainers := []v1.Container{}
-	for _, engineContainer := range fsNode.Spec.EngineContainers {
-		eContainer := engineContainer.DeepCopy()
-		if ecResourceRequirements != nil {
-			eContainer.Resources = *ecResourceRequirements
-		}
-		if eContainer.VolumeMounts == nil {
-			eContainer.VolumeMounts = []v1.VolumeMount{}
-		}
-		eContainer.VolumeMounts = append(eContainer.VolumeMounts, v1.VolumeMount{
-			Name:      engineVolumeName,
-			MountPath: "/mnt/engine",
-			ReadOnly:  false,
-		})
-		engineContainers = append(engineContainers, engineContainer)
-	}
-
 	var diskSizeLimit *resource.Quantity = nil
 	terminationGracePeriodSeconds := int64(8)
 	if fsNode.Spec.HardwareSpec != nil {
@@ -303,21 +244,12 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 	modEnvFromField("NAMESPACE", "metadata.namespace")(pod, initContainer)
 	pod.Spec.InitContainers = []v1.Container{*initContainer}
 
-	for _, cs := range containerSpecs {
-		container := r.createFsNodeContainerTemplate(fsNode, cs)
-		if container == nil {
-			return fmt.Errorf("cannot create container template %s, nil returned without error", cs.name)
-		}
-		if cs.mods != nil {
-			for _, mod := range cs.mods {
-				mod(pod, container)
-			}
-		}
-		containers = append(containers, *container)
+	containers, err := r.getSystemContainers(fsNode, pod)
+	if err != nil {
+		return err
 	}
-
-	containers = append(containers, engineContainers...)
-	pod.Spec.Containers = containers
+	engineContainers := r.getEngineContainers(fsNode)
+	pod.Spec.Containers = append(containers, engineContainers...)
 	pod.Spec.AutomountServiceAccountToken = &True
 
 	for _, volume := range fsNode.Spec.EngineVolumes {
@@ -333,6 +265,86 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 	}
 	r.updateStatusConditionForObject(fsNode, ctype, pod, err)
 	return err
+}
+
+// System containers for the new FSNode pod.
+func (r *FsNodeReconciler) getSystemContainers(fsNode *yassv1.FsNode, pod *v1.Pod) ([]v1.Container, error) {
+	containers := make([]v1.Container, 0)
+	containerSpecs := []containerSpec{
+		{
+			name:  "world-controller",
+			image: r.Configuration.InternalComponentImage,
+			mods: []modFunc{
+				cmd("/world-controller"),
+				modHttpProbes(8801),
+				modEnvFromField("POD_IP", "status.podIP"),
+				modEnvFromField("NAMESPACE", "metadata.namespace"),
+				modEnvs(map[string]string{"RESOURCE_NAME": fsNode.Name}),
+				modMountSharedVolume(false),
+			},
+		},
+		{
+			name:  "agent",
+			image: fsNode.Spec.Agent.Image,
+			ports: nil,
+			mods: []modFunc{
+				modVolumeMount(agentTMPVolumeName, "/tmp", false),
+				modFor(fsNode.Spec.Agent),
+				modMountSharedVolume(true),
+			},
+		},
+	}
+	for _, cs := range containerSpecs {
+		container := r.createFsNodeContainerTemplate(fsNode, cs)
+		if container == nil {
+			return nil, fmt.Errorf("cannot create container template %s, nil returned without error", cs.name)
+		}
+		if cs.mods != nil {
+			for _, mod := range cs.mods {
+				mod(pod, container)
+			}
+		}
+		containers = append(containers, *container)
+	}
+	return containers, nil
+}
+
+// Engine containers for the new FSNode pod.
+func (r *FsNodeReconciler) getEngineContainers(fsNode *yassv1.FsNode) []v1.Container {
+	var ecResourceRequirements *v1.ResourceRequirements
+	divider := len(fsNode.Spec.EngineContainers)
+	if divider > 0 {
+		if fsNode.Spec.HardwareSpec != nil {
+			ecResourceRequirements = &v1.ResourceRequirements{Limits: v1.ResourceList{}}
+			cpu := divideQuantityByInt(fsNode.Spec.HardwareSpec.CPU, int64(divider))
+			if cpu != nil {
+				ecResourceRequirements.Limits[v1.ResourceCPU] = *cpu
+			}
+			mem := divideQuantityByInt(fsNode.Spec.HardwareSpec.Memory, int64(divider))
+			if cpu != nil {
+				ecResourceRequirements.Limits[v1.ResourceMemory] = *mem
+			}
+		}
+	}
+
+	engineContainers := []v1.Container{}
+	for _, engineContainer := range fsNode.Spec.EngineContainers {
+		eContainer := engineContainer.DeepCopy()
+		if ecResourceRequirements != nil {
+			eContainer.Resources = *ecResourceRequirements
+		}
+		if eContainer.VolumeMounts == nil {
+			eContainer.VolumeMounts = []v1.VolumeMount{}
+		}
+		eContainer.VolumeMounts = append(eContainer.VolumeMounts, v1.VolumeMount{
+			Name:      engineVolumeName,
+			MountPath: "/mnt/engine",
+			ReadOnly:  false,
+		})
+		engineContainers = append(engineContainers, *eContainer)
+	}
+
+	return engineContainers
 }
 
 func (r *FsNodeReconciler) createOrUpdateFsNodeService(ctx context.Context, fsNode *yassv1.FsNode) error {
