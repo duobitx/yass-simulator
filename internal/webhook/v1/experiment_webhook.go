@@ -29,7 +29,6 @@ import (
 	yassv1 "github.com/duobitx/yass-operator/api/v1"
 )
 
-// nolint:unused
 // log is for logging in this package.
 var experimentlog = logf.Log.WithName("experiment-resource")
 
