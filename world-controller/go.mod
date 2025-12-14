@@ -10,6 +10,7 @@ require (
 	github.com/m-szalik/goutils v0.2.1
 	github.com/pkg/errors v0.9.1
 	github.com/vishvananda/netlink v1.3.1
+	golang.org/x/sys v0.38.0
 	k8s.io/apimachinery v0.34.2
 	k8s.io/client-go v0.34.2
 	sigs.k8s.io/controller-runtime v0.22.4
@@ -63,7 +64,6 @@ require (
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.33.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.14.0 // indirect

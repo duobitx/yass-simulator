@@ -1,10 +1,10 @@
 module github.com/duobitx/yass-internal-components/resource-to-json
 
-go 1.24.0
-
-toolchain go1.24.6
+go 1.25
 
 require (
+	github.com/duobitx/yass-internal-components/go-common v0.0.0-20251214230353-b70dd607bb37
+	github.com/duobitx/yass-operator v0.0.0-20251214224632-b2d22f526b67
 	github.com/m-szalik/goutils v0.2.1
 	github.com/pkg/errors v0.9.1
 	k8s.io/apimachinery v0.34.2
@@ -41,7 +41,6 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/kr/text v0.2.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
