@@ -24,5 +24,10 @@ sudo snap install task --classic
 sudo apt install libjansson-dev
 ```
 
+### Protocol Buffers compiler
+<https://protobuf.dev/installation/>
+
+- Linux: `apt install -y protobuf-compiler`
+- MacOS: `brew install protobuf`
 
 ### Make
