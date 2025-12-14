@@ -119,7 +119,7 @@ func (h *NetworkingHandler) Update(networkParams []NetworkParam) error {
 				jeh.Append(errors.Wrapf(err, "error removing ipProfile for %s as it's not visible anymore", ip))
 			} else {
 				h.state[ip] = nil
-				slog.Default().Debug("ipProfile removed as the IP is not visible anymore", "ip", ip)
+				slog.Default().Info("ipProfile removed as the IP is not visible anymore", "ip", ip)
 			}
 		}
 	}
