@@ -44,6 +44,19 @@ jobs:
         uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c  # v6.1.0
         with:
           go-version: ${{ env.GO_VERSION }}
+      - name: Use GITHUB_TOKEN for known Git remotes
+        # Added to work around this error:
+        #
+        # Error: ... could not import github.com/... invalid version: git ls-remote -q https://github.com/... ...: exit status 128:
+        # fatal: could not read Username for 'https://github.com': terminal prompts disabled
+        # Confirm the import path was entered correctly.
+        # If this is a private repository, see https://golang.org/doc/faq#git_https for additional information.) (typecheck)
+        # yassv1 "github.com/duobitx/yass-operator/api/v1"
+        #        ^
+        run: |
+          for owner in ESA-PhiLab duobitx; do
+            git config --global url."https://${{ secrets.GITHUB_TOKEN }}@github.com/$owner/".insteadOf "https://github.com/$owner/"
+          done
       - name: Run linter ${{ matrix.modules }}
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20  # v9.2.0
         with:
