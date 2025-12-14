@@ -275,12 +275,13 @@ func (r *FsNodeReconciler) getSystemContainers(fsNode *yassv1.FsNode, pod *v1.Po
 			name:  "world-controller",
 			image: r.Configuration.InternalComponentImage,
 			mods: []modFunc{
-				cmd("/world-controller"),
+				cmd("/world-controller-wrapper.sh"),
 				modHttpProbes(8801),
 				modEnvFromField("POD_IP", "status.podIP"),
 				modEnvFromField("NAMESPACE", "metadata.namespace"),
 				modEnvs(map[string]string{"RESOURCE_NAME": fsNode.Name}),
 				modMountSharedVolume(false),
+				modCapability("NET_ADMIN"),
 			},
 		},
 		{

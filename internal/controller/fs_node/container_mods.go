@@ -147,6 +147,28 @@ func modEnvFromField(name, fieldPath string) modFunc {
 	}
 }
 
+func modCapability(capability v1.Capability) modFunc {
+	return func(pod *v1.Pod, container *v1.Container) {
+		if container.SecurityContext == nil {
+			container.SecurityContext = &v1.SecurityContext{}
+		}
+		if container.SecurityContext.Capabilities == nil {
+			container.SecurityContext.Capabilities = &v1.Capabilities{}
+		}
+		container.SecurityContext.Capabilities.Add = append(container.SecurityContext.Capabilities.Add)
+	}
+}
+
+func modPrivileged() modFunc {
+	return func(pod *v1.Pod, container *v1.Container) {
+		if container.SecurityContext == nil {
+			container.SecurityContext = &v1.SecurityContext{}
+		}
+		t := true
+		container.SecurityContext.Privileged = &t
+	}
+}
+
 func modComposite(composites ...modFunc) modFunc {
 	return func(pod *v1.Pod, container *v1.Container) {
 		for _, c := range composites {
