@@ -20,7 +20,8 @@ RUN apt-get install -y libjansson4
 RUN apt-get install -y iproute2 bash
 
 COPY traffic.sh /
-RUN chmod +x /traffic.sh
+COPY world-controller-wrapper.sh /
+RUN chmod +x /traffic.sh /world-controller-wrapper.sh
 
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 EXPOSE 8080
