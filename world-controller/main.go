@@ -15,6 +15,7 @@ import (
 	"github.com/duobitx/yass-internal-components/world-controller/consts"
 	"github.com/duobitx/yass-internal-components/world-controller/internal"
 	"github.com/duobitx/yass-internal-components/world-controller/internal/model"
+	"github.com/duobitx/yass-internal-components/world-controller/internal/networking"
 	yassv1 "github.com/duobitx/yass-operator/api/v1"
 	"github.com/m-szalik/goutils"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -26,14 +27,15 @@ import (
 )
 
 type appType struct {
-	mainCtx      context.Context
-	facade       com.Facade
-	k8sClient    client.Client
-	fsNodeObjKey client.ObjectKey
-	podIP        string
-	experiment   string
-	nodes        map[string]model.SharedNodeInfo
-	nodesLock    sync.Mutex
+	mainCtx           context.Context
+	facade            com.Facade
+	k8sClient         client.Client
+	fsNodeObjKey      client.ObjectKey
+	podIP             string
+	experiment        string
+	nodes             map[string]model.SharedNodeInfo
+	nodesLock         sync.Mutex
+	networkingHandler *networking.NetworkingHandler
 }
 
 func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
@@ -44,14 +46,29 @@ func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
 		return err
 	}
 
+	jeh := goutils.JoinErrorHelper{}
 	fsNode := &yassv1.FsNode{}
 	err = a.k8sClient.Get(ctx, a.fsNodeObjKey, fsNode)
 	if err != nil {
-		return err
+		slog.Warn("Error getting fsNode", "objectKey", a.fsNodeObjKey, "error", err)
+		jeh.Append(err)
+	} else {
+		fsNode.Status.PosStr = dataObj.GetPosStr()
+		if err = a.k8sClient.Status().Update(ctx, fsNode); err != nil {
+			slog.Warn("Error updating k8s resource status", "objectKey", a.fsNodeObjKey, "error", err)
+			jeh.Append(err)
+		}
 	}
-	fsNode.Status.PosStr = dataObj.GetPosStr()
 
-	return a.k8sClient.Status().Update(ctx, fsNode)
+	networkParams := goutils.SliceMap[*proto.FsNodeUpdateNetworkParamEntry, networking.NetworkParam](dataObj.NetworkParams, func(entry *proto.FsNodeUpdateNetworkParamEntry) networking.NetworkParam {
+		return networking.NetworkParamFromFsNodeUpdateNetworkParamEntry(entry)
+	})
+	if err = a.networkingHandler.Update(networkParams); err != nil {
+		slog.Warn("Error updating networking rules", "params", networkParams, "error", err)
+		jeh.Append(err)
+	}
+
+	return jeh.AsError()
 }
 
 func (a *appType) publishOnlineState(online bool) error {
@@ -103,6 +120,9 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.WithValue(context.Background(), consts.CtxKeyFsName, resourceName), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 	facade := com.NewFacade(ctx, fmt.Sprintf("%s-%s-%d", resourceName, consts.AppName, rand.Intn(100)))
+	networkingHandler, err := networking.NewNetworkHandler()
+	goutils.ExitOnErrorf(err, 1, "cannot create NetworkingHandler")
+
 	app := &appType{
 		mainCtx:   ctx,
 		facade:    facade,
@@ -111,12 +131,13 @@ func main() {
 			Namespace: resourceNamespace,
 			Name:      resourceName,
 		},
-		podIP:      goutils.EnvRequired[string]("POD_IP"),
-		experiment: goutils.Env("YASS_EXPERIMENT", ""),
-		nodes:      map[string]model.SharedNodeInfo{},
+		podIP:             goutils.EnvRequired[string]("POD_IP"),
+		experiment:        goutils.Env("YASS_EXPERIMENT", ""),
+		nodes:             map[string]model.SharedNodeInfo{},
+		networkingHandler: networkingHandler,
 	}
 
-	err := facade.Connect()
+	err = facade.Connect()
 	goutils.ExitOnError(err, 2)
 
 	scheme := runtime.NewScheme()
