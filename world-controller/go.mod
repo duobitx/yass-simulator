@@ -1,16 +1,15 @@
 module github.com/duobitx/yass-internal-components/world-controller
 
-go 1.24.0
+go 1.25
 
-toolchain go1.24.6
+toolchain go1.25.4
 
 require (
-	github.com/duobitx/yass-internal-components/go-common v0.0.0-20251214123353-1b796e61caa0
-	github.com/duobitx/yass-operator v0.0.0-20251213214736-164cc0a2b500
+	github.com/duobitx/yass-internal-components/go-common v0.0.0-20251130234904-36bc4d78cc85
+	github.com/duobitx/yass-operator v0.0.0-20251205232601-cc05ef46ceb5
 	github.com/m-szalik/goutils v0.2.1
 	github.com/pkg/errors v0.9.1
 	github.com/vishvananda/netlink v1.3.1
-	golang.org/x/sys v0.38.0
 	k8s.io/apimachinery v0.34.2
 	k8s.io/client-go v0.34.2
 	sigs.k8s.io/controller-runtime v0.22.4
@@ -64,6 +63,7 @@ require (
 	golang.org/x/net v0.47.0 // indirect
 	golang.org/x/oauth2 v0.33.0 // indirect
 	golang.org/x/sync v0.18.0 // indirect
+	golang.org/x/sys v0.38.0 // indirect
 	golang.org/x/term v0.37.0 // indirect
 	golang.org/x/text v0.31.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
