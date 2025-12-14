@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -128,6 +129,11 @@ func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration, chOut 
 					if err != nil {
 						slog.Default().Error("cannot convert geoCalc response to geoUpdate", "error", err)
 					} else {
+						pos := ""
+						for _, elem := range update.FsNodeInfos {
+							pos = fmt.Sprintf("%s   %v", pos, elem)
+						}
+						slog.Default().Info("geo update", "content", strings.TrimSpace(pos))
 						chOut <- update
 					}
 					break busyLoop
@@ -142,7 +148,7 @@ func RunGeoCalc(ctx context.Context, interval time.Duration) (<-chan *GeoCalcUpd
 	chErr := make(chan error, 1)
 	go func() {
 		//err := run(ctx, "stdbuf", "-oL", "-eL", "./geo_calc", "./experiment.json")
-		err := run(ctx, "./geo_calc", "./experiment.json")
+		err := run(ctx, "./geo_calc", goutils.Env("EXPERIMENT_JSON_FILE_PATH", "/mnt/shared/experiment.json"))
 		if err != nil {
 			chErr <- err
 		}

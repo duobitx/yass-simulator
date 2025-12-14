@@ -25,6 +25,7 @@ message FsNodeUpdateNetworkParamEntry {
   float distance = 2;
   float package_delay = 3;
   float package_loss = 4;
+  string subject = 5;
 }
 
 

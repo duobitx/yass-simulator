@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/duobitx/yass-internal-components/go-common/cmodel"
 	yassv1 "github.com/duobitx/yass-operator/api/v1"
@@ -59,6 +60,7 @@ func main() {
 	}
 	slog.Info("saving data to json file", "filename", dstFilename)
 	err = os.WriteFile(dstFilename, buff, 0o744)
+	fmt.Printf("JSON %s:\n%s\n", dstFilename, string(buff))
 	if err != nil {
 		panic(fmt.Sprintf("cannot save file %s :: %s", dstFilename, err))
 	}
@@ -118,7 +120,15 @@ func handleExperimentResource(ctx context.Context, k8sClient client.Client, name
 	if err != nil {
 		return nil, errors.Wrap(err, fmt.Sprintf("error getting kubernetes resource ExperimentDefinition %s", experiment.Spec.ExperimentDefRef))
 	}
-	js.MaxDuration = expDef.Spec.MaxDuration
+	maxDur := strings.TrimSpace(expDef.Spec.MaxDuration)
+	js.MaxDuration = nil
+	if maxDur != "" {
+		dur, err := time.ParseDuration(maxDur)
+		if err != nil {
+			return nil, errors.Wrapf(err, fmt.Sprintf("cannot convert '%s' to duration", maxDur))
+		}
+		js.MaxDuration = &dur
+	}
 
 	return js, nil
 }

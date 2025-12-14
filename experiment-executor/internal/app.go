@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/duobitx/yass-internal-components/experiment-executor/internal/eclock"
 	"github.com/duobitx/yass-internal-components/experiment-executor/internal/geocalc"
 	"github.com/duobitx/yass-internal-components/experiment-executor/internal/model"
 	"github.com/duobitx/yass-internal-components/go-common/cmodel"
@@ -33,7 +32,6 @@ type AppType struct {
 	k8sClient         client.Client
 	nodes             map[string]*model.FsNodeState
 	nodesLock         sync.Mutex
-	clock             eclock.EClock
 	namespace         string
 }
 
@@ -107,13 +105,10 @@ func NewApp(ctx context.Context, facade com.Facade) (*AppType, error) {
 }
 
 func (t *AppType) Start(ctxParent context.Context) error {
-	if t.clock != nil {
-		return errors.New("experiment already started")
-	}
 	experimentCtx, cancel := context.WithCancelCause(ctxParent)
 	err := t.facade.Publish(experimentCtx, experimentEndTopic, 0, true, "")
 	if err != nil {
-		return errors.Wrapf(err, "cannot publis to %s", experimentEndTopic)
+		return errors.Wrapf(err, "cannot publish to %s", experimentEndTopic)
 	}
 	err = t.facade.Subscribe(experimentEndTopic, func(sCtx context.Context, topic string, retained bool, data []byte) {
 		if len(data) > 0 {
@@ -130,7 +125,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 			case proto.Status_EXPERIMENT_END_REQUEST_SUCCESS:
 				endErr = NewExperimentEndErrorWithComment(ExperimentEndDueToScenarioSuccess, req.Comment)
 			default:
-				endErr = NewExperimentEndErrorWithCause(ExperimentEndDueToUnexpectedError, fmt.Errorf("unsuported value fro req.Status - %d", req.Status))
+				endErr = NewExperimentEndErrorWithCause(ExperimentEndDueToUnexpectedError, fmt.Errorf("unsupported value fro req.Status - %d", req.Status))
 			}
 			if endErr != nil {
 				cancel(endErr)
@@ -140,7 +135,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 	if err != nil {
 		return errors.Wrapf(err, "cannot subscribe to %s", experimentEndTopic)
 	}
-	var experimentEndAt time.Time
+	var experimentEndAt time.Time // experiment time
 	dataCh, errCh := geocalc.RunGeoCalc(experimentCtx, 2*time.Second)
 	go func() {
 		var lastTime time.Time
@@ -157,6 +152,10 @@ func (t *AppType) Start(ctxParent context.Context) error {
 						slog.Default().Error("cannot send time update", "error", err)
 					}
 					slog.Default().Info("experiment time ended", "shouldEndAt", experimentEndAt, "now", lastTime)
+					err := t.experimentCompletedUpdateExperimentResource("timeout")
+					if err != nil {
+						slog.Default().Error("error updating experiment.status resource", "error", err)
+					}
 					cancel(NewExperimentEndError(ExperimentEndDueToTimeout))
 				} else {
 					if err := t.sendTimeUpdate(upd.CurrentTime, true); err != nil {
@@ -165,10 +164,6 @@ func (t *AppType) Start(ctxParent context.Context) error {
 					if err := t.handleGeoUpdate(experimentCtx, upd); err != nil {
 						slog.Default().Error("cannot send geo update", "error", err)
 					}
-				}
-				err := t.experimentCompletedUpdateExperimentResource()
-				if err != nil {
-					slog.Default().Error("error updating experiment.status resource", "error", err)
 				}
 			case <-experimentCtx.Done():
 				if err := t.sendTimeUpdate(lastTime, false); err != nil {
@@ -182,15 +177,11 @@ func (t *AppType) Start(ctxParent context.Context) error {
 	if t.ExperimentDefData.StartTime != nil {
 		startAt = *t.ExperimentDefData.StartTime
 	}
-	experimentClock, err := eclock.NewExperimentClock(experimentCtx, startAt, t.ExperimentDefData.MaxDuration)
-	if err != nil {
-		return errors.Wrapf(err, "NewExperimentClock")
-	}
 	if t.ExperimentDefData.MaxDuration != nil {
 		experimentEndAt = startAt.Add(*t.ExperimentDefData.MaxDuration)
 	}
 	slog.Default().Info("starting experiment", "startTime", startAt, "maxDuration", t.ExperimentDefData.MaxDuration)
-	t.clock = experimentClock
+
 	return nil
 }
 
@@ -202,7 +193,7 @@ func (t *AppType) sendTimeUpdate(now time.Time, ongoing bool) error {
 	return t.facade.Publish(t.mainCtx, "updates/_time_", 0, true, obj)
 }
 
-func (t *AppType) experimentCompletedUpdateExperimentResource() error {
+func (t *AppType) experimentCompletedUpdateExperimentResource(completionReason string) error {
 	if t.namespace == "" {
 		slog.Default().Warn("namespace not set, experiment resource will not be updated")
 		return nil
@@ -216,15 +207,17 @@ func (t *AppType) experimentCompletedUpdateExperimentResource() error {
 		return err
 	}
 	if exp.Status.ExperimentState == yassv1.ExperimentStateOngoing {
+		slog.Default().Info(fmt.Sprintf("Experiment Completed, reason: %s", completionReason))
 		exp.Status.ExperimentState = yassv1.ExperimentStateCompleted
+		// TODO event
 		return t.k8sClient.Status().Update(t.mainCtx, exp)
 	}
 	return nil
 }
 
 func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate) error {
-	now := t.clock.Now()
-	nowMillis := now.UnixMilli()
+	nowMillis := upd.CurrentTime.UnixMilli()
+	jeh := goutils.JoinErrorHelper{}
 	for _, data := range upd.FsNodeInfos {
 		networkParams := make([]*proto.FsNodeUpdateNetworkParamEntry, len(data.ReachableFsNodes))
 		for i := 0; i < len(networkParams); i++ {
@@ -255,16 +248,17 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate)
 			NetworkParams:     networkParams,
 			UpdatedUnixMillis: nowMillis,
 		}
-		return t.facade.Publish(t.mainCtx, fmt.Sprintf("updates/%s", data.Name), 0, true, gr)
+		err := t.facade.Publish(t.mainCtx, fmt.Sprintf("updates/%s", data.Name), 0, true, gr)
+		jeh.Append(err)
 	}
-	return nil
+	return jeh.AsError()
 }
 
 func (t *AppType) calculateNetworkParam(fsNodeMain *geocalc.FsNodeInfo, dstName string, dst *proto.FsNodeUpdateNetworkParamEntry) error {
 	// TODO
 	_ = fsNodeMain
-	_ = dstName
-	dst.PackageDelay = 0.01 * dst.Distance
-	dst.PackageLoss = 0.01
+	dst.Subject = dstName
+	dst.PackageDelay = 0.001 /*1ms for transmitter */ + dst.Distance/300_000.00
+	dst.PackageLoss = 0.1 //10% fixed as for now FIXME calculate
 	return nil
 }
