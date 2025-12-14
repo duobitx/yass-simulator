@@ -1,8 +1,0 @@
-go 1.25
-
-use (
-	./experiment-executor
-	./go-common
-	./resource-to-json
-	./world-controller
-)
