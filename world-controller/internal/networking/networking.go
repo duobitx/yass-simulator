@@ -47,7 +47,6 @@ type NetworkingHandler struct {
 	state      map[string]*NetworkParam
 	netmask    net.IPMask
 	defEthLink netlink.Link
-	vEthLink   netlink.Link
 }
 
 func NewNetworkHandler() (*NetworkingHandler, error) {
@@ -60,16 +59,11 @@ func NewNetworkHandler() (*NetworkingHandler, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "cannot get netlink for %s", defaultNetworkInterfaceName)
 	}
-	vEthEthLink, err := netlink.LinkByName("veth1")
-	if err != nil {
-		return nil, errors.Wrapf(err, "cannot get netlink for veth1")
-	}
 	return &NetworkingHandler{
 		lock:       sync.Mutex{},
 		state:      make(map[string]*NetworkParam),
 		netmask:    netMask,
 		defEthLink: defEthLink,
-		vEthLink:   vEthEthLink,
 	}, nil
 }
 
