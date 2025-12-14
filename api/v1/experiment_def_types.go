@@ -1,8 +1,6 @@
 package v1
 
 import (
-	"time"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -38,8 +36,8 @@ type ExperimentDefinitionList struct {
 type ExperimentDefinitionSpec struct {
 
 	// +kubebuilder:validation:Optional
-	// MaxDuration of the experiment
-	MaxDuration *time.Duration `json:"maxDuration,omitempty"`
+	// MaxDuration of the experiment - duration format
+	MaxDuration string `json:"maxDuration,omitempty"`
 
 	// +listType=map
 	// +listMapKey=fsNode

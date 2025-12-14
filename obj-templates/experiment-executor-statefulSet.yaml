@@ -52,6 +52,10 @@ spec:
                   fieldPath: metadata.annotations['yass-experiment']
             - name: EXPERIMENT_FILE
               value: "/mnt/shared/experiment.json"
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           volumeMounts:
             - mountPath: /mnt/shared
               name: shared

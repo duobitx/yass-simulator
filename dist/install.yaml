@@ -110,9 +110,8 @@ spec:
                 - fsNode
                 x-kubernetes-list-type: map
               maxDuration:
-                description: MaxDuration of the experiment
-                format: int64
-                type: integer
+                description: MaxDuration of the experiment - duration format
+                type: string
             type: object
         type: object
     served: true

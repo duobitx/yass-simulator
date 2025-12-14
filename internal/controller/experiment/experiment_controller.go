@@ -69,7 +69,7 @@ type reconciliationStatus struct {
 	statusUpdated bool
 }
 
-func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitRet ctrl.Result, exitErr error) {
 	logger := logf.FromContext(ctx)
 	logger.Info(fmt.Sprintf("req %+v", req))
 
@@ -92,11 +92,12 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			}
 			controllerutil.RemoveFinalizer(&experiment, removeFsNodesFinalizer)
 			if err := r.Update(ctx, &experiment); err != nil {
-				return ctrl.Result{}, err
+				return ctrl.Result{RequeueAfter: 1 * time.Second}, err
 			}
 		}
 		return ctrl.Result{}, nil
 	}
+	logger.Info(fmt.Sprintf("req %+v, experiment.status: %+v", req, experiment.Status))
 
 	// Add finalizer if not present
 	if !controllerutil.ContainsFinalizer(&experiment, removeFsNodesFinalizer) {
@@ -115,16 +116,15 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}()
 	if experiment.Status.ExperimentState == "" {
-		experiment.Status.ExperimentState = yassv1.ExperimentStateInit
-		recon.statusUpdated = true
+		r.updateExperimentState(recon, &experiment, yassv1.ExperimentStateInit)
 	}
 	err = r.createOrUpdateExperiment(recon, ctx, req, &experiment)
 
 	if err != nil {
-		return ctrl.Result{}, err
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, err
 	}
 	if experiment.Status.ExperimentState == yassv1.ExperimentStateInit {
-		return ctrl.Result{RequeueAfter: 2 * time.Second}, nil
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
 
 	return ctrl.Result{}, nil
@@ -185,7 +185,7 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(recon *reconciliationSta
 	joinErrHelper = &goutils.JoinErrorHelper{}
 	if layoutDef.Spec != nil {
 		for _, satItem := range layoutDef.Spec {
-			err = r.createFsNodeResource(recon, ctx, req.Namespace, experiment, &exDef, &satItem)
+			err = r.createFsNodeResource(ctx, req.Namespace, experiment, &exDef, &satItem)
 			name := fmt.Sprintf("fsNode-%s", satItem.FsNodeName)
 			r.updateStatusConditionForExperimentObject(recon, experiment, name, name, nil, err)
 			joinErrHelper.Append(err)
@@ -203,20 +203,24 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(recon *reconciliationSta
 		return element.Status == metav1.ConditionTrue
 	})
 	if experiment.Status.ExperimentState == yassv1.ExperimentStateInit && ready {
-		experiment.Status.ExperimentState = yassv1.ExperimentStateReady
-		err = r.httpExperimentExecutor("start", nil, experiment)
+		r.updateExperimentState(recon, experiment, yassv1.ExperimentStateReady)
+	}
+	if !ready && (experiment.Status.ExperimentState == yassv1.ExperimentStateReady || experiment.Status.ExperimentState == yassv1.ExperimentStateOngoing) {
+		r.updateExperimentState(recon, experiment, yassv1.ExperimentStateErrored)
+		message := fmt.Sprintf("one or more components failed %s", strings.Join(failedComponents, ","))
+		r.recorder.Eventf(experiment, v1.EventTypeWarning, "componentFailed", message)
+		err = r.httpExperimentExecutor(recon, "error-report", []byte(message), experiment)
 		if err != nil {
 			return errors.Wrap(err, "cannot start experiment")
 		}
 	}
-	if !ready && (experiment.Status.ExperimentState == yassv1.ExperimentStateReady || experiment.Status.ExperimentState == yassv1.ExperimentStateOngoing) {
-		experiment.Status.ExperimentState = yassv1.ExperimentStateErrored
-		message := fmt.Sprintf("one or more components failed %s", strings.Join(failedComponents, ","))
-		r.recorder.Eventf(experiment, v1.EventTypeWarning, "componentFailed", message)
-		err = r.httpExperimentExecutor("error-report", []byte(message), experiment)
+	if experiment.Status.ExperimentState == yassv1.ExperimentStateReady && experiment.Spec.Start {
+		err = r.httpExperimentExecutor(recon, "start", nil, experiment)
 		if err != nil {
+			r.recorder.Eventf(experiment, v1.EventTypeWarning, "StartSignalError", "error starting experiment - %s", err)
 			return errors.Wrap(err, "cannot start experiment")
 		}
+		r.recorder.Eventf(experiment, v1.EventTypeWarning, "StartSignalSent", "")
 	}
 	return nil
 }
@@ -375,7 +379,7 @@ func (r *ExperimentReconciler) updateStatusConditionForExperimentObject(recon *r
 	}
 }
 
-func (r *ExperimentReconciler) createFsNodeResource(recon *reconciliationStatus, ctx context.Context, namespace string, experiment *yassv1.Experiment, expDef *yassv1.ExperimentDefinition, layoutItem *yassv1.LayoutSatSpec) (exitErr error) {
+func (r *ExperimentReconciler) createFsNodeResource(ctx context.Context, namespace string, experiment *yassv1.Experiment, expDef *yassv1.ExperimentDefinition, layoutItem *yassv1.LayoutSatSpec) (exitErr error) {
 	fsNode := &yassv1.FsNode{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: layoutItem.FsNodeName}, fsNode)
 	if apierrors.IsNotFound(err) {
@@ -414,22 +418,35 @@ func (r *ExperimentReconciler) createFsNodeResource(recon *reconciliationStatus,
 	return nil
 }
 
-func (r *ExperimentReconciler) httpExperimentExecutor(endpoint string, body []byte, experiment *yassv1.Experiment) error {
+func (r *ExperimentReconciler) httpExperimentExecutor(recon *reconciliationStatus, endpoint string, body []byte, experiment *yassv1.Experiment) error {
 	reqBody := bytes.NewBuffer(body)
 	response, err := http.Post(fmt.Sprintf("http://experiment-executor.%s.svc.cluster.local:8080/%s", experiment.Namespace, endpoint), goutils.BoolToStr(body != nil, "application/json", ""), reqBody)
 	if err != nil {
+		r.recorder.Eventf(experiment, v1.EventTypeWarning, "ExperimentNotStarted", "unable to start experiment - %s", err)
 		return err
 	}
 	defer goutils.CloseQuietly(response.Body)
 	if response.StatusCode >= 400 {
 		body, _ := io.ReadAll(response.Body)
-		r.recorder.Eventf(experiment, v1.EventTypeWarning, "experimentStarted", "unable to start experiment - %s", string(body))
+		r.recorder.Eventf(experiment, v1.EventTypeWarning, "ExperimentNotStarted", "unable to start experiment - %s", string(body))
 	} else {
 		body, _ := io.ReadAll(response.Body)
-		r.recorder.Eventf(experiment, v1.EventTypeNormal, "experimentStarted", "experiment started - %s", string(body))
-		experiment.Status.ExperimentState = yassv1.ExperimentStateOngoing
+		r.recorder.Eventf(experiment, v1.EventTypeNormal, "ExperimentStarted", "experiment started - %s", string(body))
+		r.updateExperimentState(recon, experiment, yassv1.ExperimentStateOngoing)
 	}
 	return nil
+}
+
+func (r *ExperimentReconciler) updateExperimentState(recon *reconciliationStatus, experiment *yassv1.Experiment, newState yassv1.ExperimentState) {
+	oldState := experiment.Status.ExperimentState
+	if oldState != newState {
+		if oldState == "" {
+			oldState = "NONE"
+		}
+		r.recorder.Eventf(experiment, v1.EventTypeNormal, string(newState), fmt.Sprintf("State transition %s -> %s", oldState, newState))
+		experiment.Status.ExperimentState = newState
+		recon.statusUpdated = true
+	}
 }
 
 func kebabToCamel(s string) string {
