@@ -5,5 +5,4 @@ use (
 	./go-common
 	./resource-to-json
 	./world-controller
-	./yass-operator
 )
