@@ -1,11 +1,9 @@
 module github.com/duobitx/yass-internal-components/experiment-executor
 
-go 1.24.0
-
-toolchain go1.24.6
+go 1.25
 
 require (
-	github.com/duobitx/yass-internal-components/go-common v0.0.0-20251130234904-36bc4d78cc85
+	github.com/duobitx/yass-internal-components/go-common v0.0.0-20251214230811-f06efdbb16cf
 	github.com/duobitx/yass-operator v0.0.0-20251205232601-cc05ef46ceb5
 	github.com/gorilla/mux v1.8.1
 	github.com/m-szalik/goutils v0.2.1
