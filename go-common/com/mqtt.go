@@ -2,15 +2,15 @@ package com
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/m-szalik/goutils"
 	"github.com/sirupsen/logrus"
+
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
-import mqtt "github.com/eclipse/paho.mqtt.golang"
 
 const timeout = 5 * time.Second
 
@@ -52,7 +52,7 @@ func (m *mqttFacade) Subscribe(topic string, handler MessageSubscriptionFunct) e
 	})
 
 	if !token.WaitTimeout(timeout) {
-		return errors.New(fmt.Sprintf("subscription for %s timeout", topic))
+		return fmt.Errorf("subscription for %s timeout", topic)
 	}
 	if token.Error() != nil {
 		return fmt.Errorf("subscription for %s error - %w", topic, token.Error())
@@ -63,7 +63,7 @@ func (m *mqttFacade) Subscribe(topic string, handler MessageSubscriptionFunct) e
 func (m *mqttFacade) Unsubscribe(topic string) error {
 	token := m.client.Unsubscribe(topic)
 	if !token.WaitTimeout(timeout) {
-		return errors.New(fmt.Sprintf("unsubscribe for %s timeout", topic))
+		return fmt.Errorf("unsubscribe for %s timeout", topic)
 	}
 	if token.Error() != nil {
 		return fmt.Errorf("unsubscribe for %s error - %w", topic, token.Error())
@@ -87,7 +87,7 @@ func (m *mqttFacade) Publish(_ context.Context, topic string, qos byte, retained
 	}
 	token := m.client.Publish(topic, qos, retained, buff)
 	if !token.WaitTimeout(timeout) {
-		return errors.New(fmt.Sprintf("publication to %s mqttTimeout (timeout: %s)", topic, timeout))
+		return fmt.Errorf("publication to %s mqttTimeout (timeout: %s)", topic, timeout)
 	}
 
 	pErr := token.Error()
