@@ -1,13 +1,16 @@
 package config
 
 import (
-	"strings"
+	"fmt"
 
 	"github.com/m-szalik/goutils"
 	v1 "k8s.io/api/core/v1"
 )
 
-const InternalComponentsImage = "ghcr.io/duobitx/yass/internal-components:latest"
+const (
+	internalComponentsImage = "ghcr.io/duobitx/yass/internal-components"
+	latest                  = "latest"
+)
 
 type Configuration struct {
 	InternalComponentImage           string
@@ -15,13 +18,13 @@ type Configuration struct {
 }
 
 func NewConfiguration() (*Configuration, error) {
-	image := goutils.Env("INTERNAL_COMPONENTS_IMAGE", InternalComponentsImage)
+	imageVersion := goutils.Env("INTERNAL_COMPONENTS_VERSION", latest)
 	imagePullPolicy := v1.PullIfNotPresent
-	if !strings.Contains(image, ":") || strings.HasSuffix(image, "latest") {
+	if imageVersion == latest {
 		imagePullPolicy = v1.PullAlways
 	}
 	return &Configuration{
-		InternalComponentImage:           image,
+		InternalComponentImage:           fmt.Sprintf("%s:%s", internalComponentsImage, imageVersion),
 		InternalComponentImagePullPolicy: imagePullPolicy,
 	}, nil
 }
