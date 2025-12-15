@@ -10,3 +10,5 @@ spec:
           env:
             - name: INTERNAL_COMPONENTS_VERSION
               value: latest
+            - name: EXPERIMENT_LOG_LEVEL
+              value: INFO

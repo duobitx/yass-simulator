@@ -5,8 +5,13 @@ import (
 
 	v2 "github.com/duobitx/yass-operator/api/v1"
 	"github.com/duobitx/yass-operator/internal/controller"
+	"github.com/m-szalik/goutils"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
+)
+
+const (
+	experimentLogLevelVariableName = "EXPERIMENT_LOG_LEVEL"
 )
 
 type modFunc func(pod *v1.Pod, container *v1.Container)
@@ -167,6 +172,14 @@ func modPrivileged() modFunc {
 		t := true
 		container.SecurityContext.Privileged = &t
 	}
+}
+
+func modLogLevelVariableSet() modFunc {
+	ll := goutils.Env(experimentLogLevelVariableName, "")
+	if ll != "" {
+		return modEnvs(map[string]string{"LOG_LEVEL": ll})
+	}
+	return func(pod *v1.Pod, container *v1.Container) {}
 }
 
 func modComposite(composites ...modFunc) modFunc {

@@ -275,6 +275,7 @@ func (r *FsNodeReconciler) getSystemContainers(fsNode *yassv1.FsNode, pod *v1.Po
 			name:  "world-controller",
 			image: r.Configuration.InternalComponentImage,
 			mods: []modFunc{
+				modLogLevelVariableSet(),
 				cmd("/world-controller-wrapper.sh"),
 				modHttpProbes(8801),
 				modEnvFromField("POD_IP", "status.podIP"),
@@ -289,6 +290,7 @@ func (r *FsNodeReconciler) getSystemContainers(fsNode *yassv1.FsNode, pod *v1.Po
 			image: fsNode.Spec.Agent.Image,
 			ports: nil,
 			mods: []modFunc{
+				modLogLevelVariableSet(),
 				modVolumeMount(agentTMPVolumeName, "/tmp", false),
 				modFor(fsNode.Spec.Agent),
 				modMountSharedVolume(true),
@@ -328,7 +330,8 @@ func (r *FsNodeReconciler) getEngineContainers(fsNode *yassv1.FsNode) []v1.Conta
 		}
 	}
 
-	engineContainers := []v1.Container{}
+	experimentLogLevel := goutils.Env(experimentLogLevelVariableName, "")
+	var engineContainers []v1.Container
 	for _, engineContainer := range fsNode.Spec.EngineContainers {
 		eContainer := engineContainer.DeepCopy()
 		if ecResourceRequirements != nil {
@@ -342,6 +345,7 @@ func (r *FsNodeReconciler) getEngineContainers(fsNode *yassv1.FsNode) []v1.Conta
 			MountPath: "/mnt/engine",
 			ReadOnly:  false,
 		})
+		setVariableIfUnset(eContainer, "LOG_LEVEL", experimentLogLevel)
 		engineContainers = append(engineContainers, *eContainer)
 	}
 
@@ -507,4 +511,19 @@ func divideQuantityByInt(q *resource.Quantity, n int64) *resource.Quantity {
 		return nil
 	}
 	return resource.NewDecimalQuantity(*out, resource.DecimalSI)
+}
+
+func setVariableIfUnset(container *v1.Container, variableName, variableValue string) {
+	if variableValue == "" {
+		return
+	}
+	for _, v := range container.Env {
+		if v.Name == variableName && v.Value != "" {
+			return
+		}
+	}
+	container.Env = append(container.Env, v1.EnvVar{
+		Name:  variableName,
+		Value: variableValue,
+	})
 }
