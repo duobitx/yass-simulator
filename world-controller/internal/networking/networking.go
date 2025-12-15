@@ -307,18 +307,33 @@ func findDefaultNetworkNetmask() (net.IPMask, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	ifaces := goutils.Filter(ifacesAll, func(element net.Interface) bool { return element.Name != "lo" && element.Name != "loopback" })
-	if len(ifaces) == 0 {
-		return nil, "", fmt.Errorf("no non-loopback interfaces found")
+	var defIface *net.Interface
+	ifaceEnv := goutils.Env("IFACE", "")
+	if ifaceEnv != "" {
+		iface, err := net.InterfaceByName(ifaceEnv)
+		if err != nil {
+			return nil, "", errors.Wrapf(err, "cannot get network interface by name '%s'", ifaceEnv)
+		}
+		defIface = iface
+	} else {
+		slog.Default().Info("Try to detect default network interface")
+		netIfaces := goutils.Filter(ifacesAll, func(element net.Interface) bool { return element.Name != "lo" && element.Name != "loopback" })
+		if len(netIfaces) == 0 {
+			return nil, "", fmt.Errorf("no non-loopback interfaces found")
+		}
+		if len(netIfaces) > 1 {
+			return nil, "", fmt.Errorf("more then one network interfaces: %+v", netIfaces)
+		}
+		defIface = &netIfaces[0]
 	}
-	if len(ifaces) > 1 {
-		return nil, "", fmt.Errorf("more then one network interfaces: %+v", ifaces)
+	addrs, err := defIface.Addrs()
+	if err != nil {
+		return nil, "", errors.Wrapf(err, "cannot get addresses for network interface by name '%s'", ifaceEnv)
 	}
-	addrs, _ := ifaces[0].Addrs()
 	for _, addr := range addrs {
 		if ipNet, ok := addr.(*net.IPNet); ok && ipNet.IP.To4() != nil {
-			return ipNet.Mask, ifaces[0].Name, nil
+			return ipNet.Mask, defIface.Name, nil
 		}
 	}
-	return nil, "", fmt.Errorf("no IPv4 address on interface %s", ifaces[0].Name)
+	return nil, "", fmt.Errorf("no IPv4 address on interface %s", defIface.Name)
 }

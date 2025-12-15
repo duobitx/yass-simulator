@@ -5,7 +5,8 @@ set -euo pipefail
 # CONFIG
 ################################
 IFACE=$(ip route | awk '/default/ {print $5; exit}')
-PORT_RANGE="3000-3020"
+export IFACE
+export PORT_RANGE="3000-3020"
 
 OUT_LIMIT=4mbit
 

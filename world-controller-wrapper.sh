@@ -1,2 +1,5 @@
 #!/usr/bin/env bash
-./traffic.sh && ./world-controller
+
+./traffic.sh
+echo "Network interface -- ${IFACE}"
+./world-controller
