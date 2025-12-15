@@ -132,7 +132,7 @@ func (h *Handler) replaceIPProfile(param *NetworkParam) error {
 	if err != nil {
 		return errors.Wrapf(err, "error generating CID for ip=%s", param.ToIP)
 	}
-
+	slog.Default().Info("Adding ipProfile", "ip", param.ToIP, "cid", cid, "param", param)
 	// Validate destination IP
 	dst := net.ParseIP(param.ToIP)
 	if dst == nil {
@@ -235,6 +235,7 @@ func (h *Handler) removeIPProfile(ip string) error {
 	}
 
 	classId := netlink.MakeHandle(1, cid)
+	slog.Default().Info("Removing ipProfile", "ip", ip, "cid", cid, "classId", classId)
 
 	// Delete matching flower filters (parent 1:) that steer to this class
 	if filters, err := netlink.FilterList(h.defEthLink, netlink.MakeHandle(1, 0)); err == nil {
