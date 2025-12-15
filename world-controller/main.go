@@ -57,6 +57,8 @@ func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
 		if err = a.k8sClient.Status().Update(ctx, fsNode); err != nil {
 			slog.Warn("Error updating k8s resource status", "objectKey", a.fsNodeObjKey, "error", err)
 			jeh.Append(err)
+		} else {
+			slog.Default().Debug("Status updated", "newStatus", fsNode.Status)
 		}
 	}
 
@@ -114,6 +116,7 @@ func (a *appType) updateListOfExperimentNodes(_ context.Context, data []byte) er
 }
 
 func main() {
+	goutils.ExitOnErrorf(startup.InitSlog(), 1, "cannot initialize slog")
 	resourceName := goutils.EnvRequired[string]("RESOURCE_NAME")
 	resourceNamespace := goutils.EnvRequired[string]("NAMESPACE")
 	slog.Info("World Controller", "namespace", resourceNamespace, "name", resourceName)

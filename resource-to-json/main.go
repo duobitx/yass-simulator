@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/duobitx/yass-internal-components/go-common/cmodel"
+	"github.com/duobitx/yass-internal-components/go-common/startup"
 	yassv1 "github.com/duobitx/yass-operator/api/v1"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
@@ -23,6 +24,7 @@ import (
 )
 
 func main() {
+	goutils.ExitOnErrorf(startup.InitSlog(), 1, "cannot initialize slog")
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM)
 	defer cancel()
 	namespace := goutils.EnvRequired[string]("NAMESPACE")

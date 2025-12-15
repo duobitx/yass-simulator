@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/duobitx/yass-internal-components/experiment-executor/internal"
+	"github.com/duobitx/yass-internal-components/go-common/startup"
 	"github.com/gorilla/mux"
 	"k8s.io/apimachinery/pkg/util/rand"
 
@@ -20,6 +21,7 @@ import (
 )
 
 func main() {
+	goutils.ExitOnErrorf(startup.InitSlog(), 1, "cannot initialize slog")
 	experiment := goutils.EnvRequired[string]("YASS_EXPERIMENT")
 	slog.Info("ExperimentExecutor", "experiment", experiment)
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
