@@ -42,14 +42,14 @@ func (np NetworkParam) isFullyBlocking() bool {
 	return np.PackageLoss >= 100.0 || np.Bandwidth <= 0
 }
 
-type NetworkingHandler struct {
+type Handler struct {
 	lock       sync.Mutex
 	state      map[string]*NetworkParam
 	netmask    net.IPMask
 	defEthLink netlink.Link
 }
 
-func NewNetworkHandler() (*NetworkingHandler, error) {
+func NewNetworkHandler() (*Handler, error) {
 	netMask, defaultNetworkInterfaceName, err := findDefaultNetworkNetmask()
 	if err != nil {
 		return nil, err
@@ -59,7 +59,7 @@ func NewNetworkHandler() (*NetworkingHandler, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "cannot get netlink for %s", defaultNetworkInterfaceName)
 	}
-	return &NetworkingHandler{
+	return &Handler{
 		lock:       sync.Mutex{},
 		state:      make(map[string]*NetworkParam),
 		netmask:    netMask,
@@ -67,7 +67,7 @@ func NewNetworkHandler() (*NetworkingHandler, error) {
 	}, nil
 }
 
-func (h *NetworkingHandler) Update(networkParams []NetworkParam) error {
+func (h *Handler) Update(networkParams []NetworkParam) error {
 	jeh := goutils.JoinErrorHelper{}
 	stopWatch := goutils.NewStopWatch()
 	stopWatch.Start()
@@ -127,7 +127,7 @@ func (h *NetworkingHandler) Update(networkParams []NetworkParam) error {
 	return jeh.AsError()
 }
 
-func (h *NetworkingHandler) replaceIPProfile(param *NetworkParam) error {
+func (h *Handler) replaceIPProfile(param *NetworkParam) error {
 	cid, err := h.getCID(param.ToIP)
 	if err != nil {
 		return errors.Wrapf(err, "error generating CID for ip=%s", param.ToIP)
@@ -225,7 +225,7 @@ func (h *NetworkingHandler) replaceIPProfile(param *NetworkParam) error {
 	return nil
 }
 
-func (h *NetworkingHandler) removeIPProfile(ip string) error {
+func (h *Handler) removeIPProfile(ip string) error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
@@ -271,7 +271,7 @@ func (h *NetworkingHandler) removeIPProfile(ip string) error {
 	return nil
 }
 
-func (h *NetworkingHandler) getCID(ip string) (uint16, error) {
+func (h *Handler) getCID(ip string) (uint16, error) {
 	ipAddr := net.ParseIP(ip)
 	if ipAddr == nil {
 		return 0, fmt.Errorf("invalid ipAddr '%s'", ip)

@@ -35,7 +35,7 @@ type appType struct {
 	experiment        string
 	nodes             map[string]model.SharedNodeInfo
 	nodesLock         sync.Mutex
-	networkingHandler *networking.NetworkingHandler
+	networkingHandler *networking.Handler
 }
 
 func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
@@ -121,7 +121,7 @@ func main() {
 	defer cancel()
 	facade := com.NewFacade(ctx, fmt.Sprintf("%s-%s-%d", resourceName, consts.AppName, rand.Intn(100)))
 	networkingHandler, err := networking.NewNetworkHandler()
-	goutils.ExitOnErrorf(err, 1, "cannot create NetworkingHandler")
+	goutils.ExitOnErrorf(err, 1, "cannot create Handler")
 
 	app := &appType{
 		mainCtx:   ctx,
