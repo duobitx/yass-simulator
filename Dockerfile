@@ -17,7 +17,7 @@ COPY geo-calculator/geo_calc ./geo_calc
 RUN apt-get install -y libjansson4
 
 # Networking tools
-RUN apt-get install -y iproute2 bash
+RUN apt-get install -y iproute2 bash inetutils-ping
 
 COPY traffic.sh /
 COPY world-controller-wrapper.sh /
