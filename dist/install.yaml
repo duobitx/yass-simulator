@@ -3691,7 +3691,7 @@ spec:
       type: boolean
     - jsonPath: .status.posStr
       name: PosOverEarth
-      type: boolean
+      type: string
     name: v1
     schema:
       openAPIV3Schema:

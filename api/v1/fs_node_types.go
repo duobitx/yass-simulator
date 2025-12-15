@@ -56,7 +56,7 @@ type FsNodeStatus struct {
 // +kubebuilder:printcolumn:name="BatLev",type=string,JSONPath=`.status.batteryChargeLevel`
 // +kubebuilder:printcolumn:name="BatCharge",type=string,JSONPath=`.status.batteryChargeRate`
 // +kubebuilder:printcolumn:name="LowPower",type=boolean,JSONPath=`.status.lowPower`
-// +kubebuilder:printcolumn:name="PosOverEarth",type=boolean,JSONPath=`.status.posStr`
+// +kubebuilder:printcolumn:name="PosOverEarth",type=string,JSONPath=`.status.posStr`
 // FsNode is the Schema for the FsNode API
 type FsNode struct {
 	metav1.TypeMeta `json:",inline"`
