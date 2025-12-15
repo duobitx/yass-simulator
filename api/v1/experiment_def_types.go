@@ -15,7 +15,7 @@ func init() {
 // +kubebuilder:printcolumn:name="MaxDuration",type=string,JSONPath=`.spec.maxDuration`
 // +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp"
 
-// ExperimentDefinition defines behaviour and events for an experiment.
+// ExperimentDefinition defines behavior and events for an experiment.
 type ExperimentDefinition struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

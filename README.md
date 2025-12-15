@@ -22,7 +22,7 @@ Commit and push `dist/install.yaml`.
 ### Prerequisites
 
 1. kubectl installed
-2. Github account with access to PhiLab organisation
+2. GitHub account with access to PhiLab organisation
 3. Kubernetes cluster with admin privileges.
 
 #### Create kubernetes cluster using Kind

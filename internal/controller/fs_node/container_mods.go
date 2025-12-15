@@ -164,16 +164,6 @@ func modCapability(capability v1.Capability) modFunc {
 	}
 }
 
-func modPrivileged() modFunc {
-	return func(pod *v1.Pod, container *v1.Container) {
-		if container.SecurityContext == nil {
-			container.SecurityContext = &v1.SecurityContext{}
-		}
-		t := true
-		container.SecurityContext.Privileged = &t
-	}
-}
-
 func modLogLevelVariableSet() modFunc {
 	ll := goutils.Env(experimentLogLevelVariableName, "")
 	if ll != "" {
@@ -189,15 +179,6 @@ func modComposite(composites ...modFunc) modFunc {
 		}
 	}
 }
-
-// FIXME: unused
-// func modResourcesLimit(resourceRequirements *v1.ResourceRequirements) modFunc {
-// 	return func(pod *v1.Pod, container *v1.Container) {
-// 		if resourceRequirements != nil {
-// 			pod.Spec.Resources = resourceRequirements
-// 		}
-// 	}
-// }
 
 func modFor(simpleContainer v2.SimpleContainer) modFunc {
 	var modFunctions []modFunc
