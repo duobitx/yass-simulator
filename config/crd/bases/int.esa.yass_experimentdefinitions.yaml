@@ -27,7 +27,7 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: ExperimentDefinition defines behaviour and events for an experiment.
+        description: ExperimentDefinition defines behavior and events for an experiment.
         properties:
           apiVersion:
             description: |-
