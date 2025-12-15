@@ -155,7 +155,7 @@ func modCapability(capability v1.Capability) modFunc {
 		if container.SecurityContext.Capabilities == nil {
 			container.SecurityContext.Capabilities = &v1.Capabilities{}
 		}
-		container.SecurityContext.Capabilities.Add = append(container.SecurityContext.Capabilities.Add)
+		container.SecurityContext.Capabilities.Add = append(container.SecurityContext.Capabilities.Add, capability)
 	}
 }
 
