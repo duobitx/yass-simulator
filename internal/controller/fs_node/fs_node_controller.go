@@ -392,8 +392,9 @@ func (r *FsNodeReconciler) createOrUpdateFsNodeService(ctx context.Context, fsNo
 			},
 		},
 		Spec: v1.ServiceSpec{
-			Selector: labels,
-			Ports:    _engineServicePorts,
+			Selector:  labels,
+			Ports:     _engineServicePorts,
+			ClusterIP: "None", //  # headless service - no virtual IP
 		},
 	}
 	err = r.Create(ctx, fsNodeService)
