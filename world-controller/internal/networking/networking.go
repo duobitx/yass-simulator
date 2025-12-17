@@ -25,7 +25,7 @@ const (
 func NetworkParamFromFsNodeUpdateNetworkParamEntry(in *proto.FsNodeUpdateNetworkParamEntry) NetworkParam {
 	return NetworkParam{
 		ToIP:         in.Ip,
-		PackageLoss:  in.PackageLoss * 100,
+		PackageLoss:  0.0, // FIXME in.PackageLoss * 100,
 		PackageDelay: in.PackageDelay,
 		Bandwidth:    10 * 1024 * 1024, // As for now 10mbits, TODO limit bandwidth when we know know - bandwith=f(distance)
 	}
