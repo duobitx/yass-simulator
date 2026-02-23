@@ -167,6 +167,8 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(recon *reconciliationSta
 		{"messaging-service.yaml", "messaging", &v1.Service{}, nil},
 		{"experiment-executor-statefulSet.yaml", "experiment-executor", &appsv1.StatefulSet{}, modAddExperimentAnnotation(experiment.Name)},
 		{"experiment-executor-service.yaml", "experiment-executor", &v1.Service{}, nil},
+		{"events-webapp-deployment.yaml", "events-webapp", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
+		{"events-webapp-service.yaml", "events-webapp", &v1.Service{}, nil},
 	}
 	joinErrHelper := &goutils.JoinErrorHelper{}
 	for _, cDef := range componentDefinitions {
