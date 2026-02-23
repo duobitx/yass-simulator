@@ -11,6 +11,9 @@ COPY resource-to-json/main ./resource-to-json
 # World controller
 COPY world-controller/main ./world-controller
 
+# Events webapp
+COPY events-webapp/main ./events-webapp
+
 # Experiment executor
 COPY experiment-executor/main ./experiment-executor
 COPY geo-calculator/geo_calc ./geo_calc

@@ -125,8 +125,10 @@ func NewMqttFacade(ctx context.Context, clientID string) Facade {
 		client: nil,
 		ctx:    ctx,
 	}
+	addr := "tcp://" + goutils.Env("MESSAGING_BROKER_HOST_PORT", "messaging:1883")
+	slog.Info("MQTT broker", "addr", addr)
 	opts := mqtt.NewClientOptions()
-	opts.AddBroker("tcp://" + goutils.Env("MESSAGING_BROKER_HOST_PORT", "messaging:1883"))
+	opts.AddBroker(addr)
 	opts.SetClientID(clientID)
 	opts.SetAutoReconnect(true)
 	opts.SetResumeSubs(true)
