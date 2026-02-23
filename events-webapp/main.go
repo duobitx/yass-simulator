@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/duobitx/yass-internal-components/events-webapp/internal/conv"
 	"github.com/duobitx/yass-internal-components/go-common/com"
-	"github.com/duobitx/yass-internal-components/go-common/proto"
 	"github.com/duobitx/yass-internal-components/go-common/startup"
 	"github.com/m-szalik/goutils"
 	"github.com/m-szalik/goutils/pubsub"
@@ -64,16 +64,18 @@ func (t *appType) eventsSSE(w http.ResponseWriter, request *http.Request) {
 }
 
 func (t *appType) message(_ context.Context, topic string, _ bool, data []byte) {
-	var srcStruct any = nil
+	var cf conv.CFunc
 	if strings.HasPrefix(topic, "updates") && !strings.HasSuffix(topic, "_") {
-		srcStruct = &proto.FsNodeUpdate{}
+		cf = conv.FsNodeUpdateConv
 	}
-	if srcStruct != nil {
-		err := com.MsgUnmarshall(data, srcStruct)
+	if cf != nil {
+		apiResponse, err := cf(topic, data)
 		if err != nil {
 			slog.Error("error unmarshalling message", "error", err)
 		}
-		t.psProducer <- srcStruct
+		if apiResponse != nil {
+			t.psProducer <- apiResponse
+		}
 	}
 }
 
@@ -106,12 +108,13 @@ func main() {
 		writer.WriteHeader(http.StatusOK)
 	})
 	http.HandleFunc("/events-sse", app.eventsSSE)
-	fmt.Println("Server running on :8081")
+	listenOn := fmt.Sprintf(":%d", 8080)
+	fmt.Printf("Server running on %s\n", listenOn)
 
 	err = facade.Subscribe("#", app.message)
 	goutils.ExitOnError(err, 8)
 
-	err = http.ListenAndServe(":8081", nil)
+	err = http.ListenAndServe(listenOn, nil)
 	goutils.ExitOnError(err, 8)
 
 	<-ctx.Done()

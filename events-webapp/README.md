@@ -8,5 +8,5 @@ Expose events via web Server-Sent Events (SSE)
 
 Curl:
 ```shell
-curl -vN -H "Accept: text/event-stream" http://localhost:8081/events-sse
+curl -vN -H "Accept: text/event-stream" http://localhost:8080/events-sse
 ```
