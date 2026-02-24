@@ -44,6 +44,9 @@ func (t *appType) eventsSSE(w http.ResponseWriter, request *http.Request) {
 	for {
 		select {
 		case evt := <-ch:
+			if evt == nil {
+				continue
+			}
 			buff, err := json.Marshal(evt)
 			if err != nil {
 				slog.Error("error marshalling event", "error", err, "clientID", clientID)
