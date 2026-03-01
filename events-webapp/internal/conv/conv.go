@@ -38,7 +38,7 @@ func FsNodeUpdateConv(_ string, data []byte) (any, error) {
 }
 
 func FsNodeNetworkUsageConv(topic string, data []byte) (any, error) {
-	in := make([]*proto.TrafficStats, 0)
+	in := make([]*proto.TrafficStats, 0) //nolint:typecheck
 	err := com.MsgUnmarshall(data, &in)
 	if err != nil {
 		return nil, err
