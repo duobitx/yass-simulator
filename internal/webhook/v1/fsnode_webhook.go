@@ -51,7 +51,7 @@ func (v *FsNodeCustomValidator) ValidateCreate(ctx context.Context, obj runtime.
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type FsNode.
-func (v *FsNodeCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
+func (v *FsNodeCustomValidator) ValidateUpdate(ctx context.Context, _ /* oldObj */, newObj runtime.Object) (admission.Warnings, error) {
 	return v.validate(ctx, newObj)
 }
 
@@ -68,6 +68,6 @@ func (v *FsNodeCustomValidator) validate(_ context.Context, newObj runtime.Objec
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type FsNode.
-func (v *FsNodeCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+func (v *FsNodeCustomValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }

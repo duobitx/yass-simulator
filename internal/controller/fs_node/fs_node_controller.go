@@ -331,7 +331,7 @@ func (r *FsNodeReconciler) getEngineContainers(fsNode *yassv1.FsNode) []v1.Conta
 	}
 
 	experimentLogLevel := goutils.Env(experimentLogLevelVariableName, "")
-	var engineContainers []v1.Container
+	engineContainers := make([]v1.Container, 0, len(fsNode.Spec.EngineContainers))
 	for _, engineContainer := range fsNode.Spec.EngineContainers {
 		eContainer := engineContainer.DeepCopy()
 		if ecResourceRequirements != nil {

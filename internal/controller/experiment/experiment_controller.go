@@ -37,8 +37,8 @@ const (
 	experimentKind = "Experiment"
 )
 
-// ExperimentReconciler reconciles an Experiment object
-type ExperimentReconciler struct {
+// Reconciler reconciles an Experiment object
+type Reconciler struct {
 	client.Client
 	Configuration *config.Configuration
 	recorder      record.EventRecorder
@@ -69,7 +69,7 @@ type reconciliationStatus struct {
 	statusUpdated bool
 }
 
-func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitRet ctrl.Result, exitErr error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitRet ctrl.Result, exitErr error) {
 	logger := logf.FromContext(ctx)
 	logger.Info(fmt.Sprintf("req %+v", req))
 
@@ -131,7 +131,7 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *ExperimentReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.recorder = mgr.GetEventRecorderFor("experiment-controller")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&yassv1.Experiment{}).
@@ -140,7 +140,7 @@ func (r *ExperimentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *ExperimentReconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx context.Context, req ctrl.Request, experiment *yassv1.Experiment) error {
+func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx context.Context, req ctrl.Request, experiment *yassv1.Experiment) error {
 	exDef := yassv1.ExperimentDefinition{}
 	if experiment.Spec.ExperimentDefRef == "" {
 		r.updateStatusConditionForExperimentObject(recon, experiment, "experiment-definition", "ExperimentDefinition", &exDef, errors.New("experimentDefRef is empty"))
@@ -227,7 +227,7 @@ func (r *ExperimentReconciler) createOrUpdateExperiment(recon *reconciliationSta
 	return nil
 }
 
-func (r *ExperimentReconciler) deleteExperimentObjects(ctx context.Context, namespace, experimentName string) error {
+func (r *Reconciler) deleteExperimentObjects(ctx context.Context, namespace, experimentName string) error {
 	logger := logf.FromContext(ctx)
 	gvks := []client.ObjectList{
 		&yassv1.FsNodeList{}, &v1.PodList{}, &v1.ServiceList{}, &v1.ConfigMapList{}, &v1.ServiceAccountList{},
@@ -270,7 +270,7 @@ func (r *ExperimentReconciler) deleteExperimentObjects(ctx context.Context, name
 	return nil
 }
 
-func (r *ExperimentReconciler) createExperimentComponentIfRequired(recon *reconciliationStatus, ctx context.Context, namespace string, experiment *yassv1.Experiment, fName string, objName string, obj client.Object, modifier func(o client.Object)) (exitErr error) {
+func (r *Reconciler) createExperimentComponentIfRequired(recon *reconciliationStatus, ctx context.Context, namespace string, experiment *yassv1.Experiment, fName string, objName string, obj client.Object, modifier func(o client.Object)) (exitErr error) {
 	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: objName}, obj)
 	defer func() {
 		r.updateStatusConditionForExperimentObject(recon, experiment, objName, kebabToCamel(objName), obj, exitErr)
@@ -312,7 +312,7 @@ func (r *ExperimentReconciler) createExperimentComponentIfRequired(recon *reconc
 	return err
 }
 
-func (r *ExperimentReconciler) updateStatusConditionForExperimentObject(recon *reconciliationStatus, exp *yassv1.Experiment, compName, conditionType string, obj client.Object, extra error) {
+func (r *Reconciler) updateStatusConditionForExperimentObject(recon *reconciliationStatus, exp *yassv1.Experiment, compName, conditionType string, obj client.Object, extra error) {
 	if compName == "" {
 		return
 	}
@@ -381,7 +381,7 @@ func (r *ExperimentReconciler) updateStatusConditionForExperimentObject(recon *r
 	}
 }
 
-func (r *ExperimentReconciler) createFsNodeResource(ctx context.Context, namespace string, experiment *yassv1.Experiment, expDef *yassv1.ExperimentDefinition, layoutItem *yassv1.LayoutSatSpec) (exitErr error) {
+func (r *Reconciler) createFsNodeResource(ctx context.Context, namespace string, experiment *yassv1.Experiment, expDef *yassv1.ExperimentDefinition, layoutItem *yassv1.LayoutSatSpec) (exitErr error) {
 	fsNode := &yassv1.FsNode{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: layoutItem.FsNodeName}, fsNode)
 	if apierrors.IsNotFound(err) {
@@ -420,7 +420,7 @@ func (r *ExperimentReconciler) createFsNodeResource(ctx context.Context, namespa
 	return nil
 }
 
-func (r *ExperimentReconciler) httpExperimentExecutor(recon *reconciliationStatus, endpoint string, body []byte, experiment *yassv1.Experiment) error {
+func (r *Reconciler) httpExperimentExecutor(recon *reconciliationStatus, endpoint string, body []byte, experiment *yassv1.Experiment) error {
 	reqBody := bytes.NewBuffer(body)
 	response, err := http.Post(fmt.Sprintf("http://experiment-executor.%s.svc.cluster.local:8080/%s", experiment.Namespace, endpoint), goutils.BoolToStr(body != nil, "application/json", ""), reqBody)
 	if err != nil {
@@ -439,7 +439,7 @@ func (r *ExperimentReconciler) httpExperimentExecutor(recon *reconciliationStatu
 	return nil
 }
 
-func (r *ExperimentReconciler) updateExperimentState(recon *reconciliationStatus, experiment *yassv1.Experiment, newState yassv1.ExperimentState) {
+func (r *Reconciler) updateExperimentState(recon *reconciliationStatus, experiment *yassv1.Experiment, newState yassv1.ExperimentState) {
 	oldState := experiment.Status.ExperimentState
 	if oldState != newState {
 		if oldState == "" {

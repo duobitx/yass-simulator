@@ -62,6 +62,6 @@ func (v *LayoutCustomValidator) validate(_ context.Context, newObj runtime.Objec
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type Layout.
-func (v *LayoutCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+func (v *LayoutCustomValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
 }

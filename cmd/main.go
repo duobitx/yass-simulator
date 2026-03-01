@@ -25,7 +25,7 @@ import (
 	"github.com/duobitx/yass-operator/internal/config"
 	"github.com/duobitx/yass-operator/internal/controller/experiment"
 	"github.com/duobitx/yass-operator/internal/controller/fs_node"
-	yass_namespace "github.com/duobitx/yass-operator/internal/controller/namespace"
+	yassnamespace "github.com/duobitx/yass-operator/internal/controller/namespace"
 	webhookv1 "github.com/duobitx/yass-operator/internal/webhook/v1"
 	"github.com/m-szalik/goutils"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -184,7 +184,7 @@ func main() {
 		goutils.ExitOnErrorf(err, 2, "unable to prepare configuration")
 	}
 
-	if err := (&experiment.ExperimentReconciler{
+	if err := (&experiment.Reconciler{
 		Configuration: conf,
 		Client:        mgr.GetClient(),
 		Scheme:        mgr.GetScheme(),
@@ -200,7 +200,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "FsNode")
 		os.Exit(1)
 	}
-	if err := (&yass_namespace.NamespaceReconciler{
+	if err := (&yassnamespace.Reconciler{
 		Configuration:   conf,
 		Client:          mgr.GetClient(),
 		Scheme:          mgr.GetScheme(),

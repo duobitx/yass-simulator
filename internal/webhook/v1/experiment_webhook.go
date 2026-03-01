@@ -96,7 +96,7 @@ func (v *ExperimentCustomValidator) ValidateCreate(ctx context.Context, obj runt
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Experiment.
-func (v *ExperimentCustomValidator) ValidateUpdate(ctx context.Context, oldObj, newObj runtime.Object) (admission.Warnings, error) {
+func (v *ExperimentCustomValidator) ValidateUpdate(ctx context.Context, _ /* oldObj */, newObj runtime.Object) (admission.Warnings, error) {
 	experiment, ok := newObj.(*yassv1.Experiment)
 	if !ok {
 		return nil, fmt.Errorf("expected a Experiment object for the newObj but got %T", newObj)
@@ -121,7 +121,7 @@ func (v *ExperimentCustomValidator) validateModification(_ context.Context, newO
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type Experiment.
-func (v *ExperimentCustomValidator) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+func (v *ExperimentCustomValidator) ValidateDelete(_ context.Context, obj runtime.Object) (admission.Warnings, error) {
 	experiment, ok := obj.(*yassv1.Experiment)
 	if !ok {
 		return nil, fmt.Errorf("expected a Experiment object but got %T", obj)

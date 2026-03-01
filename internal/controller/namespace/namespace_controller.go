@@ -32,8 +32,8 @@ const (
 	conditionTypeReconciled                = v1.NamespaceConditionType("YassReconciled")
 )
 
-// Yass Namespace reconciles an Namespace object
-type NamespaceReconciler struct {
+// Reconciler reconciles a Namespace object
+type Reconciler struct {
 	client.Client
 	Configuration   *config.Configuration
 	recorder        record.EventRecorder
@@ -55,7 +55,7 @@ type reconciliationState struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.22.1/pkg/reconcile
 
-func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitResult ctrl.Result, exitErr error) {
+func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitResult ctrl.Result, exitErr error) {
 	logger := logf.FromContext(ctx)
 	nsName := req.Name
 	var ns v1.Namespace
@@ -187,7 +187,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *NamespaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.recorder = mgr.GetEventRecorderFor("experiment-controller")
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1.Namespace{}).
@@ -202,7 +202,7 @@ func (r *NamespaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func (r *NamespaceReconciler) removeServiceAccountFromClusterRoleBinding(ctx context.Context, ns *v1.Namespace) error {
+func (r *Reconciler) removeServiceAccountFromClusterRoleBinding(ctx context.Context, ns *v1.Namespace) error {
 	var crb rbacv1.ClusterRoleBinding
 	err := r.Get(ctx, client.ObjectKey{Name: yassClusterRoleBindingName}, &crb)
 	if err != nil {
@@ -224,7 +224,7 @@ func (r *NamespaceReconciler) removeServiceAccountFromClusterRoleBinding(ctx con
 	return nil
 }
 
-func (r *NamespaceReconciler) condition(reconState *reconciliationState, condType v1.NamespaceConditionType, status v1.ConditionStatus, reason, message string) {
+func (r *Reconciler) condition(reconState *reconciliationState, condType v1.NamespaceConditionType, status v1.ConditionStatus, reason, message string) {
 	now := metav1.Now()
 	newCond := v1.NamespaceCondition{
 		Type:               condType,
