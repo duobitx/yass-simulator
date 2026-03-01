@@ -27,7 +27,7 @@ func (t *AppType) handleStartExperiment(w http.ResponseWriter, r *http.Request) 
 	if handleError(err, w) {
 		return
 	}
-	_, _ = w.Write([]byte(fmt.Sprintf("OK\n")))
+	_, _ = w.Write([]byte("OK\n"))
 }
 
 func (t *AppType) DefineEndpoints(router *mux.Router) {

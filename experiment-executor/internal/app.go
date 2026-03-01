@@ -106,6 +106,7 @@ func NewApp(ctx context.Context, facade com.Facade) (*AppType, error) {
 
 func (t *AppType) Start(ctxParent context.Context) error {
 	experimentCtx, cancel := context.WithCancelCause(ctxParent)
+	defer cancel(nil)
 	err := t.facade.Publish(experimentCtx, experimentEndTopic, 0, true, "")
 	if err != nil {
 		return errors.Wrapf(err, "cannot publish to %s", experimentEndTopic)
@@ -229,10 +230,7 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate)
 				np.Ip = ipFsState.IP
 			}
 			np.Distance = data.ReachableFsNodes[i].Distance
-			err := t.calculateNetworkParam(data, data.ReachableFsNodes[i].To, np)
-			if err != nil {
-				return errors.Wrapf(err, "cannot calculate network param between %+v for %+v", data, np)
-			}
+			t.calculateNetworkParam(data, data.ReachableFsNodes[i].To, np)
 			networkParams[i] = np
 		}
 		gr := &proto.FsNodeUpdate{
@@ -254,11 +252,10 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate)
 	return jeh.AsError()
 }
 
-func (t *AppType) calculateNetworkParam(fsNodeMain *geocalc.FsNodeInfo, dstName string, dst *proto.FsNodeUpdateNetworkParamEntry) error {
+func (t *AppType) calculateNetworkParam(fsNodeMain *geocalc.FsNodeInfo, dstName string, dst *proto.FsNodeUpdateNetworkParamEntry) {
 	// TODO
 	_ = fsNodeMain
 	dst.Subject = dstName
-	dst.PackageDelay = 0.001 /*1ms for transmitter */ + dst.Distance/300_000.00
-	dst.PackageLoss = 0.1 //10% fixed as for now FIXME calculate
-	return nil
+	dst.PackageDelay = 0.001 /* 1ms for transmitter */ + dst.Distance/300_000.00
+	dst.PackageLoss = 0.1 // 10% fixed as for now FIXME calculate
 }

@@ -147,7 +147,7 @@ func RunGeoCalc(ctx context.Context, interval time.Duration) (<-chan *GeoCalcUpd
 	chOut := make(chan *GeoCalcUpdate)
 	chErr := make(chan error, 1)
 	go func() {
-		//err := run(ctx, "stdbuf", "-oL", "-eL", "./geo_calc", "./experiment.json")
+		// err := run(ctx, "stdbuf", "-oL", "-eL", "./geo_calc", "./experiment.json")
 		err := run(ctx, "./geo_calc", goutils.Env("EXPERIMENT_JSON_FILE_PATH", "/mnt/shared/experiment.json"))
 		if err != nil {
 			chErr <- err

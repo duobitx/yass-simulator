@@ -27,7 +27,7 @@ func NetworkParamFromFsNodeUpdateNetworkParamEntry(in *proto.FsNodeUpdateNetwork
 		ToIP:         in.Ip,
 		PackageLoss:  0.0, // FIXME in.PackageLoss * 100,
 		PackageDelay: in.PackageDelay,
-		Bandwidth:    10 * 1024 * 1024, // As for now 10mbits, TODO limit bandwidth when we know know - bandwith=f(distance)
+		Bandwidth:    10 * 1024 * 1024, // As for now 10mbits, TODO limit bandwidth when we know know - bandwidth=f(distance)
 	}
 }
 
@@ -410,7 +410,7 @@ func (h *Handler) GetTrafficStats() ([]*proto.TrafficStats, error) {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
-	var stats []*proto.TrafficStats
+	stats := make([]*proto.TrafficStats, 0, len(h.state))
 
 	for ip := range h.state {
 		if h.state[ip] == nil {
@@ -444,12 +444,12 @@ func (h *Handler) GetTrafficStats() ([]*proto.TrafficStats, error) {
 		}
 
 		// Get ingress (incoming) stats
-		bytesIn, packetsIn := h.getIngressStats(ip, cid)
+		bytesIn, packetsIn := h.getIngressStats(ip)
 
 		stats = append(stats, &proto.TrafficStats{
 			Ip:                   ip,
 			TotalBytesSent:       bytesOut,
-			BytesReceived:        bytesIn,
+			TotalBytesReceived:   bytesIn,
 			TotalPacketsSent:     packetsOut,
 			TotalPacketsReceived: packetsIn,
 		})
@@ -458,7 +458,7 @@ func (h *Handler) GetTrafficStats() ([]*proto.TrafficStats, error) {
 	return stats, nil
 }
 
-func (h *Handler) getIngressStats(ip string, cid uint16) (uint64, uint64) {
+func (h *Handler) getIngressStats(ip string) (uint64, uint64) {
 	// Get ingress filter statistics for this IP
 	filters, err := netlink.FilterList(h.defEthLink, netlink.HANDLE_INGRESS)
 	if err != nil {

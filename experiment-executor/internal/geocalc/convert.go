@@ -1,18 +1,11 @@
 package geocalc
 
 import (
-	"bytes"
-	"fmt"
 	"strings"
 	"time"
 
 	"github.com/pkg/errors"
 )
-
-type distanceKey struct {
-	indexLo int
-	indexHi int
-}
 
 func Convert(input *common) (*GeoCalcUpdate, error) {
 	timeStr := convBytesToString(input.UtcDttm[:])
@@ -86,23 +79,6 @@ func appendDistance(distances *map[int]map[int]float32, satIndexA int, satIndexB
 		dists[satIndexA] = m
 	}
 	m[satIndexB] = dist
-}
-
-func dump(input *common) string {
-	buf := bytes.Buffer{}
-	buf.WriteString(fmt.Sprintf("Time: %s\n", convBytesToString(input.UtcDttm[:])))
-	buf.WriteString(fmt.Sprintf("Busy: %d NSat: %d Nbs: %d\n", input.Busy, input.Nsat, input.Nbs))
-	count := int(input.Nsat + input.Nbs)
-	for i := 0; i < count; i++ {
-		sat := input.Sats[i]
-		buf.WriteString(fmt.Sprintf(" Node:%3d:%s NRef:%d X:%.2f Y:%.2f Z:%.2f Lat:%.2f Lng:%.2f Alt:%.2fkm\n", i, convBytesToString(sat.Name[:]), sat.NRef, sat.X, sat.Y, sat.Z, sat.Lat, sat.Lng, sat.Alt))
-		refIds := make([]int, count)
-		for j := 0; j < count; j++ {
-			refIds[j] = int(sat.SatRef[j].Sid)
-		}
-		buf.WriteString(fmt.Sprintf("   Refs: %+v\n", refIds))
-	}
-	return buf.String()
 }
 
 func convBytesToString(buff []byte) string {

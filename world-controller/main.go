@@ -62,9 +62,12 @@ func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
 		}
 	}
 
-	networkParams := goutils.SliceMap[*proto.FsNodeUpdateNetworkParamEntry, networking.NetworkParam](dataObj.NetworkParams, func(entry *proto.FsNodeUpdateNetworkParamEntry) networking.NetworkParam {
-		return networking.NetworkParamFromFsNodeUpdateNetworkParamEntry(entry)
-	})
+	networkParams := goutils.SliceMap[*proto.FsNodeUpdateNetworkParamEntry, networking.NetworkParam](
+		dataObj.NetworkParams,
+		func(entry *proto.FsNodeUpdateNetworkParamEntry) networking.NetworkParam {
+			return networking.NetworkParamFromFsNodeUpdateNetworkParamEntry(entry)
+		},
+	)
 	if err = a.networkingHandler.Update(networkParams); err != nil {
 		slog.Warn("Error updating networking rules", "params", networkParams, "error", err)
 		jeh.Append(err)
@@ -120,7 +123,8 @@ func main() {
 	resourceName := goutils.EnvRequired[string]("RESOURCE_NAME")
 	resourceNamespace := goutils.EnvRequired[string]("NAMESPACE")
 	slog.Info("World Controller", "namespace", resourceNamespace, "name", resourceName)
-	ctx, cancel := signal.NotifyContext(context.WithValue(context.Background(), consts.CtxKeyFsName, resourceName), syscall.SIGTERM, syscall.SIGINT)
+	ctxWithName := context.WithValue(context.Background(), consts.CtxKeyFsName, resourceName)
+	ctx, cancel := signal.NotifyContext(ctxWithName, syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 	facade := com.NewFacade(ctx, fmt.Sprintf("%s-%s-%d", resourceName, consts.AppName, rand.Intn(100)))
 	networkingHandler, err := networking.NewNetworkHandler()

@@ -16,7 +16,6 @@ type EClock interface {
 type eClock struct {
 	now    time.Time
 	end    *time.Time
-	delta  time.Duration
 	done   chan struct{}
 	t      chan time.Time
 	cancel context.CancelCauseFunc

@@ -1,6 +1,8 @@
 package consts
 
+type contextKey string
+
 const (
 	AppName      = "worldController"
-	CtxKeyFsName = "fsName"
+	CtxKeyFsName = contextKey("fsName")
 )

@@ -9,7 +9,7 @@ import (
 	"github.com/duobitx/yass-internal-components/experiment-executor/internal/geocalc"
 )
 
-func TestRunGeoCalc(t *testing.T) {
+func TestRunGeoCalc(_ *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer func() {
 		cancel()

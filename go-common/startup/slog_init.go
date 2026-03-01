@@ -11,7 +11,7 @@ import (
 )
 
 func InitSlog() error {
-	logLevel := slog.LevelInfo
+	var logLevel slog.Level
 	switch ll := strings.ToUpper(strings.TrimSpace(goutils.Env("LOG_LEVEL", "INFO"))); ll {
 	case "DEBUG":
 		logLevel = slog.LevelDebug

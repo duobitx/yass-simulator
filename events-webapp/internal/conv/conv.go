@@ -38,8 +38,8 @@ func FsNodeUpdateConv(_ string, data []byte) (any, error) {
 }
 
 func FsNodeNetworkUsageConv(topic string, data []byte) (any, error) {
-	in := &[]*proto.TrafficStats{}
-	err := com.MsgUnmarshall(data, in)
+	in := make([]*proto.TrafficStats, 0)
+	err := com.MsgUnmarshall(data, &in)
 	if err != nil {
 		return nil, err
 	}
@@ -52,8 +52,8 @@ func FsNodeNetworkUsageConv(topic string, data []byte) (any, error) {
 			EventType: "NetworkUsageEvent",
 		},
 	}
-	for i := 0; i < len(*in); i++ {
-		stat := (*in)[i]
+	for i := 0; i < len(in); i++ {
+		stat := in[i]
 		out.TotalPacketsSent += stat.TotalPacketsSent
 		out.TotalPacketsReceived += stat.TotalPacketsReceived
 		out.TotalBytesReceived += stat.TotalBytesReceived

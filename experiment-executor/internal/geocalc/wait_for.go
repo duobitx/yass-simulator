@@ -27,8 +27,5 @@ func WaitForFile(ctx context.Context, path string) error {
 
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return true
+	return !os.IsNotExist(err)
 }
