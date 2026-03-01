@@ -35,7 +35,7 @@ linters:
       - linters:
           - dupl
           - lll
-        path: internal/**
+        path: internal/*
     paths:
       - third_party$
       - builtin$
