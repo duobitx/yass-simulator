@@ -146,30 +146,54 @@ func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration, chOut 
 func RunGeoCalc(ctx context.Context, interval time.Duration) (<-chan *GeoCalcUpdate, <-chan error) {
 	chOut := make(chan *GeoCalcUpdate)
 	chErr := make(chan error, 1)
+
+	var wg sync.WaitGroup
+	wg.Add(2) // One for process runner, one for file waiter/reader
+
+	// Start the geo_calc process
 	go func() {
+		defer wg.Done()
 		// err := run(ctx, "stdbuf", "-oL", "-eL", "./geo_calc", "./experiment.json")
 		err := run(ctx, "./geo_calc", goutils.Env("EXPERIMENT_JSON_FILE_PATH", "/mnt/shared/experiment.json"))
 		if err != nil {
-			chErr <- err
+			select {
+			case chErr <- err:
+			case <-ctx.Done():
+			}
 		}
+	}()
+
+	// Wait for shared memory file and start reader
+	go func() {
+		defer wg.Done()
+		fileCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
+		defer cancel()
+
+		err := WaitForFile(fileCtx, shmFilePath)
+		if err != nil {
+			select {
+			case chErr <- errors2.Wrapf(err, "waiting for file %s", shmFilePath):
+			case <-ctx.Done():
+			}
+			return
+		}
+
+		slog.Default().Info("Reading form geo_calc started")
+		err = readFromGeoCalcBlocking(ctx, interval, chOut)
+		if err != nil {
+			select {
+			case chErr <- errors2.Wrap(err, "readFromGeoCalc"):
+			case <-ctx.Done():
+			}
+		}
+	}()
+
+	// Close channels after all goroutines finish
+	go func() {
+		wg.Wait()
 		close(chErr)
 		close(chOut)
 	}()
-	fileCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-	defer func() {
-		cancel()
-	}()
-	err := WaitForFile(fileCtx, shmFilePath)
-	if err != nil {
-		chErr <- errors2.Wrapf(err, "waiting for file %s", shmFilePath)
-	} else {
-		go func() {
-			slog.Default().Info("Reading form geo_calc started")
-			err := readFromGeoCalcBlocking(ctx, interval, chOut)
-			if err != nil {
-				chErr <- errors2.Wrap(err, "readFromGeoCalc")
-			}
-		}()
-	}
+
 	return chOut, chErr
 }
