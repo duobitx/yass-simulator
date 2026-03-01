@@ -31,7 +31,8 @@ func main() {
 	dstFilename := goutils.Env("DST_FILE", "/tmp/exported-resource.json")
 	resourceName := goutils.EnvRequired[string]("RESOURCE_NAME")
 	resourceKind := goutils.EnvRequired[string]("RESOURCE_KIND")
-	slog.Info("Trying to extract kubernetes resource", "namespace", namespace, "name", resourceName, "kind", resourceKind, "toFilename", dstFilename)
+	slog.Info("Trying to extract kubernetes resource",
+		"namespace", namespace, "name", resourceName, "kind", resourceKind, "toFilename", dstFilename)
 	scheme := runtime.NewScheme()
 	err := clientgoscheme.AddToScheme(scheme)
 	goutils.ExitOnError(err, 2)
@@ -69,7 +70,9 @@ func main() {
 	slog.Info("Completed")
 }
 
-func handleFsNodeResource(ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName) (*cmodel.FsNode, error) {
+func handleFsNodeResource(
+	ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName,
+) (*cmodel.FsNode, error) {
 	ret := &cmodel.FsNode{}
 	obj := &yassv1.FsNode{}
 	err := k8sClient.Get(ctx, namespacedName, obj)
@@ -95,7 +98,9 @@ func handleFsNodeResource(ctx context.Context, k8sClient client.Client, namespac
 	return ret, nil
 }
 
-func handleExperimentResource(ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName) (*cmodel.ExperimentDefinition, error) {
+func handleExperimentResource(
+	ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName,
+) (*cmodel.ExperimentDefinition, error) {
 	js := &cmodel.ExperimentDefinition{}
 	experiment := &yassv1.Experiment{}
 	err := k8sClient.Get(ctx, namespacedName, experiment)
@@ -120,14 +125,15 @@ func handleExperimentResource(ctx context.Context, k8sClient client.Client, name
 	expDef := &yassv1.ExperimentDefinition{}
 	err = k8sClient.Get(ctx, types.NamespacedName{Name: experiment.Spec.ExperimentDefRef}, expDef)
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("error getting kubernetes resource ExperimentDefinition %s", experiment.Spec.ExperimentDefRef))
+		return nil, errors.Wrap(err,
+			fmt.Sprintf("error getting kubernetes resource ExperimentDefinition %s", experiment.Spec.ExperimentDefRef))
 	}
 	maxDur := strings.TrimSpace(expDef.Spec.MaxDuration)
 	js.MaxDuration = nil
 	if maxDur != "" {
 		dur, err := time.ParseDuration(maxDur)
 		if err != nil {
-			return nil, errors.Wrapf(err, fmt.Sprintf("cannot convert '%s' to duration", maxDur))
+			return nil, errors.Wrapf(err, "cannot convert '%s' to duration", maxDur)
 		}
 		js.MaxDuration = &dur
 	}
