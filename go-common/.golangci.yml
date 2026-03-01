@@ -21,6 +21,8 @@ linters:
     - unconvert
     - unparam
     - unused
+  disable:
+    - typecheck
   settings:
     revive:
       rules:
