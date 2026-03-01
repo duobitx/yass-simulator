@@ -16,7 +16,7 @@ COPY events-webapp/main ./events-webapp
 
 # Experiment executor
 COPY experiment-executor/main ./experiment-executor
-COPY geo-calculator/geo_calc ./geo_calc
+COPY --from=docker.io/library/geo-calc-builder /build/V5/geo_calc ./geo_calc
 RUN apt-get install -y libjansson4
 
 # Networking tools
