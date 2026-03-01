@@ -29,6 +29,7 @@ jobs:
           - go-common
           - resource-to-json
           - world-controller
+          - events-webapp
     permissions:
       contents: read
 
