@@ -23,6 +23,7 @@ jobs:
     name: Lint - Test
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         modules:
           - experiment-executor
