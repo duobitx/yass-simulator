@@ -17,3 +17,11 @@ type PositionEvent struct {
 	Lng float32
 	Alt float32
 }
+
+type NetworkUsageEvent struct {
+	BaseEvent
+	TotalBytesSent       uint64
+	TotalBytesReceived   uint64
+	TotalPacketsSent     uint64
+	TotalPacketsReceived uint64
+}

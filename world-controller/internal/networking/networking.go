@@ -59,12 +59,17 @@ func NewNetworkHandler() (*Handler, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "cannot get netlink for %s", defaultNetworkInterfaceName)
 	}
-	return &Handler{
+	h := &Handler{
 		lock:       sync.Mutex{},
 		state:      make(map[string]*NetworkParam),
 		netmask:    netMask,
 		defEthLink: defEthLink,
-	}, nil
+	}
+	// Setup ingress qdisc for incoming traffic stats
+	if err := h.setupIngressQdisc(); err != nil {
+		return nil, errors.Wrap(err, "failed to setup ingress qdisc")
+	}
+	return h, nil
 }
 
 func (h *Handler) Update(networkParams []NetworkParam) error {
@@ -222,6 +227,73 @@ func (h *Handler) replaceIPProfile(param *NetworkParam) error {
 	if err := netlink.FilterReplace(flICMP); err != nil {
 		return errors.Wrap(err, "egress FilterReplace (icmp)")
 	}
+
+	// Add ingress filters for incoming traffic stats
+	if err := h.addIngressFilters(dst); err != nil {
+		return errors.Wrap(err, "failed to add ingress filters")
+	}
+
+	return nil
+}
+
+func (h *Handler) addIngressFilters(srcIP net.IP) error {
+	protoTCP := nl.IPProto(unix.IPPROTO_TCP)
+	protoUDP := nl.IPProto(unix.IPPROTO_UDP)
+	protoICMP := nl.IPProto(unix.IPPROTO_ICMP)
+
+	fa := netlink.FilterAttrs{
+		LinkIndex: h.defEthLink.Attrs().Index,
+		Parent:    netlink.HANDLE_INGRESS,
+		Priority:  5,
+		Protocol:  uint16(unix.ETH_P_IP),
+	}
+
+	// Helper to create ingress flower filter
+	mkIngressFlower := func(p *nl.IPProto, minP, maxP uint16) *netlink.Flower {
+		fl := &netlink.Flower{
+			FilterAttrs:     fa,
+			EthType:         unix.ETH_P_IP,
+			SrcIP:           srcIP,
+			SrcPortRangeMin: minP,
+			SrcPortRangeMax: maxP,
+			IPProto:         p,
+		}
+		// Action to count packets (PIPE means continue processing)
+		fl.Actions = []netlink.Action{
+			&netlink.GenericAction{
+				ActionAttrs: netlink.ActionAttrs{
+					Action: netlink.TC_ACT_PIPE,
+				},
+			},
+		}
+		return fl
+	}
+
+	// Add TCP and UDP filters for port range
+	for _, p := range []*nl.IPProto{&protoTCP, &protoUDP} {
+		if err := netlink.FilterReplace(mkIngressFlower(p, portsFrom, portsTo)); err != nil {
+			return errors.Wrap(err, "ingress FilterReplace (tcp/udp)")
+		}
+	}
+
+	// Add ICMP filter
+	flICMP := &netlink.Flower{
+		FilterAttrs: fa,
+		EthType:     unix.ETH_P_IP,
+		SrcIP:       srcIP,
+		IPProto:     &protoICMP,
+	}
+	flICMP.Actions = []netlink.Action{
+		&netlink.GenericAction{
+			ActionAttrs: netlink.ActionAttrs{
+				Action: netlink.TC_ACT_PIPE,
+			},
+		},
+	}
+	if err := netlink.FilterReplace(flICMP); err != nil {
+		return errors.Wrap(err, "ingress FilterReplace (icmp)")
+	}
+
 	return nil
 }
 
@@ -248,6 +320,11 @@ func (h *Handler) removeIPProfile(ip string) error {
 		}
 	}
 
+	// Delete ingress filters for this IP
+	if err := h.removeIngressFilters(ip); err != nil {
+		slog.Default().Warn("Failed to remove ingress filters", "ip", ip, "error", err)
+	}
+
 	// Delete netem qdisc attached under the class (handle cid:0)
 	if qdiscs, err := netlink.QdiscList(h.defEthLink); err == nil {
 		for _, q := range qdiscs {
@@ -269,6 +346,32 @@ func (h *Handler) removeIPProfile(ip string) error {
 		netlink.HtbClassAttrs{},
 	)
 	_ = netlink.ClassDel(htbClass)
+	return nil
+}
+
+func (h *Handler) removeIngressFilters(ip string) error {
+	srcIP := net.ParseIP(ip)
+	if srcIP == nil {
+		return fmt.Errorf("invalid IP: %s", ip)
+	}
+
+	// Get all ingress filters
+	filters, err := netlink.FilterList(h.defEthLink, netlink.HANDLE_INGRESS)
+	if err != nil {
+		return errors.Wrap(err, "failed to list ingress filters")
+	}
+
+	// Delete filters matching this source IP
+	for _, f := range filters {
+		if fl, ok := f.(*netlink.Flower); ok {
+			if fl.SrcIP != nil && fl.SrcIP.Equal(srcIP) {
+				if err := netlink.FilterDel(fl); err != nil {
+					slog.Default().Warn("Failed to delete ingress filter", "ip", ip, "error", err)
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -301,6 +404,114 @@ func isAlmostEqual(s0 *NetworkParam, s1 *NetworkParam) bool {
 		return false
 	}
 	return true
+}
+
+func (h *Handler) GetTrafficStats() ([]*proto.TrafficStats, error) {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
+	var stats []*proto.TrafficStats
+
+	for ip := range h.state {
+		if h.state[ip] == nil {
+			continue
+		}
+		cid, err := h.getCID(ip)
+		if err != nil {
+			slog.Default().Warn("Failed to get CID for IP", "ip", ip, "error", err)
+			continue
+		}
+
+		classId := netlink.MakeHandle(1, cid)
+
+		// Get egress (outgoing) stats from HTB class
+		classes, err := netlink.ClassList(h.defEthLink, netlink.MakeHandle(1, 0))
+		if err != nil {
+			slog.Default().Warn("Failed to list classes", "error", err)
+			continue
+		}
+
+		var bytesOut, packetsOut uint64
+		for _, class := range classes {
+			if class.Attrs().Handle == classId {
+				attrs := class.Attrs()
+				if attrs.Statistics != nil && attrs.Statistics.Basic != nil {
+					bytesOut = attrs.Statistics.Basic.Bytes
+					packetsOut = uint64(attrs.Statistics.Basic.Packets)
+				}
+				break
+			}
+		}
+
+		// Get ingress (incoming) stats
+		bytesIn, packetsIn := h.getIngressStats(ip, cid)
+
+		stats = append(stats, &proto.TrafficStats{
+			Ip:                   ip,
+			TotalBytesSent:       bytesOut,
+			BytesReceived:        bytesIn,
+			TotalPacketsSent:     packetsOut,
+			TotalPacketsReceived: packetsIn,
+		})
+	}
+
+	return stats, nil
+}
+
+func (h *Handler) getIngressStats(ip string, cid uint16) (uint64, uint64) {
+	// Get ingress filter statistics for this IP
+	filters, err := netlink.FilterList(h.defEthLink, netlink.HANDLE_INGRESS)
+	if err != nil {
+		return 0, 0
+	}
+
+	srcIP := net.ParseIP(ip)
+	if srcIP == nil {
+		return 0, 0
+	}
+
+	var totalBytes, totalPackets uint64
+	for _, filter := range filters {
+		if fl, ok := filter.(*netlink.Flower); ok {
+			if fl.SrcIP != nil && fl.SrcIP.Equal(srcIP) {
+				// Get statistics from filter actions if available
+				if len(fl.Actions) > 0 {
+					for _, action := range fl.Actions {
+						attrs := action.Attrs()
+						if attrs != nil && attrs.Statistics != nil && attrs.Statistics.Basic != nil {
+							totalBytes += attrs.Statistics.Basic.Bytes
+							totalPackets += uint64(attrs.Statistics.Basic.Packets)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return totalBytes, totalPackets
+}
+
+func (h *Handler) setupIngressQdisc() error {
+	// Create ingress qdisc if not exists
+	ingress := &netlink.Ingress{
+		QdiscAttrs: netlink.QdiscAttrs{
+			LinkIndex: h.defEthLink.Attrs().Index,
+			Handle:    netlink.MakeHandle(0xffff, 0),
+			Parent:    netlink.HANDLE_INGRESS,
+		},
+	}
+
+	if err := netlink.QdiscAdd(ingress); err != nil {
+		// Check if already exists
+		if err.Error() == "file exists" {
+			slog.Default().Debug("Ingress qdisc already exists")
+			return nil
+		}
+		return err
+	}
+
+	slog.Default().Info("Ingress qdisc created successfully")
+	return nil
 }
 
 func findDefaultNetworkNetmask() (net.IPMask, string, error) {

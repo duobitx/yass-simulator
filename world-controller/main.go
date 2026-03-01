@@ -184,6 +184,33 @@ func main() {
 		}
 	}()
 
+	networkStatsTicker := time.NewTicker(1 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-networkStatsTicker.C:
+				stats, err := networkingHandler.GetTrafficStats()
+				if err != nil {
+					slog.Error("cannot get networks stats", "error", err)
+					continue
+				}
+				buff, err := com.MsgMarshall(stats)
+				if err != nil {
+					slog.Error("cannot get marshal stats", "error", err)
+					continue
+				}
+				topic := fmt.Sprintf("total-network-stats/%s", app.fsNodeObjKey.Name)
+				err = facade.Publish(ctx, topic, 0, false, buff)
+				if err != nil {
+					slog.Error("cannot publish to topic", "error", err, "topic", topic)
+					continue
+				}
+			}
+		}
+	}()
+
 	err = startup.FileProbe(ctx)
 	goutils.ExitOnError(err, 6)
 	startup.HttpProbe(ctx, 8801)

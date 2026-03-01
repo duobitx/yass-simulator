@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package yass.fs;
+
+option go_package = "github.com/duobitx/yass-internal-components/go-common/proto;proto";
+
+message TrafficStats {
+  string ip = 1;
+  uint64 total_bytes_sent = 2;
+  uint64 total_bytes_received = 3;
+  uint64 total_packets_sent = 4;
+  uint64 total_packets_received = 5;
+}
+
+message TrafficStatsList {
+  repeated TrafficStats stats = 1;
+}

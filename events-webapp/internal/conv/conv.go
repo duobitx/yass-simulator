@@ -1,6 +1,7 @@
 package conv
 
 import (
+	"strings"
 	"time"
 
 	"github.com/duobitx/yass-internal-components/events-webapp/pkg/api"
@@ -32,6 +33,31 @@ func FsNodeUpdateConv(_ string, data []byte) (any, error) {
 		Lat: in.Lat,
 		Lng: in.Lng,
 		Alt: in.Alt,
+	}
+	return out, nil
+}
+
+func FsNodeNetworkUsageConv(topic string, data []byte) (any, error) {
+	in := &[]*proto.TrafficStats{}
+	err := com.MsgUnmarshall(data, in)
+	if err != nil {
+		return nil, err
+	}
+	parts := strings.Split(topic, "/")
+	name := parts[len(parts)-1]
+	out := api.NetworkUsageEvent{
+		BaseEvent: api.BaseEvent{
+			Source:    name,
+			Timestamp: time.Now(),
+			EventType: "NetworkUsageEvent",
+		},
+	}
+	for i := 0; i < len(*in); i++ {
+		stat := (*in)[i]
+		out.TotalPacketsSent += stat.TotalPacketsSent
+		out.TotalPacketsReceived += stat.TotalPacketsReceived
+		out.TotalBytesReceived += stat.TotalBytesReceived
+		out.TotalBytesSent += stat.TotalBytesSent
 	}
 	return out, nil
 }
