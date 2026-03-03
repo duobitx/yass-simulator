@@ -12,6 +12,7 @@ spec:
       labels:
         app: events-webapp
     spec:
+      serviceAccountName: yass-experiment-sa
       containers:
         - name: events-webapp
           image: "ghcr.io/duobitx/yass/internal-components:latest"
