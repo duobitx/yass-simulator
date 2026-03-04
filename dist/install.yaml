@@ -7833,7 +7833,7 @@ spec:
         - name: EXPERIMENT_LOG_LEVEL
           value: INFO
         image: ghcr.io/duobitx/yass-operator:latest
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         livenessProbe:
           httpGet:
             path: /healthz
