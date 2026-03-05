@@ -4,9 +4,14 @@ set -euo pipefail
 ################################
 # CONFIG
 ################################
-IFACE=$(ip route | awk '/default/ {print $5; exit}')
+if [ -v POD_IP ]; then
+  IFACE=$(ip route | grep "${POD_IP}" | awk '{print $5; exit}')
+else
+  IFACE=$(ip route | awk '/default/ {print $5; exit}')
+fi
 export IFACE
 export PORT_RANGE="3000-3020"
+echo "Network Interface \"${IFACE}\""
 
 OUT_LIMIT=4mbit
 
