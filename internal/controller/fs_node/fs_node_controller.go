@@ -210,13 +210,18 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 	if fsNode.Spec.HardwareSpec != nil {
 		diskSizeLimit = fsNode.Spec.HardwareSpec.DiskSpace
 	}
+	hardwareSpecName := fsNode.Spec.HardwareSpecRef
+	if hardwareSpecName == "" {
+		hardwareSpecName = "inline"
+	}
 	pod = &v1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      podName,
 			Namespace: fsNode.Namespace,
 			Labels: map[string]string{
-				controller.LabelFsNode:     fsNode.Name,
-				controller.LabelExperiment: experimentName,
+				controller.LabelFsNode:       fsNode.Name,
+				controller.LabelExperiment:   experimentName,
+				controller.LabelHardwareSpec: hardwareSpecName,
 			},
 			OwnerReferences: []metav1.OwnerReference{
 				*metav1.NewControllerRef(fsNode, v1.SchemeGroupVersion.WithKind("FsNode")),

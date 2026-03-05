@@ -1,6 +1,7 @@
 package controller
 
 const (
-	LabelExperiment = "yass-experiment"
-	LabelFsNode     = "yass-fs-node"
+	LabelExperiment   = "yass-experiment"
+	LabelHardwareSpec = "yass-hardware-spec"
+	LabelFsNode       = "yass-fs-node"
 )
