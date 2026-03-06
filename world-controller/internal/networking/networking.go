@@ -534,9 +534,16 @@ func findDefaultNetworkNetmask() (net.IPMask, string, error) {
 			return nil, "", fmt.Errorf("no non-loopback interfaces found")
 		}
 		if len(netIfaces) > 1 {
-			return nil, "", fmt.Errorf("more then one network interfaces: %+v", netIfaces)
+			llog := slog.Default()
+			llog.Info(fmt.Sprintf("more then one network interfaces: %+v", netIfaces))
+			for _, iface := range netIfaces {
+				addr, err := iface.Addrs()
+				llog.Info(fmt.Sprintf("interface: %+v", iface), "addrs", addr, "err", err)
+				defIface = &iface // FIXME
+			}
+		} else {
+			defIface = &netIfaces[0]
 		}
-		defIface = &netIfaces[0]
 	}
 	addrs, err := defIface.Addrs()
 	if err != nil {

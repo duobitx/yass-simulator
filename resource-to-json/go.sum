@@ -5,8 +5,6 @@ github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XL
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/duobitx/yass-internal-components/go-common v0.0.0-20251214230353-b70dd607bb37 h1:gpz8t9SphhtdoXGBH7pBzisvcGgu5cC+Tz+q2khN/3M=
-github.com/duobitx/yass-internal-components/go-common v0.0.0-20251214230353-b70dd607bb37/go.mod h1:jNzadK6OWhan4XXWiKHhgTlpVOIFGHs2EijiGeq3BrM=
 github.com/duobitx/yass-operator v0.0.0-20251214224632-b2d22f526b67 h1:LjBfEUtSRZ0JcxJrMofr096q9FYPTjx5I90/Y9UxGQk=
 github.com/duobitx/yass-operator v0.0.0-20251214224632-b2d22f526b67/go.mod h1:8s7f9/w+sfqk9WeF8+Ba34+TbbPw3HjmZrmMDd9sSYw=
 github.com/emicklei/go-restful/v3 v3.13.0 h1:C4Bl2xDndpU6nJ4bc1jXd+uTmYPVUwkD6bFY/oTyCes=

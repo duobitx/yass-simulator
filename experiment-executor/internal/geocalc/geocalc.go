@@ -21,6 +21,7 @@ import (
 const shmFilePath = "/dev/shm/geo_calc_shared_memory"
 
 func run(ctx context.Context, name string, args ...string) error {
+	llog := slog.Default().WithGroup("geocalc")
 	cmd := exec.CommandContext(ctx, name, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -31,21 +32,22 @@ func run(ctx context.Context, name string, args ...string) error {
 		return fmt.Errorf("getting stderr pipe: %w", err)
 	}
 
+	llog.Info("Starting command", "name", name, "args", args)
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("starting command %s: %w", name, err)
 	}
 	pid := cmd.Process.Pid
-	slog.Default().Info(fmt.Sprintf("Process %s %v started", name, args), "pid", pid)
-	go func() {
+	llog.Info(fmt.Sprintf("Process %s %v started", name, args), "pid", pid)
+	go func() { // kill gocalc process on context cancel
 		<-ctx.Done()
-		slog.Default().Info("closing geo_calc due to", "ctxError", ctx.Err())
+		llog.Info("closing geo_calc due to", "ctxError", ctx.Err())
 		proc, err := os.FindProcess(pid)
 		if err != nil {
-			slog.Default().Warn("Error finding process", "error", err)
+			llog.Warn("Error finding process", "error", err)
 			return
 		}
 		if err := proc.Signal(syscall.SIGTERM); err != nil {
-			slog.Default().Warn("Error sending signal:", "error", err)
+			llog.Warn("Error sending signal:", "error", err)
 			return
 		}
 	}()
@@ -55,7 +57,7 @@ func run(ctx context.Context, name string, args ...string) error {
 		defer wg.Done()
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			slog.Default().Warn(fmt.Sprintf("[geocalc] %s", scanner.Text()))
+			llog.Warn(fmt.Sprintf("[geocalc] %s", scanner.Text()))
 		}
 		if err := scanner.Err(); err != nil {
 			slog.Default().Error("[geocalc] error reading stderr", "error", err)
@@ -65,7 +67,7 @@ func run(ctx context.Context, name string, args ...string) error {
 		defer wg.Done()
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			slog.Default().Info(fmt.Sprintf("[geocalc] %s", scanner.Text()))
+			llog.Info(fmt.Sprintf("[geocalc] %s", scanner.Text()))
 		}
 		if err := scanner.Err(); err != nil {
 			slog.Default().Error("[geocalc] error reading stdout", "error", err)
@@ -146,19 +148,22 @@ func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration, chOut 
 func RunGeoCalc(ctx context.Context, interval time.Duration) (<-chan *GeoCalcUpdate, <-chan error) {
 	chOut := make(chan *GeoCalcUpdate)
 	chErr := make(chan error, 1)
-
+	llog := slog.Default().WithGroup("geocalc")
 	var wg sync.WaitGroup
 	wg.Add(2) // One for process runner, one for file waiter/reader
 
 	// Start the geo_calc process
 	go func() {
 		defer wg.Done()
+		llog.Info("Starting geo_calc process")
 		// err := run(ctx, "stdbuf", "-oL", "-eL", "./geo_calc", "./experiment.json")
 		err := run(ctx, "./geo_calc", goutils.Env("EXPERIMENT_JSON_FILE_PATH", "/mnt/shared/experiment.json"))
 		if err != nil {
 			select {
 			case chErr <- err:
+				llog.Error("error running geo_calc", "error", err)
 			case <-ctx.Done():
+				llog.Info("context canceled, exiting")
 			}
 		}
 	}()
