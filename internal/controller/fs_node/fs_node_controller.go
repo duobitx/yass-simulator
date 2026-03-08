@@ -184,7 +184,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		r.updateStatusConditionForObject(fsNode, ctype, pod, err)
 		return err
 	}
-	// POD not found we need to create the POD
+	// POD isn't found we need to create the POD
 	experimentName := fsNode.Labels[controller.LabelExperiment]
 	// create Pod
 
@@ -224,7 +224,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 				controller.LabelHardwareSpec: hardwareSpecName,
 			},
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(fsNode, v1.SchemeGroupVersion.WithKind("FsNode")),
+				*metav1.NewControllerRef(fsNode, yassv1.GroupVersion.WithKind("FsNode")),
 			},
 		},
 		Spec: v1.PodSpec{
@@ -393,7 +393,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodeService(ctx context.Context, fsNo
 			Namespace: fsNode.Namespace,
 			Labels:    labels,
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(fsNode, v1.SchemeGroupVersion.WithKind("FsNode")),
+				*metav1.NewControllerRef(fsNode, yassv1.GroupVersion.WithKind("FsNode")),
 			},
 		},
 		Spec: v1.ServiceSpec{
