@@ -7,6 +7,7 @@ import (
 
 	"github.com/duobitx/yass-operator/internal/config"
 	"github.com/m-szalik/goutils"
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -152,7 +153,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitResul
 	err = r.Get(ctx, client.ObjectKey{Name: yassClusterRoleBindingName}, &crb)
 	if err != nil {
 		r.condition(reconState, conditionTypeServiceAccountRoleBinding, v1.ConditionFalse, "NotFound", err.Error())
-		return ctrl.Result{}, err
+		return ctrl.Result{}, errors.Wrapf(err, "cannot get cluster role binding %s", yassClusterRoleBindingName)
 	}
 	subject := rbacv1.Subject{
 		Kind:      "ServiceAccount",
