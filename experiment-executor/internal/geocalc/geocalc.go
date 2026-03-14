@@ -76,7 +76,6 @@ func run(ctx context.Context, name string, args ...string) error {
 	}()
 
 	err = cmd.Wait()
-	wg.Wait()
 	if err != nil {
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) {
@@ -84,6 +83,7 @@ func run(ctx context.Context, name string, args ...string) error {
 		}
 		return fmt.Errorf("command %q failed: %w", name, err)
 	}
+	wg.Wait()
 	return nil
 }
 
@@ -158,8 +158,7 @@ func RunGeoCalc(parentCctx context.Context, interval time.Duration) (<-chan *Geo
 	go func() {
 		defer wg.Done()
 		llog.Info("Starting geo_calc process")
-		// err := run(ctx, "stdbuf", "-oL", "-eL", "./geo_calc", "./experiment.json")
-		err := run(ctx, "./geo_calc", goutils.Env("EXPERIMENT_JSON_FILE_PATH", "/mnt/shared/experiment.json"))
+		err := run(ctx, "stdbuf", "-oL", "-eL", "./geo_calc", goutils.Env("EXPERIMENT_JSON_FILE_PATH", "/mnt/shared/experiment.json"))
 		if err != nil {
 			select {
 			case chErr <- err:
