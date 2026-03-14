@@ -56,6 +56,7 @@ func main() {
 	slog.Info("StartupCompleted....")
 
 	if goutils.Env("AUTOSTART", false) {
+		slog.Info("Starting app... - autostart")
 		err = app.Start(ctx)          // FIXME
 		goutils.ExitOnError(err, 111) // FIXME mock
 	}

@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
 )
 
@@ -16,6 +17,7 @@ func Convert(input *common) (*GeoCalcUpdate, error) {
 	fsCount := int(input.Nsat + input.Nbs)
 	fsNodesList := make([]*FsNodeInfo, fsCount)
 	distances := make(map[int]map[int]float32)
+	jeh := goutils.JoinErrorHelper{}
 	for i := 0; i < fsCount; i++ {
 		sat := input.Sats[i]
 		satName := convBytesToString(sat.Name[:])
@@ -29,13 +31,21 @@ func Convert(input *common) (*GeoCalcUpdate, error) {
 			Alt:  float32(sat.Alt),
 		}
 		fsNodesList[i] = &fsn
-		for _, d := range sat.SatRef {
+		for satRefIndex, d := range sat.SatRef {
 			if d.Dist <= 0.001 {
 				continue
 			}
-			appendDistance(&distances, i, int(d.Sid), d.Dist)
-			appendDistance(&distances, int(d.Sid), i, d.Dist)
+			sid := int(d.Sid)
+			if sid < 0 || sid >= fsCount {
+				jeh.Append(errors.Errorf("invalid sid %d, bigger or equal then %d, or less then 0 (where: index:%d, satRefIndex:%d)", sid, fsCount, i, satRefIndex))
+			}
+			appendDistance(&distances, i, sid, d.Dist)
+			appendDistance(&distances, sid, i, d.Dist)
 		}
+	}
+	err = jeh.AsError()
+	if err != nil {
+		return nil, errors.Wrapf(err, "cannot parse gocalc input")
 	}
 
 	// fill DistanceInfo for each fsNode

@@ -106,7 +106,7 @@ func NewApp(ctx context.Context, facade com.Facade) (*AppType, error) {
 
 func (t *AppType) Start(ctxParent context.Context) error {
 	experimentCtx, cancel := context.WithCancelCause(ctxParent)
-	defer cancel(nil)
+	// do not call cancel by default, we want that to continue.
 	err := t.facade.Publish(experimentCtx, experimentEndTopic, 0, true, "")
 	if err != nil {
 		return errors.Wrapf(err, "cannot publish to %s", experimentEndTopic)
@@ -137,7 +137,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 		return errors.Wrapf(err, "cannot subscribe to %s", experimentEndTopic)
 	}
 	var experimentEndAt time.Time // experiment time
-	dataCh, errCh := geocalc.RunGeoCalc(experimentCtx, 2*time.Second)
+	dataCh, errCh := geocalc.RunGeoCalc(experimentCtx, 5*time.Second)
 	go func() {
 		var lastTime time.Time
 		for {

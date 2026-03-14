@@ -14,6 +14,7 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/duobitx/yass-internal-components/go-common/common_slog"
 	"github.com/m-szalik/goutils"
 	errors2 "github.com/pkg/errors"
 )
@@ -21,7 +22,7 @@ import (
 const shmFilePath = "/dev/shm/geo_calc_shared_memory"
 
 func run(ctx context.Context, name string, args ...string) error {
-	llog := slog.Default().WithGroup("geocalc")
+	llog := common_slog.FromContext(ctx)
 	cmd := exec.CommandContext(ctx, name, args...)
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -57,7 +58,7 @@ func run(ctx context.Context, name string, args ...string) error {
 		defer wg.Done()
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
-			llog.Warn(fmt.Sprintf("[geocalc] %s", scanner.Text()))
+			llog.Warn(fmt.Sprintf("[geocalc stderr] %s", scanner.Text()))
 		}
 		if err := scanner.Err(); err != nil {
 			slog.Default().Error("[geocalc] error reading stderr", "error", err)
@@ -67,7 +68,7 @@ func run(ctx context.Context, name string, args ...string) error {
 		defer wg.Done()
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
-			llog.Info(fmt.Sprintf("[geocalc] %s", scanner.Text()))
+			llog.Info(fmt.Sprintf("[geocalc stdout] %s", scanner.Text()))
 		}
 		if err := scanner.Err(); err != nil {
 			slog.Default().Error("[geocalc] error reading stdout", "error", err)
@@ -145,13 +146,14 @@ func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration, chOut 
 	}
 }
 
-func RunGeoCalc(ctx context.Context, interval time.Duration) (<-chan *GeoCalcUpdate, <-chan error) {
+func RunGeoCalc(parentCctx context.Context, interval time.Duration) (<-chan *GeoCalcUpdate, <-chan error) {
 	chOut := make(chan *GeoCalcUpdate)
 	chErr := make(chan error, 1)
 	llog := slog.Default().WithGroup("geocalc")
+	ctx := common_slog.NewContext(parentCctx, llog)
 	var wg sync.WaitGroup
 	wg.Add(2) // One for process runner, one for file waiter/reader
-
+	llog.Info("Starting geo_calc process")
 	// Start the geo_calc process
 	go func() {
 		defer wg.Done()
