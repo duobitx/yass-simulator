@@ -10,17 +10,18 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal"
-	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal/geocalc"
+	"github.com/duobitx/yass-internal-components/experiment-executor/internal"
+	"github.com/duobitx/yass-internal-components/go-common/startup"
 	"github.com/gorilla/mux"
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/consts"
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/com"
+	"github.com/duobitx/yass-internal-components/experiment-executor/consts"
+	"github.com/duobitx/yass-internal-components/go-common/com"
 	"github.com/m-szalik/goutils"
 )
 
 func main() {
+	goutils.ExitOnErrorf(startup.InitSlog(), 1, "cannot initialize slog")
 	experiment := goutils.EnvRequired[string]("YASS_EXPERIMENT")
 	slog.Info("ExperimentExecutor", "experiment", experiment)
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
@@ -52,19 +53,13 @@ func main() {
 		}
 	}()
 
-	errCh := geocalc.RunGeoCalc(ctx)
-	go func() {
-		err := <-errCh
-		if err != nil {
-			slog.Default().Error("geocalc error", "error", err)
-			cancel()
-		}
-	}()
-
 	slog.Info("StartupCompleted....")
 
-	err = app.Start()             // FIXME
-	goutils.ExitOnError(err, 111) // FIXME mock
+	if goutils.Env("AUTOSTART", false) {
+		slog.Info("Starting app... - autostart")
+		err = app.Start(ctx)          // FIXME
+		goutils.ExitOnError(err, 111) // FIXME mock
+	}
 
 	err = srv.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {

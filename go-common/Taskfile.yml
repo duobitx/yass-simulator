@@ -32,6 +32,8 @@ tasks:
   proto:
     desc: Generate Go files from all .proto files
     deps: [tools]
+    sources:
+      - 'proto/*.proto'
     cmds:
       - |
         PROTO_FILES=$(find . -type f -name '*.proto' -not -path './.*/*'); \

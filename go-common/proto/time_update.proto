@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package yass.fs;
 
-option go_package = "github.com/ESA-PhiLab/yass-internal-components/go-common/proto;proto";
+option go_package = "github.com/duobitx/yass-internal-components/go-common/proto;proto";
 
 message TimeUpdate {
 

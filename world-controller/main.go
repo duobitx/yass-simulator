@@ -9,13 +9,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/com"
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/proto"
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/startup"
-	"github.com/ESA-PhiLab/yass-internal-components/world-controller/consts"
-	"github.com/ESA-PhiLab/yass-internal-components/world-controller/internal"
-	"github.com/ESA-PhiLab/yass-internal-components/world-controller/internal/model"
-	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
+	"github.com/duobitx/yass-internal-components/go-common/com"
+	"github.com/duobitx/yass-internal-components/go-common/proto"
+	"github.com/duobitx/yass-internal-components/go-common/startup"
+	"github.com/duobitx/yass-internal-components/world-controller/consts"
+	"github.com/duobitx/yass-internal-components/world-controller/internal"
+	"github.com/duobitx/yass-internal-components/world-controller/internal/model"
+	"github.com/duobitx/yass-internal-components/world-controller/internal/networking"
+	yassv1 "github.com/duobitx/yass-operator/api/v1"
 	"github.com/m-szalik/goutils"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/json"
@@ -26,14 +27,15 @@ import (
 )
 
 type appType struct {
-	mainCtx      context.Context
-	facade       com.Facade
-	k8sClient    client.Client
-	fsNodeObjKey client.ObjectKey
-	podIP        string
-	experiment   string
-	nodes        map[string]model.SharedNodeInfo
-	nodesLock    sync.Mutex
+	mainCtx           context.Context
+	facade            com.Facade
+	k8sClient         client.Client
+	fsNodeObjKey      client.ObjectKey
+	podIP             string
+	experiment        string
+	nodes             map[string]model.SharedNodeInfo
+	nodesLock         sync.Mutex
+	networkingHandler *networking.Handler
 }
 
 func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
@@ -44,13 +46,34 @@ func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
 		return err
 	}
 
+	jeh := goutils.JoinErrorHelper{}
 	fsNode := &yassv1.FsNode{}
 	err = a.k8sClient.Get(ctx, a.fsNodeObjKey, fsNode)
 	if err != nil {
-		return err
+		slog.Warn("Error getting fsNode", "objectKey", a.fsNodeObjKey, "error", err)
+		jeh.Append(err)
+	} else {
+		fsNode.Status.PosStr = dataObj.GetPosStr()
+		if err = a.k8sClient.Status().Update(ctx, fsNode); err != nil {
+			slog.Warn("Error updating k8s resource status", "objectKey", a.fsNodeObjKey, "error", err)
+			jeh.Append(err)
+		} else {
+			slog.Default().Debug("Status updated", "newStatus", fsNode.Status)
+		}
 	}
-	fsNode.Status.PosStr = dataObj.GetPosStr()
-	return a.k8sClient.Status().Update(ctx, fsNode)
+
+	networkParams := goutils.SliceMap[*proto.FsNodeUpdateNetworkParamEntry, networking.NetworkParam](
+		dataObj.NetworkParams,
+		func(entry *proto.FsNodeUpdateNetworkParamEntry) networking.NetworkParam {
+			return networking.NetworkParamFromFsNodeUpdateNetworkParamEntry(entry)
+		},
+	)
+	if err = a.networkingHandler.Update(networkParams); err != nil {
+		slog.Warn("Error updating networking rules", "params", networkParams, "error", err)
+		jeh.Append(err)
+	}
+
+	return jeh.AsError()
 }
 
 func (a *appType) publishOnlineState(online bool) error {
@@ -96,12 +119,17 @@ func (a *appType) updateListOfExperimentNodes(_ context.Context, data []byte) er
 }
 
 func main() {
+	goutils.ExitOnErrorf(startup.InitSlog(), 1, "cannot initialize slog")
 	resourceName := goutils.EnvRequired[string]("RESOURCE_NAME")
 	resourceNamespace := goutils.EnvRequired[string]("NAMESPACE")
 	slog.Info("World Controller", "namespace", resourceNamespace, "name", resourceName)
-	ctx, cancel := signal.NotifyContext(context.WithValue(context.Background(), consts.CtxKeyFsName, resourceName), syscall.SIGTERM, syscall.SIGINT)
+	ctxWithName := context.WithValue(context.Background(), consts.CtxKeyFsName, resourceName)
+	ctx, cancel := signal.NotifyContext(ctxWithName, syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 	facade := com.NewFacade(ctx, fmt.Sprintf("%s-%s-%d", resourceName, consts.AppName, rand.Intn(100)))
+	networkingHandler, err := networking.NewNetworkHandler()
+	goutils.ExitOnErrorf(err, 1, "cannot create Handler")
+
 	app := &appType{
 		mainCtx:   ctx,
 		facade:    facade,
@@ -110,12 +138,13 @@ func main() {
 			Namespace: resourceNamespace,
 			Name:      resourceName,
 		},
-		podIP:      goutils.EnvRequired[string]("POD_IP"),
-		experiment: goutils.Env("YASS_EXPERIMENT", ""),
-		nodes:      map[string]model.SharedNodeInfo{},
+		podIP:             goutils.EnvRequired[string]("POD_IP"),
+		experiment:        goutils.Env("YASS_EXPERIMENT", ""),
+		nodes:             map[string]model.SharedNodeInfo{},
+		networkingHandler: networkingHandler,
 	}
 
-	err := facade.Connect()
+	err = facade.Connect()
 	goutils.ExitOnError(err, 2)
 
 	scheme := runtime.NewScheme()
@@ -156,6 +185,33 @@ func main() {
 		err := app.publishOnlineState(false)
 		if err != nil {
 			slog.Error("cannot publish offline status", "error", err)
+		}
+	}()
+
+	networkStatsTicker := time.NewTicker(1 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-networkStatsTicker.C:
+				stats, err := networkingHandler.GetTrafficStats()
+				if err != nil {
+					slog.Error("cannot get networks stats", "error", err)
+					continue
+				}
+				buff, err := com.MsgMarshall(stats)
+				if err != nil {
+					slog.Error("cannot get marshal stats", "error", err)
+					continue
+				}
+				topic := fmt.Sprintf("total-network-stats/%s", app.fsNodeObjKey.Name)
+				err = facade.Publish(ctx, topic, 0, false, buff)
+				if err != nil {
+					slog.Error("cannot publish to topic", "error", err, "topic", topic)
+					continue
+				}
+			}
 		}
 	}()
 

@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package yass.fs;
+
+option go_package = "github.com/duobitx/yass-internal-components/go-common/proto;proto";
+
+message FsNodeUpdate {
+  string name = 1;
+  bool in_shadow = 2;
+  string pos_str = 3;
+  float x = 4;
+  float y = 5;
+  float z = 6;
+  float lat = 7;
+  float lng = 8;
+  float alt = 9;
+  repeated FsNodeUpdateNetworkParamEntry network_params = 10;
+  // Last update timestamp as Unix milliseconds.
+  int64 updated_unix_millis = 11;
+}
+
+// Message for network parameters related to GeoResult
+message FsNodeUpdateNetworkParamEntry {
+  string ip = 1;
+  float distance = 2;
+  float package_delay = 3;
+  float package_loss = 4;
+  string subject = 5;
+}
+
+

@@ -2,6 +2,7 @@ package eclock
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -9,14 +10,23 @@ type EClock interface {
 	Done() <-chan struct{}
 	Now() time.Time
 	Tick() <-chan time.Time
+	SetTime(newTime time.Time)
 }
 
 type eClock struct {
-	now   time.Time
-	end   *time.Time
-	delta time.Duration
-	done  chan struct{}
-	t     chan time.Time
+	now    time.Time
+	end    *time.Time
+	done   chan struct{}
+	t      chan time.Time
+	cancel context.CancelCauseFunc
+}
+
+func (e *eClock) SetTime(newTime time.Time) {
+	e.now = newTime
+	e.t <- newTime
+	if e.end != nil && newTime.After(*e.end) {
+		e.cancel(fmt.Errorf("experiment clock stopped"))
+	}
 }
 
 func (e *eClock) Tick() <-chan time.Time {
@@ -31,7 +41,7 @@ func (e *eClock) Now() time.Time {
 	return e.now
 }
 
-func NewExperimentClock(ctx context.Context, startAt time.Time, tickInterval, tickDelta time.Duration, maxDuration *time.Duration) EClock {
+func NewExperimentClock(parentCtx context.Context, startAt time.Time, maxDuration *time.Duration) (EClock, error) {
 	instance := &eClock{
 		now:  startAt,
 		done: make(chan struct{}),
@@ -41,31 +51,14 @@ func NewExperimentClock(ctx context.Context, startAt time.Time, tickInterval, ti
 		end := startAt.Add(*maxDuration)
 		instance.end = &end
 	}
-	ti := time.NewTicker(tickInterval)
+	ctx, cancel := context.WithCancelCause(parentCtx)
+	instance.cancel = cancel
 	go func() {
 		defer func() {
-			ti.Stop()
 			close(instance.done)
 			close(instance.t)
 		}()
-		for {
-			select {
-			case <-ti.C:
-				now := instance.now.Add(tickDelta)
-				if instance.end != nil && instance.end.Before(now) {
-					now = instance.now
-				}
-				instance.now = now
-				instance.t <- now
-			case <-ctx.Done():
-				return
-			}
-		}
+		<-ctx.Done()
 	}()
-	return instance
-}
-
-func NewExperimentRealClock(ctx context.Context, startAt time.Time, maxDuration *time.Duration) EClock {
-	tickInterval := 1000 * time.Millisecond
-	return NewExperimentClock(ctx, startAt, tickInterval, tickInterval, maxDuration)
+	return instance, nil
 }

@@ -9,7 +9,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ResourceToJson(ctx context.Context, k8sClient client.Client, namespace, name string, obj client.Object) ([]byte, error) {
+func ResourceToJson(
+	ctx context.Context,
+	k8sClient client.Client,
+	namespace,
+	name string,
+	obj client.Object,
+) ([]byte, error) {
 	objKey := client.ObjectKey{
 		Namespace: namespace,
 		Name:      name,

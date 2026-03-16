@@ -7,6 +7,7 @@ import (
 )
 
 func TestLoad(t *testing.T) {
+	t.Setenv("EXPERIMENT_FILE", "../experiment.json")
 	_, err := LoadExperimentJson()
 	assert.NoError(t, err)
 }

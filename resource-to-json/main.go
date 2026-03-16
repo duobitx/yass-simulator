@@ -8,9 +8,11 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/cmodel"
-	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
+	"github.com/duobitx/yass-internal-components/go-common/cmodel"
+	"github.com/duobitx/yass-internal-components/go-common/startup"
+	yassv1 "github.com/duobitx/yass-operator/api/v1"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -22,13 +24,15 @@ import (
 )
 
 func main() {
+	goutils.ExitOnErrorf(startup.InitSlog(), 1, "cannot initialize slog")
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM)
 	defer cancel()
 	namespace := goutils.EnvRequired[string]("NAMESPACE")
 	dstFilename := goutils.Env("DST_FILE", "/tmp/exported-resource.json")
 	resourceName := goutils.EnvRequired[string]("RESOURCE_NAME")
 	resourceKind := goutils.EnvRequired[string]("RESOURCE_KIND")
-	slog.Info("Trying to extract kubernetes resource", "namespace", namespace, "name", resourceName, "kind", resourceKind, "toFilename", dstFilename)
+	slog.Info("Trying to extract kubernetes resource",
+		"namespace", namespace, "name", resourceName, "kind", resourceKind, "toFilename", dstFilename)
 	scheme := runtime.NewScheme()
 	err := clientgoscheme.AddToScheme(scheme)
 	goutils.ExitOnError(err, 2)
@@ -59,13 +63,16 @@ func main() {
 	}
 	slog.Info("saving data to json file", "filename", dstFilename)
 	err = os.WriteFile(dstFilename, buff, 0o744)
+	fmt.Printf("JSON %s:\n%s\n", dstFilename, string(buff))
 	if err != nil {
 		panic(fmt.Sprintf("cannot save file %s :: %s", dstFilename, err))
 	}
 	slog.Info("Completed")
 }
 
-func handleFsNodeResource(ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName) (*cmodel.FsNode, error) {
+func handleFsNodeResource(
+	ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName,
+) (*cmodel.FsNode, error) {
 	ret := &cmodel.FsNode{}
 	obj := &yassv1.FsNode{}
 	err := k8sClient.Get(ctx, namespacedName, obj)
@@ -91,7 +98,9 @@ func handleFsNodeResource(ctx context.Context, k8sClient client.Client, namespac
 	return ret, nil
 }
 
-func handleExperimentResource(ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName) (*cmodel.ExperimentDefinition, error) {
+func handleExperimentResource(
+	ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName,
+) (*cmodel.ExperimentDefinition, error) {
 	js := &cmodel.ExperimentDefinition{}
 	experiment := &yassv1.Experiment{}
 	err := k8sClient.Get(ctx, namespacedName, experiment)
@@ -116,9 +125,18 @@ func handleExperimentResource(ctx context.Context, k8sClient client.Client, name
 	expDef := &yassv1.ExperimentDefinition{}
 	err = k8sClient.Get(ctx, types.NamespacedName{Name: experiment.Spec.ExperimentDefRef}, expDef)
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("error getting kubernetes resource ExperimentDefinition %s", experiment.Spec.ExperimentDefRef))
+		return nil, errors.Wrap(err,
+			fmt.Sprintf("error getting kubernetes resource ExperimentDefinition %s", experiment.Spec.ExperimentDefRef))
 	}
-	js.MaxDuration = expDef.Spec.MaxDuration
+	maxDur := strings.TrimSpace(expDef.Spec.MaxDuration)
+	js.MaxDuration = nil
+	if maxDur != "" {
+		dur, err := time.ParseDuration(maxDur)
+		if err != nil {
+			return nil, errors.Wrapf(err, "cannot convert '%s' to duration", maxDur)
+		}
+		js.MaxDuration = &dur
+	}
 
 	return js, nil
 }

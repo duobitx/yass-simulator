@@ -1,4 +1,4 @@
-Trecie podejœcie
+Third approach
 
 ## Build
 ```shell
@@ -7,10 +7,10 @@ gcc -o geo_calc SGP4.c TLE.c geo_calc.c -lm -lrt
 ./geo_calc &
 ````
 
-Program chodzi a¿ do otrzymania sygna³u kill -7.
-Zak³ada obszar w RAM o nazwie geo_calc_shared_memory i co sekundê wype³nia strukturê opisan¹ w pliku common.h
-Przyk³adowe dane to 149 satelitów na niskich orbitach. Dziêki temu jeden satelita widzi œrednio tylko 28 innych.
-Wszystkie lataj¹ ! - znaczy nie generujj¹ b³edów w SGP4.
+The program runs until it receives a kill -7 signal.
+It creates a RAM area named geo_calc_shared_memory and fills the structure described in common.h every second.
+The example data consists of 149 satellites in low orbits. Thanks to this, one satellite sees an average of only 28 others.
+All are flying! - meaning they don't generate errors in SGP4.
 
 
 ## Struct
@@ -25,9 +25,9 @@ struct sat_ref_dscr { int sid; float dist; };
 struct sat_pos_dscr {
    double x, y, z, h;
    int nref;
-   struct sat_ref_dscr sat_ref[MAXSAT];  
+   struct sat_ref_dscr sat_ref[MAXSAT];
  };
- 
+
 
 struct common  {
     int busy, nsat;
@@ -39,7 +39,7 @@ struct common  {
 
 ```
 
-Przyk³¹dowy program reader.go wyœwietla co 2 sekundy pierwsze trzy pola ze strukury common
+The example reader.go program displays the first three fields from the common structure every 2 seconds.
 
 
 ## Run
@@ -59,5 +59,5 @@ Busy:  0 , nsat: 149 , UTC: 2025-10-12 19:18:42
 Busy:  0 , nsat: 149 , UTC: 2025-10-12 19:18:44
 
 
-Flagê busy mo¿na wykorzystaæ jako semafor. W czasie wype³niania strukury common ma wartoœæ 1.
-Ale trwa to 1 ms. Gdyby reader trafi³ na busy=1, to wystarczy, jak poczeka 2 ms.
+The busy flag can be used as a semaphore. While filling the common structure, it has a value of 1.
+But this takes 1 ms. If the reader encounters busy=1, it's enough to wait 2 ms.

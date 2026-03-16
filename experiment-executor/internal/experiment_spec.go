@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/cmodel"
+	"github.com/duobitx/yass-internal-components/go-common/cmodel"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
 )

@@ -4,22 +4,25 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"math/rand"
 	"sync"
 	"time"
 
-	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal/eclock"
-	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/internal/model"
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/cmodel"
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/com"
-	"github.com/ESA-PhiLab/yass-internal-components/go-common/proto"
-	yassv1 "github.com/ESA-PhiLab/yass-operator/api/v1"
+	"github.com/duobitx/yass-internal-components/experiment-executor/internal/geocalc"
+	"github.com/duobitx/yass-internal-components/experiment-executor/internal/model"
+	"github.com/duobitx/yass-internal-components/go-common/cmodel"
+	"github.com/duobitx/yass-internal-components/go-common/com"
+	"github.com/duobitx/yass-internal-components/go-common/proto"
+	yassv1 "github.com/duobitx/yass-operator/api/v1"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+const (
+	experimentEndTopic = "experiment/end-request"
 )
 
 type AppType struct {
@@ -29,7 +32,6 @@ type AppType struct {
 	k8sClient         client.Client
 	nodes             map[string]*model.FsNodeState
 	nodesLock         sync.Mutex
-	clock             eclock.EClock
 	namespace         string
 }
 
@@ -90,7 +92,7 @@ func NewApp(ctx context.Context, facade com.Facade) (*AppType, error) {
 		namespace:         goutils.Env("NAMESPACE", ""),
 	}
 
-	err = facade.Subscribe("/online-states/#", func(sCtx context.Context, topic string, retained bool, data []byte) {
+	err = facade.Subscribe("online-states/#", func(sCtx context.Context, topic string, retained bool, data []byte) {
 		err := app.handleOnlineUpdate(sCtx, data)
 		if err != nil {
 			slog.Error("error handling incoming update data", "data", string(data), "topic", topic, "error", err)
@@ -102,86 +104,86 @@ func NewApp(ctx context.Context, facade com.Facade) (*AppType, error) {
 	return app, nil
 }
 
-func (t *AppType) Start() error {
-	if t.clock != nil {
-		return errors.New("experiment already started")
+func (t *AppType) Start(ctxParent context.Context) error {
+	experimentCtx, cancel := context.WithCancelCause(ctxParent)
+	// do not call cancel by default, we want that to continue.
+	err := t.facade.Publish(experimentCtx, experimentEndTopic, 0, true, "")
+	if err != nil {
+		return errors.Wrapf(err, "cannot publish to %s", experimentEndTopic)
 	}
-	whenStart := time.Now()
-	if t.ExperimentDefData.StartTime != nil {
-		whenStart = *t.ExperimentDefData.StartTime
+	err = t.facade.Subscribe(experimentEndTopic, func(sCtx context.Context, topic string, retained bool, data []byte) {
+		if len(data) > 0 {
+			req := &proto.AgentExperimentEndRequest{}
+			err := com.MsgUnmarshall(data, req)
+			if err != nil {
+				slog.Default().Warn("cannot unmarshal content from topic", "topic", experimentEndTopic, "error", err)
+				return
+			}
+			var endErr *ExperimentEndError
+			switch req.Status {
+			case proto.Status_EXPERIMENT_END_REQUEST_FAILURE:
+				endErr = NewExperimentEndErrorWithComment(ExperimentEndDueToScenarioFailure, req.Comment)
+			case proto.Status_EXPERIMENT_END_REQUEST_SUCCESS:
+				endErr = NewExperimentEndErrorWithComment(ExperimentEndDueToScenarioSuccess, req.Comment)
+			default:
+				endErr = NewExperimentEndErrorWithCause(ExperimentEndDueToUnexpectedError, fmt.Errorf("unsupported value fro req.Status - %d", req.Status))
+			}
+			if endErr != nil {
+				cancel(endErr)
+			}
+		}
+	})
+	if err != nil {
+		return errors.Wrapf(err, "cannot subscribe to %s", experimentEndTopic)
 	}
-	slog.Default().Info("starting experiment", "startTime", whenStart, "maxDuration", t.ExperimentDefData.MaxDuration)
-	t.clock = eclock.NewExperimentRealClock(t.mainCtx, whenStart, t.ExperimentDefData.MaxDuration)
+	var experimentEndAt time.Time // experiment time
+	dataCh, errCh := geocalc.RunGeoCalc(experimentCtx, 5*time.Second)
 	go func() {
+		var lastTime time.Time
 		for {
 			select {
-			case <-t.clock.Done():
-				err := t.sendTimeUpdate(t.clock.Now(), false)
+			case err := <-errCh:
 				if err != nil {
-					slog.Default().Error("error sending final time update", "error", err)
+					slog.Default().Error("geocalc error", "error", err)
 				}
-				err = t.experimentCompletedUpdateExperimentResource()
-				if err != nil {
-					slog.Default().Error("error updating experiment.status resource", "error", err)
+			case upd := <-dataCh:
+				lastTime = upd.CurrentTime
+				if !experimentEndAt.IsZero() && !experimentEndAt.After(lastTime) {
+					if err := t.sendTimeUpdate(lastTime, false); err != nil {
+						slog.Default().Error("cannot send time update", "error", err)
+					}
+					slog.Default().Info("experiment time ended", "shouldEndAt", experimentEndAt, "now", lastTime)
+					err := t.experimentCompletedUpdateExperimentResource("timeout")
+					if err != nil {
+						slog.Default().Error("error updating experiment.status resource", "error", err)
+					}
+					cancel(NewExperimentEndError(ExperimentEndDueToTimeout))
+				} else {
+					if err := t.sendTimeUpdate(upd.CurrentTime, true); err != nil {
+						slog.Default().Error("cannot send time update", "error", err)
+					}
+					if err := t.handleGeoUpdate(experimentCtx, upd); err != nil {
+						slog.Default().Error("cannot send geo update", "error", err)
+					}
+				}
+			case <-experimentCtx.Done():
+				if err := t.sendTimeUpdate(lastTime, false); err != nil {
+					slog.Default().Error("cannot send time update after experimentCtx canceled", "error", err)
 				}
 				return
-			case now := <-t.clock.Tick():
-				err := t.sendUpdates(now)
-				if err != nil {
-					slog.Default().Error("error sending mock update", "error", err)
-				}
 			}
 		}
 	}()
+	startAt := time.Now()
+	if t.ExperimentDefData.StartTime != nil {
+		startAt = *t.ExperimentDefData.StartTime
+	}
+	if t.ExperimentDefData.MaxDuration != nil {
+		experimentEndAt = startAt.Add(*t.ExperimentDefData.MaxDuration)
+	}
+	slog.Default().Info("starting experiment", "startTime", startAt, "maxDuration", t.ExperimentDefData.MaxDuration)
+
 	return nil
-}
-
-func (t *AppType) sendUpdates(now time.Time) error {
-	t.nodesLock.Lock()
-	defer t.nodesLock.Unlock()
-	joinErr := &goutils.JoinErrorHelper{}
-	wg := sync.WaitGroup{}
-	for _, fsNode := range t.ExperimentDefData.FsNodes {
-		name := fsNode.Name
-		geoResult, err := calculatePosition(&fsNode, now) // no multithread is supported
-		if err != nil {
-			joinErr.Append(errors.Wrapf(err, "cannot calculate position for %s", name))
-			continue
-		}
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			err2 := t.sendGeoUpdate(name, geoResult)
-			if err2 != nil {
-				joinErr.Append(errors.Wrapf(err2, "cannot send geoUpdate to %s", name))
-			}
-		}()
-		wg.Wait()
-		err = t.sendTimeUpdate(now, true)
-		joinErr.Append(err)
-	}
-	return joinErr.AsError()
-}
-
-func calculatePosition(fsn *cmodel.ExperimentFsNode, t time.Time) (*model.GeoResult, error) {
-	// return nil, errors.New("calculatePosition:: implement me")
-	// TODO
-	return &model.GeoResult{
-		X: rand.Float32() * 10.0,
-		Y: rand.Float32() * 10.0,
-		Z: rand.Float32() * 10.0,
-	}, nil
-}
-
-func (t *AppType) sendGeoUpdate(fsnName string, gr *model.GeoResult) error {
-	pos := fmt.Sprintf("x=%.2f,y=%.2f,z=%.2f", gr.X, gr.Y, gr.Z)
-	obj := &proto.FsNodeUpdate{
-		Id:                fsnName,
-		InShadow:          false,
-		UpdatedUnixMillis: time.Now().UnixMilli(),
-		PosStr:            &pos,
-	}
-	return t.facade.Publish(t.mainCtx, fmt.Sprintf("updates/%s", fsnName), 0, true, obj)
 }
 
 func (t *AppType) sendTimeUpdate(now time.Time, ongoing bool) error {
@@ -192,9 +194,9 @@ func (t *AppType) sendTimeUpdate(now time.Time, ongoing bool) error {
 	return t.facade.Publish(t.mainCtx, "updates/_time_", 0, true, obj)
 }
 
-func (t *AppType) experimentCompletedUpdateExperimentResource() error {
+func (t *AppType) experimentCompletedUpdateExperimentResource(completionReason string) error {
 	if t.namespace == "" {
-		slog.Default().Warn("namespace not set")
+		slog.Default().Warn("namespace not set, experiment resource will not be updated")
 		return nil
 	}
 	exp := &yassv1.Experiment{}
@@ -206,8 +208,54 @@ func (t *AppType) experimentCompletedUpdateExperimentResource() error {
 		return err
 	}
 	if exp.Status.ExperimentState == yassv1.ExperimentStateOngoing {
+		slog.Default().Info(fmt.Sprintf("Experiment Completed, reason: %s", completionReason))
 		exp.Status.ExperimentState = yassv1.ExperimentStateCompleted
+		// TODO event
 		return t.k8sClient.Status().Update(t.mainCtx, exp)
 	}
 	return nil
+}
+
+func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate) error {
+	nowMillis := upd.CurrentTime.UnixMilli()
+	jeh := goutils.JoinErrorHelper{}
+	for _, data := range upd.FsNodeInfos {
+		networkParams := make([]*proto.FsNodeUpdateNetworkParamEntry, len(data.ReachableFsNodes))
+		for i := 0; i < len(networkParams); i++ {
+			np := &proto.FsNodeUpdateNetworkParamEntry{}
+			ipFsState, ok := t.nodes[data.ReachableFsNodes[i].To]
+			if !ok {
+				// FIXME return fmt.Errorf("cannot resolve IP for fsNode %s, no fsStateEntry", data.ReachableFsNodes[i].To)
+			} else {
+				np.Ip = ipFsState.IP
+			}
+			np.Distance = data.ReachableFsNodes[i].Distance
+			t.calculateNetworkParam(data, data.ReachableFsNodes[i].To, np)
+			networkParams[i] = np
+		}
+		gr := &proto.FsNodeUpdate{
+			Name:              data.Name,
+			InShadow:          false, // TODO later v2
+			PosStr:            fmt.Sprintf("lat=%.2f,lng=%.2f", data.Lat, data.Lng),
+			X:                 data.X,
+			Y:                 data.Y,
+			Z:                 data.Z,
+			Lat:               data.Lat,
+			Lng:               data.Lng,
+			Alt:               data.Alt,
+			NetworkParams:     networkParams,
+			UpdatedUnixMillis: nowMillis,
+		}
+		err := t.facade.Publish(t.mainCtx, fmt.Sprintf("updates/%s", data.Name), 0, true, gr)
+		jeh.Append(err)
+	}
+	return jeh.AsError()
+}
+
+func (t *AppType) calculateNetworkParam(fsNodeMain *geocalc.FsNodeInfo, dstName string, dst *proto.FsNodeUpdateNetworkParamEntry) {
+	// TODO
+	_ = fsNodeMain
+	dst.Subject = dstName
+	dst.PackageDelay = 0.001 /* 1ms for transmitter */ + dst.Distance/300_000.00
+	dst.PackageLoss = 0.1 // 10% fixed as for now FIXME calculate
 }

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ESA-PhiLab/yass-internal-components/experiment-executor/consts"
+	"github.com/duobitx/yass-internal-components/experiment-executor/consts"
 	"github.com/gorilla/mux"
 )
 
@@ -23,11 +23,11 @@ func (t *AppType) handleRoot(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t *AppType) handleStartExperiment(w http.ResponseWriter, r *http.Request) {
-	err := t.Start()
+	err := t.Start(t.mainCtx)
 	if handleError(err, w) {
 		return
 	}
-	_, _ = w.Write([]byte(fmt.Sprintf("OK\n")))
+	_, _ = w.Write([]byte("OK\n"))
 }
 
 func (t *AppType) DefineEndpoints(router *mux.Router) {
