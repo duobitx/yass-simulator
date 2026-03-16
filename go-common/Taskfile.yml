@@ -45,6 +45,7 @@ tasks:
         for f in ${PROTO_FILES}; do \
           echo "  protoc ${f}"; \
           protoc -I . --go_out=paths=source_relative:. ${f}; \
+          protoc -I . --cpp_out=. ${f}; \
         done; \
         echo "Done."
 
