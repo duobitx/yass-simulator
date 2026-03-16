@@ -71,7 +71,7 @@ Przyk³adowe dane to 149 satelitów na niskich orbitach. Dziêki temu jeden satelit
 Ze stacji bazowych  widaæ równoczeœnie 4 do 12 satelitów.
 
 
-Przyk³¹dowy program reader.go wyœwietla co 2 sekundy pierwsze trzy pola ze strukury common
+Przyk³adowy program reader.go wyœwietla co 2 sekundy pierwsze trzy pola ze strukury common
 
 ## Run
 ```go

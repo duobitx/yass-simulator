@@ -2,6 +2,7 @@
 #define COMMON_H
 
 #define MAXSAT 200
+#pragma pack( push,1 )
 
 struct sat_ref_dscr { int sid; float dist; };
 
@@ -18,7 +19,7 @@ struct common  {
     char utc_dttm[32];
     struct sat_pos_dscr sat[MAXSAT];
 };
-
+#pragma pack( pop )
 #endif
 
 
