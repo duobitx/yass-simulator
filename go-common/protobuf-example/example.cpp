@@ -24,6 +24,43 @@ bool WriteGeoCommonToFile(const yass::fs::GeoCommon& message, const std::string&
     return output.good();
 }
 
+bool WriteGeoCommonToMemory(const yass::fs::GeoCommon& message, uint8_t* buffer, size_t* buffer_size) {
+    if (!buffer || !buffer_size) {
+        return false;
+    }
+
+    // Serialize to string
+    std::string serialized;
+    if (!message.SerializeToString(&serialized)) {
+        return false;
+    }
+
+    // Calculate total size needed (1 byte semaphore + 4 bytes for size prefix + serialized data)
+    size_t total_size = 1 + sizeof(uint32_t) + serialized.size();
+
+    // Check if buffer is large enough
+    if (*buffer_size < total_size) {
+        *buffer_size = total_size; // Return required size
+        return false;
+    }
+
+    // Set semaphore to 0 (writing in progress)
+    buffer[0] = 0x00;
+
+    // Write size as 4-byte prefix (uint32_t) starting at position 1
+    uint32_t size = static_cast<uint32_t>(serialized.size());
+    std::memcpy(buffer + 1, &size, sizeof(size));
+
+    // Write the serialized message starting at position 5
+    std::memcpy(buffer + 1 + sizeof(size), serialized.data(), serialized.size());
+
+    // Set semaphore to 0xFF (data ready)
+    buffer[0] = 0xFF;
+
+    *buffer_size = total_size; // Return actual size written
+    return true;
+}
+
 int main() {
     // Create GeoCommon message with random data
     yass::fs::GeoCommon message;
@@ -92,9 +129,23 @@ int main() {
         std::cout << "Message contains:" << std::endl;
         std::cout << "  - " << message.items_size() << " items" << std::endl;
         std::cout << "  - " << message.distances_size() << " distances" << std::endl;
-        return 0;
     } else {
         std::cerr << "Failed to write message to file" << std::endl;
+        return 1;
+    }
+
+    // Write to memory buffer
+    uint8_t buffer[4096];
+    size_t buffer_size = sizeof(buffer);
+
+    if (WriteGeoCommonToMemory(message, buffer, &buffer_size)) {
+        std::cout << "\nSuccessfully wrote GeoCommon message to memory" << std::endl;
+        std::cout << "  - Total size: " << buffer_size << " bytes" << std::endl;
+        std::cout << "  - Semaphore byte: 0x" << std::hex << (int)buffer[0] << std::dec << std::endl;
+        std::cout << "  - Data ready: " << (buffer[0] == 0xFF ? "yes" : "no") << std::endl;
+        return 0;
+    } else {
+        std::cerr << "Failed to write message to memory (required size: " << buffer_size << " bytes)" << std::endl;
         return 1;
     }
 }
