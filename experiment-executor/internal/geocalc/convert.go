@@ -1,49 +1,58 @@
 package geocalc
 
 import (
-	"strings"
 	"time"
 
+	geocalcproto "github.com/duobitx/yass-internal-components/go-common/proto/go"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
 )
 
-func Convert(input *common) (*GeoCalcUpdate, error) {
-	timeStr := convBytesToString(input.UtcDttm[:])
-	tNow, err := time.ParseInLocation(time.DateTime, timeStr, time.UTC)
-	if err != nil {
-		return nil, errors.Wrapf(err, "cannot parse time '%s'", timeStr)
+func Convert(input *geocalcproto.GeoCommon) (*GeoCalcUpdate, error) {
+	if input == nil {
+		return nil, errors.New("nil geocalc input")
 	}
-	fsCount := int(input.Nsat + input.Nbs)
+
+	tNow := time.Time{}
+	if input.GetTime() != nil {
+		tNow = input.GetTime().AsTime().UTC()
+	}
+
+	fsCount := len(input.GetItems())
+	if expected := int(input.GetNsat() + input.GetNbs()); expected > 0 && expected < fsCount {
+		fsCount = expected
+	}
 	fsNodesList := make([]*FsNodeInfo, fsCount)
 	distances := make(map[int]map[int]float32)
 	jeh := goutils.JoinErrorHelper{}
 	for i := 0; i < fsCount; i++ {
-		sat := input.Sats[i]
-		satName := convBytesToString(sat.Name[:])
+		item := input.GetItems()[i]
+		itemName := item.GetName()
 		fsn := FsNodeInfo{
-			Name: satName,
-			X:    float32(sat.X),
-			Y:    float32(sat.Y),
-			Z:    float32(sat.Z),
-			Lat:  float32(sat.Lat),
-			Lng:  float32(sat.Lng),
-			Alt:  float32(sat.Alt),
+			Name: itemName,
+			X:    float32(item.GetX()),
+			Y:    float32(item.GetY()),
+			Z:    float32(item.GetZ()),
+			Lat:  float32(item.GetLat()),
+			Lng:  float32(item.GetLon()),
+			Alt:  float32(item.GetAlt()),
 		}
 		fsNodesList[i] = &fsn
-		for satRefIndex, d := range sat.SatRef {
-			if d.Dist <= 0.001 {
-				continue
-			}
-			sid := int(d.Sid)
-			if sid < 0 || sid >= fsCount {
-				jeh.Append(errors.Errorf("invalid sid %d, bigger or equal then %d, or less then 0 (where: index:%d, satRefIndex:%d)", sid, fsCount, i, satRefIndex))
-			}
-			appendDistance(&distances, i, sid, d.Dist)
-			appendDistance(&distances, sid, i, d.Dist)
-		}
 	}
-	err = jeh.AsError()
+
+	for distIndex, d := range input.GetDistances() {
+		if !d.GetLos() || d.GetDistance() <= 0 {
+			continue
+		}
+		a := int(d.GetItemIdA()) - 1
+		b := int(d.GetItemIdB()) - 1
+		if a < 0 || a >= fsCount || b < 0 || b >= fsCount {
+			jeh.Append(errors.Errorf("invalid distance refs a=%d b=%d (where: index:%d, fsCount:%d)", a, b, distIndex, fsCount))
+			continue
+		}
+		appendDistance(&distances, a, b, d.GetDistance())
+	}
+	err := jeh.AsError()
 	if err != nil {
 		return nil, errors.Wrapf(err, "cannot parse gocalc input")
 	}
@@ -70,8 +79,8 @@ func Convert(input *common) (*GeoCalcUpdate, error) {
 	}
 
 	up := &GeoCalcUpdate{
-		SatCount:           int(input.Nsat),
-		GroundStationCount: int(input.Nbs),
+		SatCount:           int(input.GetNsat()),
+		GroundStationCount: int(input.GetNbs()),
 		CurrentTime:        tNow,
 		FsNodeInfos:        fsNodesList,
 	}
@@ -89,16 +98,4 @@ func appendDistance(distances *map[int]map[int]float32, satIndexA int, satIndexB
 		dists[satIndexA] = m
 	}
 	m[satIndexB] = dist
-}
-
-func convBytesToString(buff []byte) string {
-	j := len(buff) - 1
-	for i := 0; i < len(buff); i++ {
-		if buff[i] == 0 {
-			j = i
-			break
-		}
-	}
-	buff = buff[:j]
-	return strings.TrimSpace(string(buff))
 }

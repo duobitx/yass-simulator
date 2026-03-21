@@ -611,11 +611,13 @@ class GeoCommon final :
   // accessors -------------------------------------------------------
 
   enum : int {
-    kItemsFieldNumber = 2,
-    kDistancesFieldNumber = 3,
-    kTimeFieldNumber = 1,
+    kItemsFieldNumber = 4,
+    kDistancesFieldNumber = 5,
+    kTimeFieldNumber = 3,
+    kNsatFieldNumber = 1,
+    kNbsFieldNumber = 2,
   };
-  // repeated .yass.fs.Item items = 2;
+  // repeated .yass.fs.Item items = 4;
   int items_size() const;
   private:
   int _internal_items_size() const;
@@ -633,7 +635,7 @@ class GeoCommon final :
   const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::yass::fs::Item >&
       items() const;
 
-  // repeated .yass.fs.Distance distances = 3;
+  // repeated .yass.fs.Distance distances = 5;
   int distances_size() const;
   private:
   int _internal_distances_size() const;
@@ -651,7 +653,7 @@ class GeoCommon final :
   const ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::yass::fs::Distance >&
       distances() const;
 
-  // .google.protobuf.Timestamp time = 1;
+  // .google.protobuf.Timestamp time = 3;
   bool has_time() const;
   private:
   bool _internal_has_time() const;
@@ -669,6 +671,24 @@ class GeoCommon final :
       ::PROTOBUF_NAMESPACE_ID::Timestamp* time);
   ::PROTOBUF_NAMESPACE_ID::Timestamp* unsafe_arena_release_time();
 
+  // int32 nsat = 1;
+  void clear_nsat();
+  int32_t nsat() const;
+  void set_nsat(int32_t value);
+  private:
+  int32_t _internal_nsat() const;
+  void _internal_set_nsat(int32_t value);
+  public:
+
+  // int32 nbs = 2;
+  void clear_nbs();
+  int32_t nbs() const;
+  void set_nbs(int32_t value);
+  private:
+  int32_t _internal_nbs() const;
+  void _internal_set_nbs(int32_t value);
+  public:
+
   // @@protoc_insertion_point(class_scope:yass.fs.GeoCommon)
  private:
   class _Internal;
@@ -680,6 +700,8 @@ class GeoCommon final :
     ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::yass::fs::Item > items_;
     ::PROTOBUF_NAMESPACE_ID::RepeatedPtrField< ::yass::fs::Distance > distances_;
     ::PROTOBUF_NAMESPACE_ID::Timestamp* time_;
+    int32_t nsat_;
+    int32_t nbs_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -994,7 +1016,47 @@ inline void Distance::set_los(bool value) {
 
 // GeoCommon
 
-// .google.protobuf.Timestamp time = 1;
+// int32 nsat = 1;
+inline void GeoCommon::clear_nsat() {
+  _impl_.nsat_ = 0;
+}
+inline int32_t GeoCommon::_internal_nsat() const {
+  return _impl_.nsat_;
+}
+inline int32_t GeoCommon::nsat() const {
+  // @@protoc_insertion_point(field_get:yass.fs.GeoCommon.nsat)
+  return _internal_nsat();
+}
+inline void GeoCommon::_internal_set_nsat(int32_t value) {
+  
+  _impl_.nsat_ = value;
+}
+inline void GeoCommon::set_nsat(int32_t value) {
+  _internal_set_nsat(value);
+  // @@protoc_insertion_point(field_set:yass.fs.GeoCommon.nsat)
+}
+
+// int32 nbs = 2;
+inline void GeoCommon::clear_nbs() {
+  _impl_.nbs_ = 0;
+}
+inline int32_t GeoCommon::_internal_nbs() const {
+  return _impl_.nbs_;
+}
+inline int32_t GeoCommon::nbs() const {
+  // @@protoc_insertion_point(field_get:yass.fs.GeoCommon.nbs)
+  return _internal_nbs();
+}
+inline void GeoCommon::_internal_set_nbs(int32_t value) {
+  
+  _impl_.nbs_ = value;
+}
+inline void GeoCommon::set_nbs(int32_t value) {
+  _internal_set_nbs(value);
+  // @@protoc_insertion_point(field_set:yass.fs.GeoCommon.nbs)
+}
+
+// .google.protobuf.Timestamp time = 3;
 inline bool GeoCommon::_internal_has_time() const {
   return this != internal_default_instance() && _impl_.time_ != nullptr;
 }
@@ -1079,7 +1141,7 @@ inline void GeoCommon::set_allocated_time(::PROTOBUF_NAMESPACE_ID::Timestamp* ti
   // @@protoc_insertion_point(field_set_allocated:yass.fs.GeoCommon.time)
 }
 
-// repeated .yass.fs.Item items = 2;
+// repeated .yass.fs.Item items = 4;
 inline int GeoCommon::_internal_items_size() const {
   return _impl_.items_.size();
 }
@@ -1119,7 +1181,7 @@ GeoCommon::items() const {
   return _impl_.items_;
 }
 
-// repeated .yass.fs.Distance distances = 3;
+// repeated .yass.fs.Distance distances = 5;
 inline int GeoCommon::_internal_distances_size() const {
   return _impl_.distances_.size();
 }

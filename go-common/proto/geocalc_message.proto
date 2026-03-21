@@ -27,7 +27,9 @@ message Distance {
 }
 
 message GeoCommon {
-  google.protobuf.Timestamp time = 1;
-  repeated Item items = 2;
-  repeated Distance distances = 3;
+  int32 nsat = 1;
+  int32 nbs = 2;
+  google.protobuf.Timestamp time = 3;
+  repeated Item items = 4;
+  repeated Distance distances = 5;
 }

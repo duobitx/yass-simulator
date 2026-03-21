@@ -64,6 +64,8 @@ PROTOBUF_CONSTEXPR GeoCommon::GeoCommon(
     /*decltype(_impl_.items_)*/{}
   , /*decltype(_impl_.distances_)*/{}
   , /*decltype(_impl_.time_)*/nullptr
+  , /*decltype(_impl_.nsat_)*/0
+  , /*decltype(_impl_.nbs_)*/0
   , /*decltype(_impl_._cached_size_)*/{}} {}
 struct GeoCommonDefaultTypeInternal {
   PROTOBUF_CONSTEXPR GeoCommonDefaultTypeInternal()
@@ -112,6 +114,8 @@ const uint32_t TableStruct_geocalc_5fmessage_2eproto::offsets[] PROTOBUF_SECTION
   ~0u,  // no _oneof_case_
   ~0u,  // no _weak_field_map_
   ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::yass::fs::GeoCommon, _impl_.nsat_),
+  PROTOBUF_FIELD_OFFSET(::yass::fs::GeoCommon, _impl_.nbs_),
   PROTOBUF_FIELD_OFFSET(::yass::fs::GeoCommon, _impl_.time_),
   PROTOBUF_FIELD_OFFSET(::yass::fs::GeoCommon, _impl_.items_),
   PROTOBUF_FIELD_OFFSET(::yass::fs::GeoCommon, _impl_.distances_),
@@ -135,19 +139,20 @@ const char descriptor_table_protodef_geocalc_5fmessage_2eproto[] PROTOBUF_SECTIO
   "\001\022\t\n\001z\030\005 \001(\001\022\013\n\003lat\030\006 \001(\001\022\013\n\003lon\030\007 \001(\001\022\013"
   "\n\003alt\030\010 \001(\001\022\022\n\nin_the_sun\030\t \001(\010\"O\n\010Dista"
   "nce\022\021\n\titem_id_a\030\001 \001(\005\022\021\n\titem_id_b\030\002 \001("
-  "\005\022\020\n\010distance\030\003 \001(\002\022\013\n\003los\030\004 \001(\010\"y\n\tGeoC"
-  "ommon\022(\n\004time\030\001 \001(\0132\032.google.protobuf.Ti"
-  "mestamp\022\034\n\005items\030\002 \003(\0132\r.yass.fs.Item\022$\n"
-  "\tdistances\030\003 \003(\0132\021.yass.fs.DistanceBCZAg"
-  "ithub.com/duobitx/yass-internal-componen"
-  "ts/go-common/proto;protob\006proto3"
+  "\005\022\020\n\010distance\030\003 \001(\002\022\013\n\003los\030\004 \001(\010\"\224\001\n\tGeo"
+  "Common\022\014\n\004nsat\030\001 \001(\005\022\013\n\003nbs\030\002 \001(\005\022(\n\004tim"
+  "e\030\003 \001(\0132\032.google.protobuf.Timestamp\022\034\n\005i"
+  "tems\030\004 \003(\0132\r.yass.fs.Item\022$\n\tdistances\030\005"
+  " \003(\0132\021.yass.fs.DistanceBCZAgithub.com/du"
+  "obitx/yass-internal-components/go-common"
+  "/proto;protob\006proto3"
   ;
 static const ::_pbi::DescriptorTable* const descriptor_table_geocalc_5fmessage_2eproto_deps[1] = {
   &::descriptor_table_google_2fprotobuf_2ftimestamp_2eproto,
 };
 static ::_pbi::once_flag descriptor_table_geocalc_5fmessage_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_geocalc_5fmessage_2eproto = {
-    false, false, 472, descriptor_table_protodef_geocalc_5fmessage_2eproto,
+    false, false, 500, descriptor_table_protodef_geocalc_5fmessage_2eproto,
     "geocalc_message.proto",
     &descriptor_table_geocalc_5fmessage_2eproto_once, descriptor_table_geocalc_5fmessage_2eproto_deps, 1, 3,
     schemas, file_default_instances, TableStruct_geocalc_5fmessage_2eproto::offsets,
@@ -943,12 +948,17 @@ GeoCommon::GeoCommon(const GeoCommon& from)
       decltype(_impl_.items_){from._impl_.items_}
     , decltype(_impl_.distances_){from._impl_.distances_}
     , decltype(_impl_.time_){nullptr}
+    , decltype(_impl_.nsat_){}
+    , decltype(_impl_.nbs_){}
     , /*decltype(_impl_._cached_size_)*/{}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
   if (from._internal_has_time()) {
     _this->_impl_.time_ = new ::PROTOBUF_NAMESPACE_ID::Timestamp(*from._impl_.time_);
   }
+  ::memcpy(&_impl_.nsat_, &from._impl_.nsat_,
+    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.nbs_) -
+    reinterpret_cast<char*>(&_impl_.nsat_)) + sizeof(_impl_.nbs_));
   // @@protoc_insertion_point(copy_constructor:yass.fs.GeoCommon)
 }
 
@@ -960,6 +970,8 @@ inline void GeoCommon::SharedCtor(
       decltype(_impl_.items_){arena}
     , decltype(_impl_.distances_){arena}
     , decltype(_impl_.time_){nullptr}
+    , decltype(_impl_.nsat_){0}
+    , decltype(_impl_.nbs_){0}
     , /*decltype(_impl_._cached_size_)*/{}
   };
 }
@@ -996,6 +1008,9 @@ void GeoCommon::Clear() {
     delete _impl_.time_;
   }
   _impl_.time_ = nullptr;
+  ::memset(&_impl_.nsat_, 0, static_cast<size_t>(
+      reinterpret_cast<char*>(&_impl_.nbs_) -
+      reinterpret_cast<char*>(&_impl_.nsat_)) + sizeof(_impl_.nbs_));
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -1005,37 +1020,53 @@ const char* GeoCommon::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx
     uint32_t tag;
     ptr = ::_pbi::ReadTag(ptr, &tag);
     switch (tag >> 3) {
-      // .google.protobuf.Timestamp time = 1;
+      // int32 nsat = 1;
       case 1:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 8)) {
+          _impl_.nsat_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // int32 nbs = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 16)) {
+          _impl_.nbs_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint32(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // .google.protobuf.Timestamp time = 3;
+      case 3:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 26)) {
           ptr = ctx->ParseMessage(_internal_mutable_time(), ptr);
           CHK_(ptr);
         } else
           goto handle_unusual;
         continue;
-      // repeated .yass.fs.Item items = 2;
-      case 2:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 18)) {
+      // repeated .yass.fs.Item items = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 34)) {
           ptr -= 1;
           do {
             ptr += 1;
             ptr = ctx->ParseMessage(_internal_add_items(), ptr);
             CHK_(ptr);
             if (!ctx->DataAvailable(ptr)) break;
-          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<18>(ptr));
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<34>(ptr));
         } else
           goto handle_unusual;
         continue;
-      // repeated .yass.fs.Distance distances = 3;
-      case 3:
-        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 26)) {
+      // repeated .yass.fs.Distance distances = 5;
+      case 5:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 42)) {
           ptr -= 1;
           do {
             ptr += 1;
             ptr = ctx->ParseMessage(_internal_add_distances(), ptr);
             CHK_(ptr);
             if (!ctx->DataAvailable(ptr)) break;
-          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<26>(ptr));
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<42>(ptr));
         } else
           goto handle_unusual;
         continue;
@@ -1068,27 +1099,39 @@ uint8_t* GeoCommon::_InternalSerialize(
   uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
-  // .google.protobuf.Timestamp time = 1;
+  // int32 nsat = 1;
+  if (this->_internal_nsat() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteInt32ToArray(1, this->_internal_nsat(), target);
+  }
+
+  // int32 nbs = 2;
+  if (this->_internal_nbs() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteInt32ToArray(2, this->_internal_nbs(), target);
+  }
+
+  // .google.protobuf.Timestamp time = 3;
   if (this->_internal_has_time()) {
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-      InternalWriteMessage(1, _Internal::time(this),
+      InternalWriteMessage(3, _Internal::time(this),
         _Internal::time(this).GetCachedSize(), target, stream);
   }
 
-  // repeated .yass.fs.Item items = 2;
+  // repeated .yass.fs.Item items = 4;
   for (unsigned i = 0,
       n = static_cast<unsigned>(this->_internal_items_size()); i < n; i++) {
     const auto& repfield = this->_internal_items(i);
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-        InternalWriteMessage(2, repfield, repfield.GetCachedSize(), target, stream);
+        InternalWriteMessage(4, repfield, repfield.GetCachedSize(), target, stream);
   }
 
-  // repeated .yass.fs.Distance distances = 3;
+  // repeated .yass.fs.Distance distances = 5;
   for (unsigned i = 0,
       n = static_cast<unsigned>(this->_internal_distances_size()); i < n; i++) {
     const auto& repfield = this->_internal_distances(i);
     target = ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::
-        InternalWriteMessage(3, repfield, repfield.GetCachedSize(), target, stream);
+        InternalWriteMessage(5, repfield, repfield.GetCachedSize(), target, stream);
   }
 
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
@@ -1107,25 +1150,35 @@ size_t GeoCommon::ByteSizeLong() const {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
-  // repeated .yass.fs.Item items = 2;
+  // repeated .yass.fs.Item items = 4;
   total_size += 1UL * this->_internal_items_size();
   for (const auto& msg : this->_impl_.items_) {
     total_size +=
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
   }
 
-  // repeated .yass.fs.Distance distances = 3;
+  // repeated .yass.fs.Distance distances = 5;
   total_size += 1UL * this->_internal_distances_size();
   for (const auto& msg : this->_impl_.distances_) {
     total_size +=
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(msg);
   }
 
-  // .google.protobuf.Timestamp time = 1;
+  // .google.protobuf.Timestamp time = 3;
   if (this->_internal_has_time()) {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::MessageSize(
         *_impl_.time_);
+  }
+
+  // int32 nsat = 1;
+  if (this->_internal_nsat() != 0) {
+    total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(this->_internal_nsat());
+  }
+
+  // int32 nbs = 2;
+  if (this->_internal_nbs() != 0) {
+    total_size += ::_pbi::WireFormatLite::Int32SizePlusOne(this->_internal_nbs());
   }
 
   return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
@@ -1152,6 +1205,12 @@ void GeoCommon::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROT
     _this->_internal_mutable_time()->::PROTOBUF_NAMESPACE_ID::Timestamp::MergeFrom(
         from._internal_time());
   }
+  if (from._internal_nsat() != 0) {
+    _this->_internal_set_nsat(from._internal_nsat());
+  }
+  if (from._internal_nbs() != 0) {
+    _this->_internal_set_nbs(from._internal_nbs());
+  }
   _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
 }
 
@@ -1171,7 +1230,12 @@ void GeoCommon::InternalSwap(GeoCommon* other) {
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
   _impl_.items_.InternalSwap(&other->_impl_.items_);
   _impl_.distances_.InternalSwap(&other->_impl_.distances_);
-  swap(_impl_.time_, other->_impl_.time_);
+  ::PROTOBUF_NAMESPACE_ID::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(GeoCommon, _impl_.nbs_)
+      + sizeof(GeoCommon::_impl_.nbs_)
+      - PROTOBUF_FIELD_OFFSET(GeoCommon, _impl_.time_)>(
+          reinterpret_cast<char*>(&_impl_.time_),
+          reinterpret_cast<char*>(&other->_impl_.time_));
 }
 
 ::PROTOBUF_NAMESPACE_ID::Metadata GeoCommon::GetMetadata() const {

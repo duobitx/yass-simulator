@@ -3,6 +3,7 @@ package geocalc
 import (
 	"bufio"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -12,14 +13,18 @@ import (
 	"sync"
 	"syscall"
 	"time"
-	"unsafe"
 
 	"github.com/duobitx/yass-internal-components/go-common/common_slog"
+	geocalcproto "github.com/duobitx/yass-internal-components/go-common/proto/go"
 	"github.com/m-szalik/goutils"
 	errors2 "github.com/pkg/errors"
+	"google.golang.org/protobuf/proto"
 )
 
 const shmFilePath = "/dev/shm/geo_calc_shared_memory"
+const shmHeaderSize = 5
+
+var errSharedMemBusy = errors.New("geo_calc shared memory frame in progress")
 
 func run(ctx context.Context, name string, args ...string) error {
 	llog := common_slog.FromContext(ctx)
@@ -93,10 +98,19 @@ func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration, chOut 
 		return fmt.Errorf("cannot open %s:: %w ", shmFilePath, err)
 	}
 	defer goutils.CloseQuietly(shmFile)
+
+	fi, err := shmFile.Stat()
+	if err != nil {
+		return fmt.Errorf("cannot stat %s:: %w", shmFilePath, err)
+	}
+	if fi.Size() < shmHeaderSize {
+		return fmt.Errorf("shared memory too small: %d", fi.Size())
+	}
+
 	data, err := syscall.Mmap(
 		int(shmFile.Fd()),
 		0,
-		int(unsafe.Sizeof(common{})),
+		int(fi.Size()),
 		syscall.PROT_READ,
 		syscall.MAP_SHARED,
 	)
@@ -104,7 +118,6 @@ func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration, chOut 
 		return fmt.Errorf("mmap error:: %w", err)
 	}
 	defer func() { _ = syscall.Munmap(data) }()
-	commonMem := (*common)(unsafe.Pointer(&data[0]))
 
 	ticker := time.NewTicker(tickTime)
 	defer ticker.Stop()
@@ -120,15 +133,20 @@ func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration, chOut 
 				case <-ctx.Done():
 					return ctx.Err()
 				default:
-					if commonMem.Busy > 0 {
+					message, err := readGeoCalcMessage(data)
+					if errors.Is(err, errSharedMemBusy) {
 						if time.Now().After(timeout) {
-							slog.Default().Error("cannot convert geoUpdate as it is still busy")
+							slog.Default().Error("cannot read geoUpdate as it is still busy")
 							break busyLoop
 						}
 						time.Sleep(2 * time.Millisecond)
 						continue
 					}
-					update, err := Convert(commonMem)
+					if err != nil {
+						slog.Default().Error("cannot read geoCalc frame from shared memory", "error", err)
+						break busyLoop
+					}
+					update, err := Convert(message)
 					if err != nil {
 						slog.Default().Error("cannot convert geoCalc response to geoUpdate", "error", err)
 					} else {
@@ -144,6 +162,43 @@ func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration, chOut 
 			}
 		}
 	}
+}
+
+func readGeoCalcMessage(data []byte) (*geocalcproto.GeoCommon, error) {
+	payload, err := readStablePayload(data)
+	if err != nil {
+		return nil, err
+	}
+
+	out := &geocalcproto.GeoCommon{}
+	if err := proto.Unmarshal(payload, out); err != nil {
+		return nil, fmt.Errorf("protobuf unmarshal failed: %w", err)
+	}
+	return out, nil
+}
+
+func readStablePayload(data []byte) ([]byte, error) {
+	for i := 0; i < 5; i++ {
+		if data[0] != 0xff {
+			return nil, errSharedMemBusy
+		}
+
+		size := int(binary.LittleEndian.Uint32(data[1:shmHeaderSize]))
+		if size < 0 {
+			return nil, fmt.Errorf("invalid frame size: %d", size)
+		}
+		if size > len(data)-shmHeaderSize {
+			return nil, fmt.Errorf("frame size %d exceeds buffer %d", size, len(data)-shmHeaderSize)
+		}
+
+		payload := make([]byte, size)
+		copy(payload, data[shmHeaderSize:shmHeaderSize+size])
+
+		if data[0] == 0xff && int(binary.LittleEndian.Uint32(data[1:shmHeaderSize])) == size {
+			return payload, nil
+		}
+	}
+	return nil, errSharedMemBusy
 }
 
 func RunGeoCalc(parentCctx context.Context, interval time.Duration) (<-chan *GeoCalcUpdate, <-chan error) {
