@@ -30,21 +30,24 @@ tasks:
       - GO111MODULE=on go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.5
 
   proto:
-    desc: Generate Go files from all .proto files
+    desc: Generate Go and CPP files from all .proto files
     deps: [tools]
-    sources:
-      - 'proto/*.proto'
+    
     cmds:
       - |
-        PROTO_FILES=$(find . -type f -name '*.proto' -not -path './.*/*'); \
+        
+        mkdir proto/go proto/cpp || true
+        PROTO_FILES=$(find proto -type f -name '*.proto'); \
         if [ -z "${PROTO_FILES}" ]; then \
           echo "No .proto files found."; \
           exit 0; \
         fi; \
         echo "Generating Go code from protos..."; \
-        for f in ${PROTO_FILES}; do \
+        cd proto; \
+        for f in *.proto; do \
           echo "  protoc ${f}"; \
-          protoc -I . --go_out=paths=source_relative:. ${f}; \
+          protoc --proto_path=. --go_out=go --go_opt=paths=source_relative ${f} || true; \
+          protoc --proto_path=. --cpp_out=cpp ${f} || true; \
         done; \
         echo "Done."
 
@@ -52,6 +55,7 @@ tasks:
     desc: Remove generated *.pb.go files
     cmds:
       - |
-        echo "Removing generated *.pb.go files..."; \
-        find . -type f \( -name '*.pb.go' -o -name '*_pb.go' \) -not -path './.*/*' -print -delete; \
+        pwd
+        echo "Removing generated proto subdirectories ..."; \
+        rm -fr proto/cpp proto/go || true      
         echo "Clean complete."
