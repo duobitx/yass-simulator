@@ -60,7 +60,7 @@ jobs:
 #          working-directory: ${{ matrix.modules }}
 #
 #      - name: Run tests in ${{ matrix.modules }}
-#        run: cd ${{ matrix.modules }} && go test ./...
+#        run: cd ${{ matrix.modules }} && go test -short ./...
 #
 #
 
