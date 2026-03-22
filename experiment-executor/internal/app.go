@@ -11,7 +11,7 @@ import (
 	"github.com/duobitx/yass-internal-components/experiment-executor/internal/model"
 	"github.com/duobitx/yass-internal-components/go-common/cmodel"
 	"github.com/duobitx/yass-internal-components/go-common/com"
-	"github.com/duobitx/yass-internal-components/go-common/proto"
+	proto "github.com/duobitx/yass-internal-components/go-common/proto/go"
 	yassv1 "github.com/duobitx/yass-operator/api/v1"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
@@ -246,6 +246,19 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate)
 			NetworkParams:     networkParams,
 			UpdatedUnixMillis: nowMillis,
 		}
+		func() {
+			t.nodesLock.Lock()
+			defer t.nodesLock.Unlock()
+			if state, ok := t.nodes[data.Name]; ok {
+				state.PosX = data.X
+				state.PosY = data.Y
+				state.PosZ = data.Z
+				state.Lat = data.Lat
+				state.Lng = data.Lng
+				state.Alt = data.Alt
+			}
+		}()
+
 		err := t.facade.Publish(t.mainCtx, fmt.Sprintf("updates/%s", data.Name), 0, true, gr)
 		jeh.Append(err)
 	}
