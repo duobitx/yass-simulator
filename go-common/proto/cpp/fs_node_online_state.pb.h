@@ -29,6 +29,9 @@
 #include <google/protobuf/message.h>
 #include <google/protobuf/repeated_field.h>  // IWYU pragma: export
 #include <google/protobuf/extension_set.h>  // IWYU pragma: export
+#include <google/protobuf/map.h>  // IWYU pragma: export
+#include <google/protobuf/map_entry.h>
+#include <google/protobuf/map_field_inl.h>
 #include <google/protobuf/unknown_field_set.h>
 // @@protoc_insertion_point(includes)
 #include <google/protobuf/port_def.inc>
@@ -52,11 +55,15 @@ extern FsNodeIdDefaultTypeInternal _FsNodeId_default_instance_;
 class FsNodeOnlineState;
 struct FsNodeOnlineStateDefaultTypeInternal;
 extern FsNodeOnlineStateDefaultTypeInternal _FsNodeOnlineState_default_instance_;
+class FsNodeOnlineState_PropertiesEntry_DoNotUse;
+struct FsNodeOnlineState_PropertiesEntry_DoNotUseDefaultTypeInternal;
+extern FsNodeOnlineState_PropertiesEntry_DoNotUseDefaultTypeInternal _FsNodeOnlineState_PropertiesEntry_DoNotUse_default_instance_;
 }  // namespace fs
 }  // namespace yass
 PROTOBUF_NAMESPACE_OPEN
 template<> ::yass::fs::FsNodeId* Arena::CreateMaybeMessage<::yass::fs::FsNodeId>(Arena*);
 template<> ::yass::fs::FsNodeOnlineState* Arena::CreateMaybeMessage<::yass::fs::FsNodeOnlineState>(Arena*);
+template<> ::yass::fs::FsNodeOnlineState_PropertiesEntry_DoNotUse* Arena::CreateMaybeMessage<::yass::fs::FsNodeOnlineState_PropertiesEntry_DoNotUse>(Arena*);
 PROTOBUF_NAMESPACE_CLOSE
 namespace yass {
 namespace fs {
@@ -232,6 +239,34 @@ class FsNodeId final :
 };
 // -------------------------------------------------------------------
 
+class FsNodeOnlineState_PropertiesEntry_DoNotUse : public ::PROTOBUF_NAMESPACE_ID::internal::MapEntry<FsNodeOnlineState_PropertiesEntry_DoNotUse, 
+    std::string, std::string,
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_STRING,
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_STRING> {
+public:
+  typedef ::PROTOBUF_NAMESPACE_ID::internal::MapEntry<FsNodeOnlineState_PropertiesEntry_DoNotUse, 
+    std::string, std::string,
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_STRING,
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_STRING> SuperType;
+  FsNodeOnlineState_PropertiesEntry_DoNotUse();
+  explicit PROTOBUF_CONSTEXPR FsNodeOnlineState_PropertiesEntry_DoNotUse(
+      ::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+  explicit FsNodeOnlineState_PropertiesEntry_DoNotUse(::PROTOBUF_NAMESPACE_ID::Arena* arena);
+  void MergeFrom(const FsNodeOnlineState_PropertiesEntry_DoNotUse& other);
+  static const FsNodeOnlineState_PropertiesEntry_DoNotUse* internal_default_instance() { return reinterpret_cast<const FsNodeOnlineState_PropertiesEntry_DoNotUse*>(&_FsNodeOnlineState_PropertiesEntry_DoNotUse_default_instance_); }
+  static bool ValidateKey(std::string* s) {
+    return ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(s->data(), static_cast<int>(s->size()), ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::PARSE, "yass.fs.FsNodeOnlineState.PropertiesEntry.key");
+ }
+  static bool ValidateValue(std::string* s) {
+    return ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(s->data(), static_cast<int>(s->size()), ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::PARSE, "yass.fs.FsNodeOnlineState.PropertiesEntry.value");
+ }
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+  friend struct ::TableStruct_fs_5fnode_5fonline_5fstate_2eproto;
+};
+
+// -------------------------------------------------------------------
+
 class FsNodeOnlineState final :
     public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:yass.fs.FsNodeOnlineState) */ {
  public:
@@ -280,7 +315,7 @@ class FsNodeOnlineState final :
                &_FsNodeOnlineState_default_instance_);
   }
   static constexpr int kIndexInFileMessages =
-    1;
+    2;
 
   friend void swap(FsNodeOnlineState& a, FsNodeOnlineState& b) {
     a.Swap(&b);
@@ -341,6 +376,8 @@ class FsNodeOnlineState final :
   protected:
   explicit FsNodeOnlineState(::PROTOBUF_NAMESPACE_ID::Arena* arena,
                        bool is_message_owned = false);
+  private:
+  static void ArenaDtor(void* object);
   public:
 
   static const ClassData _class_data_;
@@ -350,13 +387,33 @@ class FsNodeOnlineState final :
 
   // nested types ----------------------------------------------------
 
+
   // accessors -------------------------------------------------------
 
   enum : int {
+    kPropertiesFieldNumber = 5,
     kIpFieldNumber = 2,
+    kNodeTypeFieldNumber = 4,
     kFsNodeIdFieldNumber = 1,
     kOnlineFieldNumber = 3,
   };
+  // map<string, string> properties = 5;
+  int properties_size() const;
+  private:
+  int _internal_properties_size() const;
+  public:
+  void clear_properties();
+  private:
+  const ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >&
+      _internal_properties() const;
+  ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >*
+      _internal_mutable_properties();
+  public:
+  const ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >&
+      properties() const;
+  ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >*
+      mutable_properties();
+
   // string ip = 2;
   void clear_ip();
   const std::string& ip() const;
@@ -369,6 +426,20 @@ class FsNodeOnlineState final :
   const std::string& _internal_ip() const;
   inline PROTOBUF_ALWAYS_INLINE void _internal_set_ip(const std::string& value);
   std::string* _internal_mutable_ip();
+  public:
+
+  // string nodeType = 4;
+  void clear_nodetype();
+  const std::string& nodetype() const;
+  template <typename ArgT0 = const std::string&, typename... ArgT>
+  void set_nodetype(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_nodetype();
+  PROTOBUF_NODISCARD std::string* release_nodetype();
+  void set_allocated_nodetype(std::string* nodetype);
+  private:
+  const std::string& _internal_nodetype() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_nodetype(const std::string& value);
+  std::string* _internal_mutable_nodetype();
   public:
 
   // .yass.fs.FsNodeId fsNodeId = 1;
@@ -406,7 +477,13 @@ class FsNodeOnlineState final :
   typedef void InternalArenaConstructable_;
   typedef void DestructorSkippable_;
   struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::MapField<
+        FsNodeOnlineState_PropertiesEntry_DoNotUse,
+        std::string, std::string,
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_STRING,
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::TYPE_STRING> properties_;
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr ip_;
+    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr nodetype_;
     ::yass::fs::FsNodeId* fsnodeid_;
     bool online_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
@@ -524,6 +601,8 @@ inline void FsNodeId::set_allocated_experiment(std::string* experiment) {
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
   // @@protoc_insertion_point(field_set_allocated:yass.fs.FsNodeId.experiment)
 }
+
+// -------------------------------------------------------------------
 
 // -------------------------------------------------------------------
 
@@ -689,9 +768,90 @@ inline void FsNodeOnlineState::set_online(bool value) {
   // @@protoc_insertion_point(field_set:yass.fs.FsNodeOnlineState.online)
 }
 
+// string nodeType = 4;
+inline void FsNodeOnlineState::clear_nodetype() {
+  _impl_.nodetype_.ClearToEmpty();
+}
+inline const std::string& FsNodeOnlineState::nodetype() const {
+  // @@protoc_insertion_point(field_get:yass.fs.FsNodeOnlineState.nodeType)
+  return _internal_nodetype();
+}
+template <typename ArgT0, typename... ArgT>
+inline PROTOBUF_ALWAYS_INLINE
+void FsNodeOnlineState::set_nodetype(ArgT0&& arg0, ArgT... args) {
+ 
+ _impl_.nodetype_.Set(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:yass.fs.FsNodeOnlineState.nodeType)
+}
+inline std::string* FsNodeOnlineState::mutable_nodetype() {
+  std::string* _s = _internal_mutable_nodetype();
+  // @@protoc_insertion_point(field_mutable:yass.fs.FsNodeOnlineState.nodeType)
+  return _s;
+}
+inline const std::string& FsNodeOnlineState::_internal_nodetype() const {
+  return _impl_.nodetype_.Get();
+}
+inline void FsNodeOnlineState::_internal_set_nodetype(const std::string& value) {
+  
+  _impl_.nodetype_.Set(value, GetArenaForAllocation());
+}
+inline std::string* FsNodeOnlineState::_internal_mutable_nodetype() {
+  
+  return _impl_.nodetype_.Mutable(GetArenaForAllocation());
+}
+inline std::string* FsNodeOnlineState::release_nodetype() {
+  // @@protoc_insertion_point(field_release:yass.fs.FsNodeOnlineState.nodeType)
+  return _impl_.nodetype_.Release();
+}
+inline void FsNodeOnlineState::set_allocated_nodetype(std::string* nodetype) {
+  if (nodetype != nullptr) {
+    
+  } else {
+    
+  }
+  _impl_.nodetype_.SetAllocated(nodetype, GetArenaForAllocation());
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (_impl_.nodetype_.IsDefault()) {
+    _impl_.nodetype_.Set("", GetArenaForAllocation());
+  }
+#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:yass.fs.FsNodeOnlineState.nodeType)
+}
+
+// map<string, string> properties = 5;
+inline int FsNodeOnlineState::_internal_properties_size() const {
+  return _impl_.properties_.size();
+}
+inline int FsNodeOnlineState::properties_size() const {
+  return _internal_properties_size();
+}
+inline void FsNodeOnlineState::clear_properties() {
+  _impl_.properties_.Clear();
+}
+inline const ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >&
+FsNodeOnlineState::_internal_properties() const {
+  return _impl_.properties_.GetMap();
+}
+inline const ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >&
+FsNodeOnlineState::properties() const {
+  // @@protoc_insertion_point(field_map:yass.fs.FsNodeOnlineState.properties)
+  return _internal_properties();
+}
+inline ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >*
+FsNodeOnlineState::_internal_mutable_properties() {
+  return _impl_.properties_.MutableMap();
+}
+inline ::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >*
+FsNodeOnlineState::mutable_properties() {
+  // @@protoc_insertion_point(field_mutable_map:yass.fs.FsNodeOnlineState.properties)
+  return _internal_mutable_properties();
+}
+
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 

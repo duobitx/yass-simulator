@@ -9,7 +9,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/duobitx/yass-internal-components/go-common/proto"
+	proto "github.com/duobitx/yass-internal-components/go-common/proto/go"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
 	"github.com/vishvananda/netlink"

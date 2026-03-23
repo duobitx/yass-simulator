@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/duobitx/yass-internal-components/go-common/com"
-	"github.com/duobitx/yass-internal-components/go-common/proto"
+	proto "github.com/duobitx/yass-internal-components/go-common/proto/go"
 	"github.com/duobitx/yass-internal-components/go-common/startup"
 	"github.com/duobitx/yass-internal-components/world-controller/consts"
 	"github.com/duobitx/yass-internal-components/world-controller/internal"

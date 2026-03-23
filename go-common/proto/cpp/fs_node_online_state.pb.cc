@@ -36,9 +36,22 @@ struct FsNodeIdDefaultTypeInternal {
   };
 };
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 FsNodeIdDefaultTypeInternal _FsNodeId_default_instance_;
+PROTOBUF_CONSTEXPR FsNodeOnlineState_PropertiesEntry_DoNotUse::FsNodeOnlineState_PropertiesEntry_DoNotUse(
+    ::_pbi::ConstantInitialized) {}
+struct FsNodeOnlineState_PropertiesEntry_DoNotUseDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR FsNodeOnlineState_PropertiesEntry_DoNotUseDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~FsNodeOnlineState_PropertiesEntry_DoNotUseDefaultTypeInternal() {}
+  union {
+    FsNodeOnlineState_PropertiesEntry_DoNotUse _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 FsNodeOnlineState_PropertiesEntry_DoNotUseDefaultTypeInternal _FsNodeOnlineState_PropertiesEntry_DoNotUse_default_instance_;
 PROTOBUF_CONSTEXPR FsNodeOnlineState::FsNodeOnlineState(
     ::_pbi::ConstantInitialized): _impl_{
-    /*decltype(_impl_.ip_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
+    /*decltype(_impl_.properties_)*/{::_pbi::ConstantInitialized()}
+  , /*decltype(_impl_.ip_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
+  , /*decltype(_impl_.nodetype_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
   , /*decltype(_impl_.fsnodeid_)*/nullptr
   , /*decltype(_impl_.online_)*/false
   , /*decltype(_impl_._cached_size_)*/{}} {}
@@ -53,7 +66,7 @@ struct FsNodeOnlineStateDefaultTypeInternal {
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 FsNodeOnlineStateDefaultTypeInternal _FsNodeOnlineState_default_instance_;
 }  // namespace fs
 }  // namespace yass
-static ::_pb::Metadata file_level_metadata_fs_5fnode_5fonline_5fstate_2eproto[2];
+static ::_pb::Metadata file_level_metadata_fs_5fnode_5fonline_5fstate_2eproto[3];
 static constexpr ::_pb::EnumDescriptor const** file_level_enum_descriptors_fs_5fnode_5fonline_5fstate_2eproto = nullptr;
 static constexpr ::_pb::ServiceDescriptor const** file_level_service_descriptors_fs_5fnode_5fonline_5fstate_2eproto = nullptr;
 
@@ -66,6 +79,16 @@ const uint32_t TableStruct_fs_5fnode_5fonline_5fstate_2eproto::offsets[] PROTOBU
   ~0u,  // no _inlined_string_donated_
   PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeId, _impl_.name_),
   PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeId, _impl_.experiment_),
+  PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeOnlineState_PropertiesEntry_DoNotUse, _has_bits_),
+  PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeOnlineState_PropertiesEntry_DoNotUse, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeOnlineState_PropertiesEntry_DoNotUse, key_),
+  PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeOnlineState_PropertiesEntry_DoNotUse, value_),
+  0,
+  1,
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeOnlineState, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -75,31 +98,38 @@ const uint32_t TableStruct_fs_5fnode_5fonline_5fstate_2eproto::offsets[] PROTOBU
   PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeOnlineState, _impl_.fsnodeid_),
   PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeOnlineState, _impl_.ip_),
   PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeOnlineState, _impl_.online_),
+  PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeOnlineState, _impl_.nodetype_),
+  PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeOnlineState, _impl_.properties_),
 };
 static const ::_pbi::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
   { 0, -1, -1, sizeof(::yass::fs::FsNodeId)},
-  { 8, -1, -1, sizeof(::yass::fs::FsNodeOnlineState)},
+  { 8, 16, -1, sizeof(::yass::fs::FsNodeOnlineState_PropertiesEntry_DoNotUse)},
+  { 18, -1, -1, sizeof(::yass::fs::FsNodeOnlineState)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
   &::yass::fs::_FsNodeId_default_instance_._instance,
+  &::yass::fs::_FsNodeOnlineState_PropertiesEntry_DoNotUse_default_instance_._instance,
   &::yass::fs::_FsNodeOnlineState_default_instance_._instance,
 };
 
 const char descriptor_table_protodef_fs_5fnode_5fonline_5fstate_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) =
   "\n\032fs_node_online_state.proto\022\007yass.fs\",\n"
   "\010FsNodeId\022\014\n\004name\030\001 \001(\t\022\022\n\nexperiment\030\002 "
-  "\001(\t\"T\n\021FsNodeOnlineState\022#\n\010fsNodeId\030\001 \001"
-  "(\0132\021.yass.fs.FsNodeId\022\n\n\002ip\030\002 \001(\t\022\016\n\006onl"
-  "ine\030\003 \001(\010BCZAgithub.com/duobitx/yass-int"
-  "ernal-components/go-common/proto;protob\006"
-  "proto3"
+  "\001(\t\"\331\001\n\021FsNodeOnlineState\022#\n\010fsNodeId\030\001 "
+  "\001(\0132\021.yass.fs.FsNodeId\022\n\n\002ip\030\002 \001(\t\022\016\n\006on"
+  "line\030\003 \001(\010\022\020\n\010nodeType\030\004 \001(\t\022>\n\nproperti"
+  "es\030\005 \003(\0132*.yass.fs.FsNodeOnlineState.Pro"
+  "pertiesEntry\0321\n\017PropertiesEntry\022\013\n\003key\030\001"
+  " \001(\t\022\r\n\005value\030\002 \001(\t:\0028\001BCZAgithub.com/du"
+  "obitx/yass-internal-components/go-common"
+  "/proto;protob\006proto3"
   ;
 static ::_pbi::once_flag descriptor_table_fs_5fnode_5fonline_5fstate_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_fs_5fnode_5fonline_5fstate_2eproto = {
-    false, false, 246, descriptor_table_protodef_fs_5fnode_5fonline_5fstate_2eproto,
+    false, false, 380, descriptor_table_protodef_fs_5fnode_5fonline_5fstate_2eproto,
     "fs_node_online_state.proto",
-    &descriptor_table_fs_5fnode_5fonline_5fstate_2eproto_once, nullptr, 0, 2,
+    &descriptor_table_fs_5fnode_5fonline_5fstate_2eproto_once, nullptr, 0, 3,
     schemas, file_default_instances, TableStruct_fs_5fnode_5fonline_5fstate_2eproto::offsets,
     file_level_metadata_fs_5fnode_5fonline_5fstate_2eproto, file_level_enum_descriptors_fs_5fnode_5fonline_5fstate_2eproto,
     file_level_service_descriptors_fs_5fnode_5fonline_5fstate_2eproto,
@@ -368,6 +398,20 @@ void FsNodeId::InternalSwap(FsNodeId* other) {
 
 // ===================================================================
 
+FsNodeOnlineState_PropertiesEntry_DoNotUse::FsNodeOnlineState_PropertiesEntry_DoNotUse() {}
+FsNodeOnlineState_PropertiesEntry_DoNotUse::FsNodeOnlineState_PropertiesEntry_DoNotUse(::PROTOBUF_NAMESPACE_ID::Arena* arena)
+    : SuperType(arena) {}
+void FsNodeOnlineState_PropertiesEntry_DoNotUse::MergeFrom(const FsNodeOnlineState_PropertiesEntry_DoNotUse& other) {
+  MergeFromInternal(other);
+}
+::PROTOBUF_NAMESPACE_ID::Metadata FsNodeOnlineState_PropertiesEntry_DoNotUse::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_fs_5fnode_5fonline_5fstate_2eproto_getter, &descriptor_table_fs_5fnode_5fonline_5fstate_2eproto_once,
+      file_level_metadata_fs_5fnode_5fonline_5fstate_2eproto[1]);
+}
+
+// ===================================================================
+
 class FsNodeOnlineState::_Internal {
  public:
   static const ::yass::fs::FsNodeId& fsnodeid(const FsNodeOnlineState* msg);
@@ -381,24 +425,38 @@ FsNodeOnlineState::FsNodeOnlineState(::PROTOBUF_NAMESPACE_ID::Arena* arena,
                          bool is_message_owned)
   : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
   SharedCtor(arena, is_message_owned);
+  if (arena != nullptr && !is_message_owned) {
+    arena->OwnCustomDestructor(this, &FsNodeOnlineState::ArenaDtor);
+  }
   // @@protoc_insertion_point(arena_constructor:yass.fs.FsNodeOnlineState)
 }
 FsNodeOnlineState::FsNodeOnlineState(const FsNodeOnlineState& from)
   : ::PROTOBUF_NAMESPACE_ID::Message() {
   FsNodeOnlineState* const _this = this; (void)_this;
   new (&_impl_) Impl_{
-      decltype(_impl_.ip_){}
+      /*decltype(_impl_.properties_)*/{}
+    , decltype(_impl_.ip_){}
+    , decltype(_impl_.nodetype_){}
     , decltype(_impl_.fsnodeid_){nullptr}
     , decltype(_impl_.online_){}
     , /*decltype(_impl_._cached_size_)*/{}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  _this->_impl_.properties_.MergeFrom(from._impl_.properties_);
   _impl_.ip_.InitDefault();
   #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
     _impl_.ip_.Set("", GetArenaForAllocation());
   #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
   if (!from._internal_ip().empty()) {
     _this->_impl_.ip_.Set(from._internal_ip(), 
+      _this->GetArenaForAllocation());
+  }
+  _impl_.nodetype_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.nodetype_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (!from._internal_nodetype().empty()) {
+    _this->_impl_.nodetype_.Set(from._internal_nodetype(), 
       _this->GetArenaForAllocation());
   }
   if (from._internal_has_fsnodeid()) {
@@ -413,7 +471,9 @@ inline void FsNodeOnlineState::SharedCtor(
   (void)arena;
   (void)is_message_owned;
   new (&_impl_) Impl_{
-      decltype(_impl_.ip_){}
+      /*decltype(_impl_.properties_)*/{::_pbi::ArenaInitialized(), arena}
+    , decltype(_impl_.ip_){}
+    , decltype(_impl_.nodetype_){}
     , decltype(_impl_.fsnodeid_){nullptr}
     , decltype(_impl_.online_){false}
     , /*decltype(_impl_._cached_size_)*/{}
@@ -422,12 +482,17 @@ inline void FsNodeOnlineState::SharedCtor(
   #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
     _impl_.ip_.Set("", GetArenaForAllocation());
   #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  _impl_.nodetype_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.nodetype_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
 }
 
 FsNodeOnlineState::~FsNodeOnlineState() {
   // @@protoc_insertion_point(destructor:yass.fs.FsNodeOnlineState)
   if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
   (void)arena;
+    ArenaDtor(this);
     return;
   }
   SharedDtor();
@@ -435,10 +500,17 @@ FsNodeOnlineState::~FsNodeOnlineState() {
 
 inline void FsNodeOnlineState::SharedDtor() {
   GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  _impl_.properties_.Destruct();
+  _impl_.properties_.~MapField();
   _impl_.ip_.Destroy();
+  _impl_.nodetype_.Destroy();
   if (this != internal_default_instance()) delete _impl_.fsnodeid_;
 }
 
+void FsNodeOnlineState::ArenaDtor(void* object) {
+  FsNodeOnlineState* _this = reinterpret_cast< FsNodeOnlineState* >(object);
+  _this->_impl_.properties_.Destruct();
+}
 void FsNodeOnlineState::SetCachedSize(int size) const {
   _impl_._cached_size_.Set(size);
 }
@@ -449,7 +521,9 @@ void FsNodeOnlineState::Clear() {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  _impl_.properties_.Clear();
   _impl_.ip_.ClearToEmpty();
+  _impl_.nodetype_.ClearToEmpty();
   if (GetArenaForAllocation() == nullptr && _impl_.fsnodeid_ != nullptr) {
     delete _impl_.fsnodeid_;
   }
@@ -487,6 +561,29 @@ const char* FsNodeOnlineState::_InternalParse(const char* ptr, ::_pbi::ParseCont
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 24)) {
           _impl_.online_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
           CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // string nodeType = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 34)) {
+          auto str = _internal_mutable_nodetype();
+          ptr = ::_pbi::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(ptr);
+          CHK_(::_pbi::VerifyUTF8(str, "yass.fs.FsNodeOnlineState.nodeType"));
+        } else
+          goto handle_unusual;
+        continue;
+      // map<string, string> properties = 5;
+      case 5:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 42)) {
+          ptr -= 1;
+          do {
+            ptr += 1;
+            ptr = ctx->ParseMessage(&_impl_.properties_, ptr);
+            CHK_(ptr);
+            if (!ctx->DataAvailable(ptr)) break;
+          } while (::PROTOBUF_NAMESPACE_ID::internal::ExpectTag<42>(ptr));
         } else
           goto handle_unusual;
         continue;
@@ -542,6 +639,46 @@ uint8_t* FsNodeOnlineState::_InternalSerialize(
     target = ::_pbi::WireFormatLite::WriteBoolToArray(3, this->_internal_online(), target);
   }
 
+  // string nodeType = 4;
+  if (!this->_internal_nodetype().empty()) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_nodetype().data(), static_cast<int>(this->_internal_nodetype().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "yass.fs.FsNodeOnlineState.nodeType");
+    target = stream->WriteStringMaybeAliased(
+        4, this->_internal_nodetype(), target);
+  }
+
+  // map<string, string> properties = 5;
+  if (!this->_internal_properties().empty()) {
+    using MapType = ::_pb::Map<std::string, std::string>;
+    using WireHelper = FsNodeOnlineState_PropertiesEntry_DoNotUse::Funcs;
+    const auto& map_field = this->_internal_properties();
+    auto check_utf8 = [](const MapType::value_type& entry) {
+      (void)entry;
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+        entry.first.data(), static_cast<int>(entry.first.length()),
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+        "yass.fs.FsNodeOnlineState.PropertiesEntry.key");
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+        entry.second.data(), static_cast<int>(entry.second.length()),
+        ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+        "yass.fs.FsNodeOnlineState.PropertiesEntry.value");
+    };
+
+    if (stream->IsSerializationDeterministic() && map_field.size() > 1) {
+      for (const auto& entry : ::_pbi::MapSorterPtr<MapType>(map_field)) {
+        target = WireHelper::InternalSerialize(5, entry.first, entry.second, target, stream);
+        check_utf8(entry);
+      }
+    } else {
+      for (const auto& entry : map_field) {
+        target = WireHelper::InternalSerialize(5, entry.first, entry.second, target, stream);
+        check_utf8(entry);
+      }
+    }
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -558,11 +695,27 @@ size_t FsNodeOnlineState::ByteSizeLong() const {
   // Prevent compiler warnings about cached_has_bits being unused
   (void) cached_has_bits;
 
+  // map<string, string> properties = 5;
+  total_size += 1 *
+      ::PROTOBUF_NAMESPACE_ID::internal::FromIntSize(this->_internal_properties_size());
+  for (::PROTOBUF_NAMESPACE_ID::Map< std::string, std::string >::const_iterator
+      it = this->_internal_properties().begin();
+      it != this->_internal_properties().end(); ++it) {
+    total_size += FsNodeOnlineState_PropertiesEntry_DoNotUse::Funcs::ByteSizeLong(it->first, it->second);
+  }
+
   // string ip = 2;
   if (!this->_internal_ip().empty()) {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
         this->_internal_ip());
+  }
+
+  // string nodeType = 4;
+  if (!this->_internal_nodetype().empty()) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_nodetype());
   }
 
   // .yass.fs.FsNodeId fsNodeId = 1;
@@ -595,8 +748,12 @@ void FsNodeOnlineState::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, cons
   uint32_t cached_has_bits = 0;
   (void) cached_has_bits;
 
+  _this->_impl_.properties_.MergeFrom(from._impl_.properties_);
   if (!from._internal_ip().empty()) {
     _this->_internal_set_ip(from._internal_ip());
+  }
+  if (!from._internal_nodetype().empty()) {
+    _this->_internal_set_nodetype(from._internal_nodetype());
   }
   if (from._internal_has_fsnodeid()) {
     _this->_internal_mutable_fsnodeid()->::yass::fs::FsNodeId::MergeFrom(
@@ -624,9 +781,14 @@ void FsNodeOnlineState::InternalSwap(FsNodeOnlineState* other) {
   auto* lhs_arena = GetArenaForAllocation();
   auto* rhs_arena = other->GetArenaForAllocation();
   _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  _impl_.properties_.InternalSwap(&other->_impl_.properties_);
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
       &_impl_.ip_, lhs_arena,
       &other->_impl_.ip_, rhs_arena
+  );
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
+      &_impl_.nodetype_, lhs_arena,
+      &other->_impl_.nodetype_, rhs_arena
   );
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
       PROTOBUF_FIELD_OFFSET(FsNodeOnlineState, _impl_.online_)
@@ -639,7 +801,7 @@ void FsNodeOnlineState::InternalSwap(FsNodeOnlineState* other) {
 ::PROTOBUF_NAMESPACE_ID::Metadata FsNodeOnlineState::GetMetadata() const {
   return ::_pbi::AssignDescriptors(
       &descriptor_table_fs_5fnode_5fonline_5fstate_2eproto_getter, &descriptor_table_fs_5fnode_5fonline_5fstate_2eproto_once,
-      file_level_metadata_fs_5fnode_5fonline_5fstate_2eproto[1]);
+      file_level_metadata_fs_5fnode_5fonline_5fstate_2eproto[2]);
 }
 
 // @@protoc_insertion_point(namespace_scope)
@@ -649,6 +811,10 @@ PROTOBUF_NAMESPACE_OPEN
 template<> PROTOBUF_NOINLINE ::yass::fs::FsNodeId*
 Arena::CreateMaybeMessage< ::yass::fs::FsNodeId >(Arena* arena) {
   return Arena::CreateMessageInternal< ::yass::fs::FsNodeId >(arena);
+}
+template<> PROTOBUF_NOINLINE ::yass::fs::FsNodeOnlineState_PropertiesEntry_DoNotUse*
+Arena::CreateMaybeMessage< ::yass::fs::FsNodeOnlineState_PropertiesEntry_DoNotUse >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::yass::fs::FsNodeOnlineState_PropertiesEntry_DoNotUse >(arena);
 }
 template<> PROTOBUF_NOINLINE ::yass::fs::FsNodeOnlineState*
 Arena::CreateMaybeMessage< ::yass::fs::FsNodeOnlineState >(Arena* arena) {

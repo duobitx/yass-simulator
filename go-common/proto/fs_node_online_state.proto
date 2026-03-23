@@ -13,5 +13,6 @@ message FsNodeOnlineState {
   FsNodeId fsNodeId = 1;
   string ip = 2;
   bool online = 3;
-
+  string nodeType = 4;
+  map<string,string> properties = 5;
 }
