@@ -7213,6 +7213,10 @@ spec:
                 required:
                 - tle
                 type: object
+              properties:
+                additionalProperties:
+                  type: string
+                type: object
               rotation:
                 description: Rotation of an object
                 properties:

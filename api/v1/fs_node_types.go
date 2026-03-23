@@ -30,7 +30,8 @@ const (
 
 // FsNodeSpec defines the desired state of FsNode
 type FsNodeSpec struct {
-	NodeType         FsNodeType `json:"nodeType"`
+	NodeType         FsNodeType        `json:"nodeType"`
+	Properties       map[string]string `json:"properties,omitempty"`
 	EmbeddedHardware `json:",inline"`
 	EmbeddedPosition `json:",inline"`
 	// What agent to be installed.

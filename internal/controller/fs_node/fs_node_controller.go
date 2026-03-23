@@ -248,6 +248,9 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		"FS_NODE_TYPE":    string(fsNode.Spec.NodeType),
 		"EXPERIMENT_NAME": experimentName,
 	}
+	for propKey, propVal := range fsNode.Spec.Properties {
+		globalEnvs[strings.ToUpper(strings.ReplaceAll(propKey, "-", "_"))] = propVal
+	}
 
 	initContainer := &v1.Container{
 		Name:            "resource-to-json-fsnode",
