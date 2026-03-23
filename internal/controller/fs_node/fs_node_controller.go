@@ -43,7 +43,8 @@ import (
 )
 
 const (
-	engineVolumeName                = "engine-volume"
+	engineTMPVolumeName             = "engine-tmp-volume"
+	transferVolumeName              = "transfer-volume"
 	agentTMPVolumeName              = "agent-tmp-volume"
 	sharedVolumeName                = "fs-node-shared-volume"
 	removeFsNodeComponentsFinalizer = "fsnode-controller/cleanup"
@@ -230,8 +231,9 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		Spec: v1.PodSpec{
 			Volumes: []v1.Volume{
 				{Name: sharedVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}}, // mounted by default under /shared
-				{Name: engineVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: diskSizeLimit}}},
+				{Name: engineTMPVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{SizeLimit: diskSizeLimit}}},
 				{Name: agentTMPVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
+				{Name: transferVolumeName, VolumeSource: v1.VolumeSource{EmptyDir: &v1.EmptyDirVolumeSource{}}},
 			},
 			TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
 			ServiceAccountName:            "yass-experiment-sa",
@@ -297,6 +299,7 @@ func (r *FsNodeReconciler) getSystemContainers(fsNode *yassv1.FsNode, pod *v1.Po
 			mods: []modFunc{
 				modLogLevelVariableSet(),
 				modVolumeMount(agentTMPVolumeName, "/tmp", false),
+				modVolumeMount(transferVolumeName, "/mnt/transfer", false),
 				modFor(fsNode.Spec.Agent),
 				modMountSharedVolume(true),
 			},
@@ -346,8 +349,13 @@ func (r *FsNodeReconciler) getEngineContainers(fsNode *yassv1.FsNode) []v1.Conta
 			eContainer.VolumeMounts = []v1.VolumeMount{}
 		}
 		eContainer.VolumeMounts = append(eContainer.VolumeMounts, v1.VolumeMount{
-			Name:      engineVolumeName,
-			MountPath: "/mnt/engine",
+			Name:      engineTMPVolumeName,
+			MountPath: "/tmp",
+			ReadOnly:  false,
+		})
+		eContainer.VolumeMounts = append(eContainer.VolumeMounts, v1.VolumeMount{
+			Name:      transferVolumeName,
+			MountPath: "/mnt/transfer",
 			ReadOnly:  false,
 		})
 		setVariableIfUnset(eContainer, "LOG_LEVEL", experimentLogLevel)
