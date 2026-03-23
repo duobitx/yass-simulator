@@ -36,6 +36,8 @@ type LayoutList struct {
 type LayoutSatSpec struct {
 	FsNodeName string `json:"fsNode"`
 
+	NodeType FsNodeType `json:"nodeType"`
+
 	EmbeddedHardware `json:",inline"`
 
 	EmbeddedPosition `json:",inline"`

@@ -111,6 +111,9 @@ func (r *FsNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		return ctrl.Result{}, nil
 	}
 
+	if fsNode.Spec.NodeType == "" {
+		fsNode.Spec.NodeType = yassv1.FsNodeTypeSatellite
+	}
 	// Add finalizer if not present
 	if !controllerutil.ContainsFinalizer(&fsNode, removeFsNodeComponentsFinalizer) {
 		controllerutil.AddFinalizer(&fsNode, removeFsNodeComponentsFinalizer)
@@ -221,6 +224,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 			Namespace: fsNode.Namespace,
 			Labels: map[string]string{
 				controller.LabelFsNode:       fsNode.Name,
+				controller.LabelFsNodeType:   string(fsNode.Spec.NodeType),
 				controller.LabelExperiment:   experimentName,
 				controller.LabelHardwareSpec: hardwareSpecName,
 			},
@@ -239,6 +243,11 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 			ServiceAccountName:            "yass-experiment-sa",
 		},
 	}
+	globalEnvs := map[string]string{
+		"FS_NODE_NAME":    fsNode.Name,
+		"FS_NODE_TYPE":    string(fsNode.Spec.NodeType),
+		"EXPERIMENT_NAME": experimentName,
+	}
 
 	initContainer := &v1.Container{
 		Name:            "resource-to-json-fsnode",
@@ -247,7 +256,8 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		ImagePullPolicy: r.Configuration.InternalComponentImagePullPolicy,
 	}
 	modMountSharedVolume(false)(pod, initContainer)
-	modEnvs(map[string]string{"DST_FILE": "/mnt/shared/fs-node.json", "RESOURCE_KIND": fsNode.Kind, "RESOURCE_NAME": fsNode.Name})(pod, initContainer)
+	modEnvsAppend(map[string]string{"DST_FILE": "/mnt/shared/fs-node.json", "RESOURCE_KIND": fsNode.Kind, "RESOURCE_NAME": fsNode.Name})(pod, initContainer)
+	modEnvsAppend(globalEnvs)(pod, initContainer)
 	modEnvFromField("NAMESPACE", "metadata.namespace")(pod, initContainer)
 	pod.Spec.InitContainers = []v1.Container{*initContainer}
 
@@ -257,6 +267,9 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 	}
 	engineContainers := r.getEngineContainers(fsNode)
 	pod.Spec.Containers = append(containers, engineContainers...)
+	for _, container := range pod.Spec.Containers {
+		modEnvsAppend(globalEnvs)(pod, &container)
+	}
 	pod.Spec.AutomountServiceAccountToken = &True
 
 	for _, volume := range fsNode.Spec.EngineVolumes {
@@ -287,7 +300,7 @@ func (r *FsNodeReconciler) getSystemContainers(fsNode *yassv1.FsNode, pod *v1.Po
 				modHttpProbes(8801),
 				modEnvFromField("POD_IP", "status.podIP"),
 				modEnvFromField("NAMESPACE", "metadata.namespace"),
-				modEnvs(map[string]string{"RESOURCE_NAME": fsNode.Name}),
+				modEnvsAppend(map[string]string{"RESOURCE_NAME": fsNode.Name}),
 				modMountSharedVolume(false),
 				modCapability("NET_ADMIN"),
 			},

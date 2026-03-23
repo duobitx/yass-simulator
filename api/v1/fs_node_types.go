@@ -21,8 +21,16 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+type FsNodeType string
+
+const (
+	FsNodeTypeSatellite     FsNodeType = "satellite"
+	FsNodeTypeGroundStation FsNodeType = "groundStation"
+)
+
 // FsNodeSpec defines the desired state of FsNode
 type FsNodeSpec struct {
+	NodeType         FsNodeType `json:"nodeType"`
 	EmbeddedHardware `json:",inline"`
 	EmbeddedPosition `json:",inline"`
 	// What agent to be installed.
@@ -52,6 +60,7 @@ type FsNodeStatus struct {
 // +kubebuilder:resource:shortName=fsn
 // +kubebuilder:resource:shortName=fsns
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="NodeType",type=string,JSONPath=`.status.nodeType`
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.ready`
 // +kubebuilder:printcolumn:name="BatLev",type=string,JSONPath=`.status.batteryChargeLevel`
 // +kubebuilder:printcolumn:name="BatCharge",type=string,JSONPath=`.status.batteryChargeRate`

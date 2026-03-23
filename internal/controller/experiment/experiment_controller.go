@@ -407,6 +407,7 @@ func (r *Reconciler) createFsNodeResource(ctx context.Context, namespace string,
 				},
 			},
 			Spec: yassv1.FsNodeSpec{
+				NodeType:         layoutItem.NodeType,
 				EmbeddedHardware: layoutItem.EmbeddedHardware,
 				EmbeddedPosition: layoutItem.EmbeddedPosition,
 				EngineContainers: experiment.Spec.EngineContainers,

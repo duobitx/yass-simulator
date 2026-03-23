@@ -36,7 +36,7 @@ func cmd(cmd ...string) modFunc {
 func modMountSharedVolume(ro bool) modFunc {
 	montPath := "/mnt/shared"
 	return modComposite(
-		modEnvs(map[string]string{"SHARED_VOLUME_PATH": montPath}),
+		modEnvsAppend(map[string]string{"SHARED_VOLUME_PATH": montPath}),
 		modVolumeMount(sharedVolumeName, montPath, ro),
 	)
 }
@@ -122,7 +122,7 @@ func modHttpProbes(port int) modFunc {
 	}
 }
 
-func modEnvs(vars map[string]string) modFunc {
+func modEnvsAppend(vars map[string]string) modFunc {
 	return func(pod *v1.Pod, container *v1.Container) {
 		if container.Env == nil {
 			container.Env = []v1.EnvVar{}
@@ -167,7 +167,7 @@ func modCapability(capability v1.Capability) modFunc {
 func modLogLevelVariableSet() modFunc {
 	ll := goutils.Env(experimentLogLevelVariableName, "")
 	if ll != "" {
-		return modEnvs(map[string]string{"LOG_LEVEL": ll})
+		return modEnvsAppend(map[string]string{"LOG_LEVEL": ll})
 	}
 	return func(pod *v1.Pod, container *v1.Container) {}
 }
@@ -220,7 +220,7 @@ func modFor(simpleContainer v2.SimpleContainer) modFunc {
 		modFunctions = append(modFunctions, mf)
 	}
 	if len(simpleContainer.Envs) > 0 {
-		modFunctions = append(modFunctions, modEnvs(simpleContainer.Envs))
+		modFunctions = append(modFunctions, modEnvsAppend(simpleContainer.Envs))
 	}
 	return modComposite(modFunctions...)
 }

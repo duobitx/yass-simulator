@@ -3677,6 +3677,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .status.nodeType
+      name: NodeType
+      type: string
     - jsonPath: .status.ready
       name: Ready
       type: string
@@ -7195,6 +7198,8 @@ spec:
                 description: Satellite Hardware specification. Field hardwareSpec
                   has priority over hardwareSpecRef.
                 type: string
+              nodeType:
+                type: string
               orbit:
                 description: A position of an object as TLE.
                 properties:
@@ -7218,6 +7223,8 @@ spec:
                   yaw:
                     type: number
                 type: object
+            required:
+            - nodeType
             type: object
             x-kubernetes-validations:
             - message: Exactly one of spec.orbit or spec.earthPosition must be set
@@ -7497,6 +7504,8 @@ spec:
                   description: Satellite Hardware specification. Field hardwareSpec
                     has priority over hardwareSpecRef.
                   type: string
+                nodeType:
+                  type: string
                 orbit:
                   description: A position of an object as TLE.
                   properties:
@@ -7522,6 +7531,7 @@ spec:
                   type: object
               required:
               - fsNode
+              - nodeType
               type: object
               x-kubernetes-validations:
               - message: Exactly one of spec.orbit or spec.earthPosition must be set
@@ -7541,6 +7551,8 @@ spec:
       status: {}
 ---
 apiVersion: v1
+imagePullSecrets:
+- name: docker-secret
 kind: ServiceAccount
 metadata:
   labels:
