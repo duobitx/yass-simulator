@@ -53,6 +53,9 @@ type ExperimentSpec struct {
 	SimulationStartTime metav1.Time `json:"simulationStartTime"`
 	// Start if to start the experiment as soon as it's ready.
 	Start bool `json:"start"`
+	// FsNodeProperties is a map of properties to be set on all fsNodes in this experiment.
+	// +optional
+	FsNodeProperties map[string]string `json:"fsNodeProperties,omitempty"`
 
 	// What file system engine to be installed
 	// +kubebuilder:validation:MinItems=1

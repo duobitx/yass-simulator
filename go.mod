@@ -5,7 +5,7 @@ go 1.24.0
 toolchain go1.24.6
 
 require (
-	github.com/m-szalik/goutils v0.2.1
+	github.com/m-szalik/goutils v0.4.0
 	github.com/onsi/ginkgo/v2 v2.22.0
 	github.com/onsi/gomega v1.36.1
 	github.com/pkg/errors v0.9.1

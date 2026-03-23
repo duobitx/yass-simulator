@@ -30,15 +30,25 @@ const (
 
 // FsNodeSpec defines the desired state of FsNode
 type FsNodeSpec struct {
-	NodeType         FsNodeType        `json:"nodeType"`
-	Properties       map[string]string `json:"properties,omitempty"`
+	// NodeType is the type of the node. Can be either satellite or groundStation.
+	NodeType FsNodeType `json:"nodeType"`
+
+	// +kubebuilder:validation:Optional
+	// Properties of the node. Injected as environment variables.
+	Properties map[string]string `json:"properties,omitempty"`
+
 	EmbeddedHardware `json:",inline"`
+
 	EmbeddedPosition `json:",inline"`
-	// What agent to be installed.
+
+	// Agent agent to be installed.
 	Agent SimpleContainer `json:"agent,omitempty"`
-	// What file system engine to be installed
+
+	// EngineContainers what file system engine to be installed.
 	// +kubebuilder:validation:MinItems=1
 	EngineContainers []corev1.Container `json:"engineContainers,omitempty"`
+
+	// EngineVolumes volumes to be mounted into the engine containers.
 	// +kubebuilder:validation:Optional
 	EngineVolumes []corev1.Volume `json:"engineVolumes,omitempty"`
 }

@@ -112,6 +112,11 @@ spec:
                   required:
                   - tle
                   type: object
+                properties:
+                  additionalProperties:
+                    type: string
+                  description: Properties of the node. Injected as environment variables.
+                  type: object
                 rotation:
                   description: Rotation of an object
                   properties:

@@ -38,6 +38,10 @@ type LayoutSatSpec struct {
 
 	NodeType FsNodeType `json:"nodeType"`
 
+	// +kubebuilder:validation:Optional
+	// Properties of the node. Injected as environment variables.
+	Properties map[string]string `json:"properties,omitempty"`
+
 	EmbeddedHardware `json:",inline"`
 
 	EmbeddedPosition `json:",inline"`

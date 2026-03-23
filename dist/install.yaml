@@ -3571,6 +3571,12 @@ spec:
               experimentDefRef:
                 description: Reference to ExperimentDefinition resource.
                 type: string
+              fsNodeProperties:
+                additionalProperties:
+                  type: string
+                description: FsNodeProperties is a map of properties to be set on
+                  all fsNodes in this experiment.
+                type: object
               layoutDefRef:
                 description: Reference to Layout resource.
                 type: string
@@ -3721,7 +3727,7 @@ spec:
             description: spec defines the desired state of FsNode
             properties:
               agent:
-                description: What agent to be installed.
+                description: Agent agent to be installed.
                 properties:
                   configurationFilesFromConfigMap:
                     description: Configuration files can be mounted from ConfigMap.
@@ -3762,7 +3768,7 @@ spec:
                 - lng
                 type: object
               engineContainers:
-                description: What file system engine to be installed
+                description: EngineContainers what file system engine to be installed.
                 items:
                   description: A single application container that you want to run
                     within a pod.
@@ -5284,6 +5290,7 @@ spec:
                 minItems: 1
                 type: array
               engineVolumes:
+                description: EngineVolumes volumes to be mounted into the engine containers.
                 items:
                   description: Volume represents a named volume in a pod that may
                     be accessed by any container in the pod.
@@ -7199,6 +7206,8 @@ spec:
                   has priority over hardwareSpecRef.
                 type: string
               nodeType:
+                description: NodeType is the type of the node. Can be either satellite
+                  or groundStation.
                 type: string
               orbit:
                 description: A position of an object as TLE.
@@ -7216,6 +7225,7 @@ spec:
               properties:
                 additionalProperties:
                   type: string
+                description: Properties of the node. Injected as environment variables.
                 type: object
               rotation:
                 description: Rotation of an object
@@ -7522,6 +7532,11 @@ spec:
                       type: array
                   required:
                   - tle
+                  type: object
+                properties:
+                  additionalProperties:
+                    type: string
+                  description: Properties of the node. Injected as environment variables.
                   type: object
                 rotation:
                   description: Rotation of an object

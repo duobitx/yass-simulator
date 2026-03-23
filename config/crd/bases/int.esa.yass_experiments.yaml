@@ -3451,6 +3451,12 @@ spec:
               experimentDefRef:
                 description: Reference to ExperimentDefinition resource.
                 type: string
+              fsNodeProperties:
+                additionalProperties:
+                  type: string
+                description: FsNodeProperties is a map of properties to be set on
+                  all fsNodes in this experiment.
+                type: object
               layoutDefRef:
                 description: Reference to Layout resource.
                 type: string

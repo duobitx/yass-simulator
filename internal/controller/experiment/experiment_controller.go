@@ -395,6 +395,9 @@ func (r *Reconciler) createFsNodeResource(ctx context.Context, namespace string,
 		if behaviour == nil {
 			return fmt.Errorf("cannot find fsNode item in experimentDefinition for '%s'", layoutItem.FsNodeName)
 		}
+		props := make(map[string]string)
+		props = goutils.MapMergeOverride(props, experiment.Spec.FsNodeProperties, layoutItem.Properties)
+
 		fsNode = &yassv1.FsNode{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      layoutItem.FsNodeName,
@@ -413,6 +416,7 @@ func (r *Reconciler) createFsNodeResource(ctx context.Context, namespace string,
 				EngineContainers: experiment.Spec.EngineContainers,
 				EngineVolumes:    experiment.Spec.EngineVolumes,
 				Agent:            behaviour.Agent,
+				Properties:       props,
 			},
 		}
 		err = r.Create(ctx, fsNode)
