@@ -19,6 +19,7 @@ package v1
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/duobitx/yass-operator/internal/validation"
 	"github.com/m-szalik/goutils"
@@ -32,6 +33,7 @@ import (
 // SetupFsNodeWebhookWithManager registers the webhook for FsNode in the manager.
 func SetupFsNodeWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).For(&yassv1.FsNode{}).
+		WithDefaulter(&FsNodeCustomDefaulter{}).
 		WithValidator(&FsNodeCustomValidator{}).
 		Complete()
 }
@@ -42,7 +44,6 @@ func SetupFsNodeWebhookWithManager(mgr ctrl.Manager) error {
 // NOTE: The +kubebuilder:object:generate=false marker prevents controller-gen from generating DeepCopy methods,
 // as this struct is used only for temporary operations and does not need to be deeply copied.
 type FsNodeCustomValidator struct {
-	// TODO(user): Add more fields as needed for validation
 }
 
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type FsNode.
@@ -64,10 +65,24 @@ func (v *FsNodeCustomValidator) validate(_ context.Context, newObj runtime.Objec
 	if fsnode.Spec.Orbit != nil {
 		validation.ValidateTLE(fsnode.Spec.Orbit.TLE, 0, jah)
 	}
+	if !slices.Contains([]string{"", string(yassv1.FsNodeTypeSatellite), string(yassv1.FsNodeTypeGroundStation)}, string(fsnode.Spec.NodeType)) {
+		jah.Append(fmt.Errorf("invalid node type: %s", fsnode.Spec.NodeType))
+	}
 	return []string{}, jah.AsError()
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type FsNode.
 func (v *FsNodeCustomValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
+}
+
+type FsNodeCustomDefaulter struct {
+}
+
+func (v *FsNodeCustomDefaulter) Default(_ context.Context, obj runtime.Object) error {
+	fsNode := obj.(*yassv1.FsNode)
+	if fsNode.Spec.NodeType == "" {
+		fsNode.Spec.NodeType = yassv1.FsNodeTypeSatellite
+	}
+	return nil
 }
