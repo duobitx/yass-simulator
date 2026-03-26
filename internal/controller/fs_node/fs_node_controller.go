@@ -269,12 +269,12 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		return err
 	}
 	engineContainers := r.getEngineContainers(fsNode)
-	pod.Spec.Containers = append(containers, engineContainers...)
-	for _, container := range pod.Spec.Containers {
-		modEnvsAppend(globalEnvs)(pod, &container)
+	allContainers := append(containers, engineContainers...)
+	for i := range allContainers {
+		modEnvsAppend(globalEnvs)(pod, &allContainers[i])
 	}
+	pod.Spec.Containers = allContainers
 	pod.Spec.AutomountServiceAccountToken = &True
-
 	for _, volume := range fsNode.Spec.EngineVolumes {
 		if volume.ConfigMap != nil || volume.Secret != nil {
 			pod.Spec.Volumes = append(pod.Spec.Volumes, volume)
