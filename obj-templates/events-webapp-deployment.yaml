@@ -20,7 +20,7 @@ spec:
           command:
             - "/events-webapp"
           ports:
-            - containerPort: 8088
+            - containerPort: 8080
           resources:
             requests:
               cpu: "50m"
