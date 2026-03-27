@@ -13,5 +13,5 @@ COPY V6/*.h .
 COPY V6/*.cc .
 
 #RUN g++ -o ./geo_calc geo_calc.cc -L. -lsgp4 -ljansson
-RUN g++ -o geo_calc geo_calc.cc geocalc_message.pb.cc  -L. -lsgp4 -ljansson -lprotobuf -std=c++17
+RUN g++ -o geo_calc geo_calc.cc geocalc_message.pb.cc  -L. -lsgp4 -ljansson -lprotobuf -std=c++17 -static
 
