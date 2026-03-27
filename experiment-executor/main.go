@@ -55,12 +55,16 @@ func main() {
 
 	slog.Info("StartupCompleted....")
 
-	if goutils.Env("AUTOSTART", false) {
-		slog.Info("Starting app... - autostart")
+	autoStart := goutils.Env("AUTOSTART", false)
+	if autoStart {
+		slog.Info("Starting experiment... - autostart")
 		err = app.Start(ctx)          // FIXME
 		goutils.ExitOnError(err, 111) // FIXME mock
 	}
 
+	if !autoStart {
+		slog.Info("Waiting for experiment to start....")
+	}
 	err = srv.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("HTTP server stopped unexpectedly", "error", err)

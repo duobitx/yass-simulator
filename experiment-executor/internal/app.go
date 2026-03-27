@@ -26,13 +26,14 @@ const (
 )
 
 type AppType struct {
-	mainCtx           context.Context
-	facade            com.Facade
-	ExperimentDefData *cmodel.ExperimentDefinition
-	k8sClient         client.Client
-	nodes             map[string]*model.FsNodeState
-	nodesLock         sync.Mutex
-	namespace         string
+	mainCtx             context.Context
+	facade              com.Facade
+	ExperimentDefData   *cmodel.ExperimentDefinition
+	k8sClient           client.Client
+	nodes               map[string]*model.FsNodeState
+	nodesLock           sync.Mutex
+	namespace           string
+	experimentStartedAt *time.Time
 }
 
 func (t *AppType) handleOnlineUpdate(_ context.Context, data []byte) error {
@@ -105,6 +106,9 @@ func NewApp(ctx context.Context, facade com.Facade) (*AppType, error) {
 }
 
 func (t *AppType) Start(ctxParent context.Context) error {
+	if t.experimentStartedAt != nil {
+		return errors.New("experiment already started")
+	}
 	experimentCtx, cancel := context.WithCancelCause(ctxParent)
 	// do not call cancel by default, we want that to continue.
 	err := t.facade.Publish(experimentCtx, experimentEndTopic, 0, true, "")
@@ -182,7 +186,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 		experimentEndAt = startAt.Add(*t.ExperimentDefData.MaxDuration)
 	}
 	slog.Default().Info("starting experiment", "startTime", startAt, "maxDuration", t.ExperimentDefData.MaxDuration)
-
+	t.experimentStartedAt = &startAt
 	return nil
 }
 
