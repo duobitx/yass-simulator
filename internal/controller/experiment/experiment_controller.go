@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"text/template"
 	"time"
 
 	yassv1 "github.com/duobitx/yass-operator/api/v1"
@@ -20,6 +21,7 @@ import (
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	netv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -169,6 +171,9 @@ func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx c
 		{"experiment-executor-service.yaml", "experiment-executor", &v1.Service{}, nil},
 		{"events-webapp-deployment.yaml", "events-webapp", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
 		{"events-webapp-service.yaml", "events-webapp", &v1.Service{}, nil},
+		{"web-ui-deployment.yaml", "web-ui", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
+		{"web-ui-service.yaml", "web-ui", &v1.Service{}, modAddExperimentAnnotation(experiment.Name)},
+		{"web-ui-ingress.yaml", "web-ui", &netv1.Ingress{}, modAddExperimentAnnotation(experiment.Name)},
 	}
 	joinErrHelper := &goutils.JoinErrorHelper{}
 	for _, cDef := range componentDefinitions {
@@ -286,6 +291,14 @@ func (r *Reconciler) createExperimentComponentIfRequired(recon *reconciliationSt
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("cannot read file %s", fn))
 	}
+	values := map[string]any{
+		"experiment": experiment,
+		"namespace":  namespace,
+	}
+	buff, err = processTemplate(buff, values)
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("cannot process template for file %s", fn))
+	}
 	err = yaml.Unmarshal(buff, obj)
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("cannot unmarshall file %s", fn))
@@ -310,6 +323,20 @@ func (r *Reconciler) createExperimentComponentIfRequired(recon *reconciliationSt
 	}
 	err = r.Create(ctx, obj)
 	return err
+}
+
+func processTemplate(buff []byte, values map[string]any) ([]byte, error) {
+	// process goLang template like helm chart
+	tmpl, err := template.New("tmp").Parse(string(buff))
+	if err != nil {
+		return nil, err
+	}
+	var b bytes.Buffer
+	err = tmpl.Execute(&b, values)
+	if err != nil {
+		return nil, err
+	}
+	return b.Bytes(), nil
 }
 
 func (r *Reconciler) updateStatusConditionForExperimentObject(recon *reconciliationStatus, exp *yassv1.Experiment, compName, conditionType string, obj client.Object, extra error) {
