@@ -24,6 +24,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 type appType struct {
@@ -152,10 +153,17 @@ func main() {
 	goutils.ExitOnError(err, 3)
 	err = yassv1.AddToScheme(scheme)
 	goutils.ExitOnError(err, 3)
-	cfg := ctrl.GetConfigOrDie()
-	k8sClient, err := client.New(cfg, client.Options{Scheme: scheme})
-	if err != nil {
-		panic(fmt.Errorf("creating k8s client: %w", err))
+
+	var k8sClient client.Client
+	if goutils.Env("MOCK_K8S", false) {
+		slog.Info("Using fake k8s client")
+		k8sClient = fake.NewClientBuilder().WithScheme(scheme).Build()
+	} else {
+		cfg := ctrl.GetConfigOrDie()
+		k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
+		if err != nil {
+			panic(fmt.Errorf("creating k8s client: %w", err))
+		}
 	}
 	app.k8sClient = k8sClient
 

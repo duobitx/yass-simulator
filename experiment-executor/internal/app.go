@@ -19,6 +19,7 @@ import (
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 const (
@@ -74,13 +75,20 @@ func NewApp(ctx context.Context, facade com.Facade) (*AppType, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg, err := ctrl.GetConfig()
-	if err != nil {
-		return nil, err
-	}
-	k8sClient, err := client.New(cfg, client.Options{Scheme: scheme})
-	if err != nil {
-		return nil, fmt.Errorf("creating k8s client: %w", err)
+
+	var k8sClient client.Client
+	if goutils.Env("MOCK_K8S", false) {
+		slog.Info("Using fake k8s client")
+		k8sClient = fake.NewClientBuilder().WithScheme(scheme).Build()
+	} else {
+		cfg, err := ctrl.GetConfig()
+		if err != nil {
+			return nil, err
+		}
+		k8sClient, err = client.New(cfg, client.Options{Scheme: scheme})
+		if err != nil {
+			return nil, fmt.Errorf("creating k8s client: %w", err)
+		}
 	}
 
 	app := &AppType{
@@ -229,6 +237,7 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GlobalGeoCalcU
 			np := &proto.FsNodeUpdateNetworkParamEntry{}
 			ipFsState, ok := t.nodes[data.ReachableFsNodes[i].NameTo]
 			if !ok {
+				slog.Default().Warn("cannot resolve IP for fsNode", "fsNode", data.ReachableFsNodes[i].NameTo, "processingFsNode", data.Name)
 				// FIXME return fmt.Errorf("cannot resolve IP for fsNode %s, no fsStateEntry", data.ReachableFsNodes[i].To)
 			} else {
 				np.Ip = ipFsState.IP
