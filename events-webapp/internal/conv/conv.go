@@ -15,7 +15,7 @@ func timestamp(millis int64) time.Time {
 
 type CFunc func(topic string, data []byte) (any, error)
 
-func FsNodePosUpdateConv(_ string, data []byte) (any, error) {
+func FsNodeUpdateConv(_ string, data []byte) (any, error) {
 	in := &proto.FsNodeUpdate{}
 	err := com.MsgUnmarshall(data, in)
 	if err != nil {

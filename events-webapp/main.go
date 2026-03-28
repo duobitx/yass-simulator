@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"os/signal"
 	"strings"
 	"syscall"
@@ -20,10 +21,11 @@ import (
 )
 
 type appType struct {
-	mainCtx    context.Context
-	facade     com.Facade
-	ps         pubsub.PubSub[any]
-	psProducer chan<- any
+	mainCtx        context.Context
+	facade         com.Facade
+	ps             pubsub.PubSub[any]
+	psProducer     chan<- any
+	eventsFilePath string
 }
 
 func (t *appType) eventsSSE(w http.ResponseWriter, request *http.Request) {
@@ -85,7 +87,51 @@ func (t *appType) message(_ context.Context, topic string, _ bool, data []byte) 
 	}
 }
 
+func (t *appType) saveEventsToFile(ctx context.Context) {
+	if t.eventsFilePath == "" {
+		return
+	}
+	f, err := os.OpenFile(t.eventsFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		slog.Error("error opening events file", "error", err, "path", t.eventsFilePath)
+		return
+	}
+	defer goutils.CloseQuietly(f)
+
+	slog.Info("Saving events to file", "path", t.eventsFilePath)
+	ch := t.ps.NewSubscriber(ctx)
+	for {
+		select {
+		case evt := <-ch:
+			if evt == nil {
+				continue
+			}
+			buff, err := json.Marshal(evt)
+			if err != nil {
+				slog.Error("error marshalling event for file", "error", err)
+				continue
+			}
+			_, err = fmt.Fprintln(f, string(buff))
+			if err != nil {
+				slog.Error("error writing event to file", "error", err)
+				continue
+			}
+
+		case <-ctx.Done():
+			slog.Info("Stop saving events to file", "path", t.eventsFilePath)
+			return
+		}
+	}
+}
+
 const appName = "events-webapp"
+
+func getEnv(key, fallback string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+	return fallback
+}
 
 func main() {
 	goutils.ExitOnErrorf(startup.InitSlog(), 1, "cannot initialize slog")
@@ -95,12 +141,12 @@ func main() {
 	facade := com.NewFacade(ctx, fmt.Sprintf("%s-%d", appName, rand.Intn(100)))
 
 	ps := pubsub.NewPubSub[any](ctx)
-	sink := make(chan any, 1)
 	app := &appType{
-		mainCtx:    ctx,
-		facade:     facade,
-		ps:         ps,
-		psProducer: ps.NewPublisher(),
+		mainCtx:        ctx,
+		facade:         facade,
+		ps:             ps,
+		psProducer:     ps.NewPublisher(),
+		eventsFilePath: getEnv("EVENTS_FILE_PATH", "events.log"),
 	}
 
 	err := facade.Connect()
@@ -108,6 +154,7 @@ func main() {
 
 	err = startup.FileProbe(ctx)
 	goutils.ExitOnError(err, 6)
+	go app.saveEventsToFile(ctx)
 	slog.Info("StartupCompleted")
 
 	http.HandleFunc("/", func(writer http.ResponseWriter, request *http.Request) {
@@ -124,7 +171,6 @@ func main() {
 	goutils.ExitOnError(err, 8)
 
 	<-ctx.Done()
-	close(sink)
 	time.Sleep(1 * time.Second)
 	slog.Info("Terminated")
 }
