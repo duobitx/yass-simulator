@@ -1,6 +1,7 @@
 package geocalc
 
 import (
+	"math"
 	"time"
 
 	geocalcproto "github.com/duobitx/yass-internal-components/go-common/proto/go"
@@ -23,19 +24,19 @@ func Convert(input *geocalcproto.GeoCommon) (*GlobalGeoCalcUpdate, error) {
 		fsCount = expected
 	}
 	fsNodesList := make([]*FsNodeInfo, fsCount)
-	distances := make(map[int]map[int]float32)
 	jeh := goutils.JoinErrorHelper{}
 	for i := 0; i < fsCount; i++ {
 		item := input.GetItems()[i]
 		itemName := item.GetName()
 		fsn := FsNodeInfo{
-			Name: itemName,
-			X:    float32(item.GetX()),
-			Y:    float32(item.GetY()),
-			Z:    float32(item.GetZ()),
-			Lat:  float32(item.GetLat()),
-			Lng:  float32(item.GetLon()),
-			Alt:  float32(item.GetAlt()),
+			Name:             itemName,
+			X:                float32(item.GetX()),
+			Y:                float32(item.GetY()),
+			Z:                float32(item.GetZ()),
+			Lat:              float32(item.GetLat()),
+			Lng:              float32(item.GetLon()),
+			Alt:              float32(item.GetAlt()),
+			ReachableFsNodes: []DistanceInfo{},
 		}
 		fsNodesList[i] = &fsn
 	}
@@ -46,36 +47,19 @@ func Convert(input *geocalcproto.GeoCommon) (*GlobalGeoCalcUpdate, error) {
 		}
 		a := int(d.GetItemIdA()) - 1
 		b := int(d.GetItemIdB()) - 1
+		if a == b {
+			continue
+		}
 		if a < 0 || a >= fsCount || b < 0 || b >= fsCount {
 			jeh.Append(errors.Errorf("invalid distance refs a=%d b=%d (where: index:%d, fsCount:%d)", a, b, distIndex, fsCount))
 			continue
 		}
-		appendDistance(&distances, a, b, d.GetDistance())
+		appendDistance(&fsNodesList, a, b, d.GetDistance())
+		appendDistance(&fsNodesList, b, a, d.GetDistance())
 	}
 	err := jeh.AsError()
 	if err != nil {
 		return nil, errors.Wrapf(err, "cannot parse gocalc input")
-	}
-
-	// fill DistanceInfo for each fsNode
-	for i, fsNode := range fsNodesList {
-		fsDistances, ok := distances[i]
-		if !ok {
-			fsNode.ReachableFsNodes = []DistanceInfo{}
-		} else {
-			dInfos := make([]DistanceInfo, len(fsDistances))
-			index := 0
-			for kIndex, vDist := range fsDistances {
-				to := fsNodesList[kIndex]
-				di := DistanceInfo{
-					Distance: vDist,
-					NameTo:   to.Name,
-				}
-				dInfos[index] = di
-				index++
-			}
-			fsNode.ReachableFsNodes = dInfos
-		}
 	}
 
 	up := &GlobalGeoCalcUpdate{
@@ -85,15 +69,17 @@ func Convert(input *geocalcproto.GeoCommon) (*GlobalGeoCalcUpdate, error) {
 	return up, nil
 }
 
-func appendDistance(distances *map[int]map[int]float32, satIndexA int, satIndexB int, dist float32) {
-	if satIndexA == satIndexB {
-		return
+func appendDistance(to *[]*FsNodeInfo, refIndex int, aIndex int, dist float32) {
+	distances := (*to)[refIndex].ReachableFsNodes
+	toName := (*to)[aIndex].Name
+	for _, d := range distances {
+		if d.NameTo == toName {
+			return
+		}
 	}
-	dists := *distances
-	m, ok := dists[satIndexA]
-	if !ok {
-		m = make(map[int]float32)
-		dists[satIndexA] = m
-	}
-	m[satIndexB] = dist
+	distances = append(distances, DistanceInfo{
+		Distance: float32(math.Abs(float64(dist))),
+		NameTo:   toName,
+	})
+	(*to)[refIndex].ReachableFsNodes = distances
 }
