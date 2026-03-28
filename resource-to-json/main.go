@@ -45,39 +45,48 @@ func main() {
 	}
 	var jsonObj any
 	namespacedName := types.NamespacedName{Name: resourceName, Namespace: namespace}
+	exportedResources := map[string]any{}
 	switch strings.ToLower(resourceKind) {
 	case "fsnode":
-		jsonObj, err = handleFsNodeResource(ctx, k8sClient, namespacedName)
+		var hwSpec *yassv1.HardwareSpec
+		jsonObj, hwSpec, err = handleFsNodeResource(ctx, k8sClient, namespacedName)
+		exportedResources[dstFilename] = jsonObj
+		exportedResources["hardware.json"] = hwSpec
 	case "experiment":
 		jsonObj, err = handleExperimentResource(ctx, k8sClient, namespacedName)
+		exportedResources[dstFilename] = jsonObj
+	case "hardwareDefinition":
+		jsonObj, err = handleHardwareDefinitionResource(ctx, k8sClient, namespacedName)
+		exportedResources[dstFilename] = jsonObj
+
 	default:
 		panic(fmt.Sprintf("dont know how to handle kind '%s'", resourceKind))
 	}
 	if err != nil {
 		panic(fmt.Sprintf("error handling kind %s for %s :: %s", resourceKind, namespacedName, err))
 	}
-	slog.Info("Got resource", "resource", namespacedName)
-	buff, err := json.Marshal(jsonObj)
-	if err != nil {
-		panic(fmt.Sprintf("cannot convert %T to json :: %s", jsonObj, err))
-	}
-	slog.Info("saving data to json file", "filename", dstFilename)
-	err = os.WriteFile(dstFilename, buff, 0o744)
-	fmt.Printf("JSON %s:\n%s\n", dstFilename, string(buff))
-	if err != nil {
-		panic(fmt.Sprintf("cannot save file %s :: %s", dstFilename, err))
+	for fn, obj := range exportedResources {
+		slog.Info("Resource exporting", "resourceType", fmt.Sprintf("%T", obj), "filename", fn)
+		buff, err := json.Marshal(obj)
+		if err != nil {
+			panic(fmt.Sprintf("cannot convert %T to json :: %s", obj, err))
+		}
+		err = os.WriteFile(dstFilename, buff, 0o744)
+		fmt.Printf("JSON %s:\n\n%s\n\n", dstFilename, string(buff))
+		if err != nil {
+			panic(fmt.Sprintf("cannot save file %s :: %s", dstFilename, err))
+		}
+		slog.Info("Resource exported successfully", "resourceType", fmt.Sprintf("%T", obj), "filename", fn)
 	}
 	slog.Info("Completed")
 }
 
-func handleFsNodeResource(
-	ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName,
-) (*cmodel.FsNode, error) {
+func handleFsNodeResource(ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName) (*cmodel.FsNode, *yassv1.HardwareSpec, error) {
 	ret := &cmodel.FsNode{}
 	obj := &yassv1.FsNode{}
 	err := k8sClient.Get(ctx, namespacedName, obj)
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("error getting kubernetes resource %T %s", obj, namespacedName))
+		return nil, nil, errors.Wrap(err, fmt.Sprintf("error getting kubernetes resource %T %s", obj, namespacedName))
 	}
 
 	ret.Name = obj.Name
@@ -95,6 +104,15 @@ func handleFsNodeResource(
 		ret.Rotation.Roll = obj.Spec.Rotation.Roll
 		ret.Rotation.Pitch = obj.Spec.Rotation.Pitch
 	}
+	return ret, obj.Spec.HardwareSpec, nil
+}
+func handleHardwareDefinitionResource(ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName) (*yassv1.HardwareDefinition, error) {
+	obj := &yassv1.HardwareDefinition{}
+	err := k8sClient.Get(ctx, namespacedName, obj)
+	if err != nil {
+		return nil, errors.Wrap(err, fmt.Sprintf("error getting kubernetes resource %T %s", obj, namespacedName))
+	}
+	ret := obj.DeepCopy()
 	return ret, nil
 }
 
