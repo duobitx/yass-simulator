@@ -46,4 +46,24 @@ type HardwareSpec struct {
 	// Available disk space. If not defined then unlimited.
 	// +kubebuilder:validation:Optional
 	DiskSpace *resource.Quantity `json:"diskSpace"`
+
+	BatteryCapacityWh float32 `json:"batteryCapacityWh"`
+	// +kubebuilder:validation:Optional
+	BatteryChargeW float32 `json:"batteryChargeW"`
+	// +kubebuilder:validation:Optional
+	EnergyConsumption HardwareSpecEnergyConsumption `json:"energyConsumption"`
+	// +kubebuilder:validation:Optional
+	LowPowerThresholdWh float32 `json:"lowPowerThresholdWh"`
+}
+
+type HardwareSpecEnergyConsumption struct {
+	NormalPowerBaseW float32 `json:"normalPowerBaseW"`
+	// +kubebuilder:validation:Optional
+	LowPowerBaseW float32 `json:"lowPowerBaseW"`
+	// +kubebuilder:validation:Optional
+	PerkByteTXWh float32 `json:"perkByteTXWh"`
+	// +kubebuilder:validation:Optional
+	PerkByteDiskWR float32 `json:"perkByteDiskWR"`
+	// +kubebuilder:validation:Optional
+	PerkByteDiskRD float32 `json:"perkByteDiskRD"`
 }

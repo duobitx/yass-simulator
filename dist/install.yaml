@@ -3689,11 +3689,8 @@ spec:
     - jsonPath: .status.ready
       name: Ready
       type: string
-    - jsonPath: .status.batteryChargeLevel
+    - jsonPath: .status.battery
       name: BatLev
-      type: string
-    - jsonPath: .status.batteryChargeRate
-      name: BatCharge
       type: string
     - jsonPath: .status.lowPower
       name: LowPower
@@ -7176,6 +7173,10 @@ spec:
               hardwareSpec:
                 description: Satellite hardware spec.
                 properties:
+                  batteryCapacityWh:
+                    type: number
+                  batteryChargeW:
+                    type: number
                   cpu:
                     anyOf:
                     - type: integer
@@ -7190,6 +7191,23 @@ spec:
                     description: Available disk space. If not defined then unlimited.
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
+                  energyConsumption:
+                    properties:
+                      lowPowerBaseW:
+                        type: number
+                      normalPowerBaseW:
+                        type: number
+                      perkByteDiskRD:
+                        type: number
+                      perkByteDiskWR:
+                        type: number
+                      perkByteTXWh:
+                        type: number
+                    required:
+                    - normalPowerBaseW
+                    type: object
+                  lowPowerThresholdWh:
+                    type: number
                   memory:
                     anyOf:
                     - type: integer
@@ -7198,6 +7216,7 @@ spec:
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
                 required:
+                - batteryCapacityWh
                 - cpu
                 - memory
                 type: object
@@ -7250,9 +7269,9 @@ spec:
           status:
             description: status defines the observed state of FsNode
             properties:
-              batteryChargeLevel:
+              battery:
                 type: string
-              batteryChargeRate:
+              batteryConsumption:
                 type: string
               conditions:
                 description: The status of each condition is one of True, False, or
@@ -7322,8 +7341,8 @@ spec:
               ready:
                 type: boolean
             required:
-            - batteryChargeLevel
-            - batteryChargeRate
+            - battery
+            - batteryConsumption
             - lowPower
             - posStr
             - ready
@@ -7389,6 +7408,10 @@ spec:
             type: object
           spec:
             properties:
+              batteryCapacityWh:
+                type: number
+              batteryChargeW:
+                type: number
               cpu:
                 anyOf:
                 - type: integer
@@ -7403,6 +7426,23 @@ spec:
                 description: Available disk space. If not defined then unlimited.
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
+              energyConsumption:
+                properties:
+                  lowPowerBaseW:
+                    type: number
+                  normalPowerBaseW:
+                    type: number
+                  perkByteDiskRD:
+                    type: number
+                  perkByteDiskWR:
+                    type: number
+                  perkByteTXWh:
+                    type: number
+                required:
+                - normalPowerBaseW
+                type: object
+              lowPowerThresholdWh:
+                type: number
               memory:
                 anyOf:
                 - type: integer
@@ -7411,6 +7451,7 @@ spec:
                 pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                 x-kubernetes-int-or-string: true
             required:
+            - batteryCapacityWh
             - cpu
             - memory
             type: object
@@ -7489,6 +7530,10 @@ spec:
                 hardwareSpec:
                   description: Satellite hardware spec.
                   properties:
+                    batteryCapacityWh:
+                      type: number
+                    batteryChargeW:
+                      type: number
                     cpu:
                       anyOf:
                       - type: integer
@@ -7503,6 +7548,23 @@ spec:
                       description: Available disk space. If not defined then unlimited.
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
+                    energyConsumption:
+                      properties:
+                        lowPowerBaseW:
+                          type: number
+                        normalPowerBaseW:
+                          type: number
+                        perkByteDiskRD:
+                          type: number
+                        perkByteDiskWR:
+                          type: number
+                        perkByteTXWh:
+                          type: number
+                      required:
+                      - normalPowerBaseW
+                      type: object
+                    lowPowerThresholdWh:
+                      type: number
                     memory:
                       anyOf:
                       - type: integer
@@ -7511,6 +7573,7 @@ spec:
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
                   required:
+                  - batteryCapacityWh
                   - cpu
                   - memory
                   type: object
