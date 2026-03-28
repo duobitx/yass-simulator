@@ -7371,13 +7371,13 @@ spec:
   scope: Cluster
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .spec.CPU
+    - jsonPath: .spec.cpu
       name: CPU
       type: string
-    - jsonPath: .spec.Memory
+    - jsonPath: .spec.memory
       name: Memory
       type: string
-    - jsonPath: .spec.DiskSpace
+    - jsonPath: .spec.diskSpace
       name: DiskSpace
       type: string
     name: v1

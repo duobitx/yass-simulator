@@ -13,9 +13,9 @@ func init() {
 // +kubebuilder:resource:scope=Cluster
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="CPU",type=string,JSONPath=`.spec.CPU`
-// +kubebuilder:printcolumn:name="Memory",type=string,JSONPath=`.spec.Memory`
-// +kubebuilder:printcolumn:name="DiskSpace",type=string,JSONPath=`.spec.DiskSpace`
+// +kubebuilder:printcolumn:name="CPU",type=string,JSONPath=`.spec.cpu`
+// +kubebuilder:printcolumn:name="Memory",type=string,JSONPath=`.spec.memory`
+// +kubebuilder:printcolumn:name="DiskSpace",type=string,JSONPath=`.spec.diskSpace`
 type HardwareDefinition struct {
 	metav1.TypeMeta `json:",inline"`
 
