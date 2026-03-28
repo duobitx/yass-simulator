@@ -5,6 +5,8 @@ tasks:
     desc: Run Makefile default target
     cmds:
       - make
+      - make build-installer
+      - make docker-buildx
 
   help:
     desc: Display Makefile help
@@ -12,6 +14,6 @@ tasks:
       - make help
 
   make:
-    desc: Run any Makefile target (example: task make -- test)
+    desc: "Run any Makefile target (example: task make -- test)"
     cmds:
       - make {{.CLI_ARGS}}
