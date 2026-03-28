@@ -92,7 +92,7 @@ func run(ctx context.Context, name string, args ...string) error {
 	return nil
 }
 
-func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration, chOut chan<- *GeoCalcUpdate) error {
+func readFromGeoCalcBlocking(ctx context.Context, tickTime time.Duration, chOut chan<- *GlobalGeoCalcUpdate) error {
 	shmFile, err := os.Open(shmFilePath)
 	if err != nil {
 		return fmt.Errorf("cannot open %s:: %w ", shmFilePath, err)
@@ -201,8 +201,8 @@ func readStablePayload(data []byte) ([]byte, error) {
 	return nil, errSharedMemBusy
 }
 
-func RunGeoCalc(parentCctx context.Context, interval time.Duration) (<-chan *GeoCalcUpdate, <-chan error) {
-	chOut := make(chan *GeoCalcUpdate)
+func RunGeoCalc(parentCctx context.Context, interval time.Duration) (<-chan *GlobalGeoCalcUpdate, <-chan error) {
+	chOut := make(chan *GlobalGeoCalcUpdate)
 	chErr := make(chan error, 1)
 	llog := slog.Default().WithGroup("geocalc")
 	ctx := common_slog.NewContext(parentCctx, llog)

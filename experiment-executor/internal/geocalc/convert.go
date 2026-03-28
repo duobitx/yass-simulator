@@ -8,7 +8,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func Convert(input *geocalcproto.GeoCommon) (*GeoCalcUpdate, error) {
+func Convert(input *geocalcproto.GeoCommon) (*GlobalGeoCalcUpdate, error) {
 	if input == nil {
 		return nil, errors.New("nil geocalc input")
 	}
@@ -69,7 +69,7 @@ func Convert(input *geocalcproto.GeoCommon) (*GeoCalcUpdate, error) {
 				to := fsNodesList[kIndex]
 				di := DistanceInfo{
 					Distance: vDist,
-					To:       to.Name,
+					NameTo:   to.Name,
 				}
 				dInfos[index] = di
 				index++
@@ -78,11 +78,9 @@ func Convert(input *geocalcproto.GeoCommon) (*GeoCalcUpdate, error) {
 		}
 	}
 
-	up := &GeoCalcUpdate{
-		SatCount:           int(input.GetNsat()),
-		GroundStationCount: int(input.GetNbs()),
-		CurrentTime:        tNow,
-		FsNodeInfos:        fsNodesList,
+	up := &GlobalGeoCalcUpdate{
+		CurrentTime: tNow,
+		FsNodeInfos: fsNodesList,
 	}
 	return up, nil
 }

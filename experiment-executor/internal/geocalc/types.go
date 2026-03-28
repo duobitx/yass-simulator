@@ -4,16 +4,14 @@ import (
 	"time"
 )
 
-type GeoCalcUpdate struct {
-	SatCount           int
-	GroundStationCount int
-	CurrentTime        time.Time
-	FsNodeInfos        []*FsNodeInfo
+type GlobalGeoCalcUpdate struct {
+	CurrentTime time.Time
+	FsNodeInfos []*FsNodeInfo
 }
 
 type DistanceInfo struct {
 	Distance float32
-	To       string
+	NameTo   string
 }
 
 type FsNodeInfo struct {

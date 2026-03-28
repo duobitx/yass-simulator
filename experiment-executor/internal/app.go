@@ -220,21 +220,21 @@ func (t *AppType) experimentCompletedUpdateExperimentResource(completionReason s
 	return nil
 }
 
-func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GeoCalcUpdate) error {
+func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GlobalGeoCalcUpdate) error {
 	nowMillis := upd.CurrentTime.UnixMilli()
 	jeh := goutils.JoinErrorHelper{}
 	for _, data := range upd.FsNodeInfos {
 		networkParams := make([]*proto.FsNodeUpdateNetworkParamEntry, len(data.ReachableFsNodes))
 		for i := 0; i < len(networkParams); i++ {
 			np := &proto.FsNodeUpdateNetworkParamEntry{}
-			ipFsState, ok := t.nodes[data.ReachableFsNodes[i].To]
+			ipFsState, ok := t.nodes[data.ReachableFsNodes[i].NameTo]
 			if !ok {
 				// FIXME return fmt.Errorf("cannot resolve IP for fsNode %s, no fsStateEntry", data.ReachableFsNodes[i].To)
 			} else {
 				np.Ip = ipFsState.IP
 			}
 			np.Distance = data.ReachableFsNodes[i].Distance
-			t.calculateNetworkParam(data, data.ReachableFsNodes[i].To, np)
+			t.calculateNetworkParam(data, data.ReachableFsNodes[i].NameTo, np)
 			networkParams[i] = np
 		}
 		gr := &proto.FsNodeUpdate{
