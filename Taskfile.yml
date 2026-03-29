@@ -6,7 +6,9 @@ tasks:
     cmds:
       - make
       - make build-installer
-      - make docker-buildx
+      # FIXME - make docker-buildx
+      - make docker-build
+      - make docker-push
 
   help:
     desc: Display Makefile help
