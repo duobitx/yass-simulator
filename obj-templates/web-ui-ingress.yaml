@@ -7,7 +7,7 @@ metadata:
     cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   rules:
-  - host: {{.Values.experiment.name}}.yass.duobit.pl
+  - host: {{.Values.experimentName}}.yass.duobit.pl
     http:
       paths:
       - path: /
@@ -19,5 +19,5 @@ spec:
               number: 80
 #  tls:
 #  - hosts:
-#    - {{.Values.experiment.name}}.yass.duobit.pl
+#    - {{.Values.experimentName}}.yass.duobit.pl
 #    secretName: yass-web-ui-tls

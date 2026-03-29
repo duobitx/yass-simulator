@@ -292,8 +292,10 @@ func (r *Reconciler) createExperimentComponentIfRequired(recon *reconciliationSt
 		return errors.Wrap(err, fmt.Sprintf("cannot read file %s", fn))
 	}
 	values := map[string]any{
-		"experiment": experiment,
-		"namespace":  namespace,
+		"templateFile":   fName,
+		"experiment":     experiment,
+		"namespace":      namespace,
+		"experimentName": experiment.Name,
 	}
 	buff, err = processTemplate(buff, values)
 	if err != nil {
