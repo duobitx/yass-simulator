@@ -3544,7 +3544,6 @@ spec:
                 type: string
             required:
             - experimentState
-            - experimentTime
             type: object
         type: object
     served: true

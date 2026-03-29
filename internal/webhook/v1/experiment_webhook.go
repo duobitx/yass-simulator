@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
@@ -63,7 +64,10 @@ func (d *ExperimentCustomDefaulter) Default(_ context.Context, obj runtime.Objec
 		return fmt.Errorf("expected an Experiment object but got %T", obj)
 	}
 	experimentlog.Info("Defaulting for Experiment", "name", experiment.GetName())
-
+	if experiment.Spec.SimulationStartTime == nil || experiment.Spec.SimulationStartTime.IsZero() {
+		now := metav1.Now()
+		experiment.Spec.SimulationStartTime = &now
+	}
 	// TODO(user): fill in your defaulting logic.
 
 	return nil

@@ -69,7 +69,8 @@ type ExperimentSpec struct {
 type ExperimentStatus struct {
 	ExperimentState ExperimentState `json:"experimentState"`
 
-	ExperimentTime metav1.Time `json:"experimentTime"`
+	// +optional
+	ExperimentTime metav1.Time `json:"experimentTime,omitempty"`
 
 	// +listType=map
 	// +listMapKey=type

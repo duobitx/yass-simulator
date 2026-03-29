@@ -19,8 +19,8 @@ package v1
 import (
 	"context"
 	"fmt"
+	"strings"
 
-	"github.com/duobitx/yass-operator/internal/validation"
 	"github.com/m-szalik/goutils"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -31,37 +31,52 @@ import (
 
 // SetupLayoutWebhookWithManager registers the webhook for Layout in the manager.
 func SetupLayoutWebhookWithManager(mgr ctrl.Manager) error {
+	instance := &LayoutWebhook{}
 	return ctrl.NewWebhookManagedBy(mgr).For(&yassv1.Layout{}).
-		WithValidator(&LayoutCustomValidator{}).
+		WithDefaulter(instance).
+		WithValidator(instance).
 		Complete()
 }
 
-type LayoutCustomValidator struct{}
+type LayoutWebhook struct{}
 
 // ValidateCreate implements webhook.CustomValidator so a webhook will be registered for the type Layout.
-func (v *LayoutCustomValidator) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+func (v *LayoutWebhook) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
 	return v.validate(ctx, obj)
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Layout.
-func (v *LayoutCustomValidator) ValidateUpdate(ctx context.Context, _, newObj runtime.Object) (admission.Warnings, error) {
+func (v *LayoutWebhook) ValidateUpdate(ctx context.Context, _, newObj runtime.Object) (admission.Warnings, error) {
 	return v.validate(ctx, newObj)
 }
-func (v *LayoutCustomValidator) validate(_ context.Context, newObj runtime.Object) (admission.Warnings, error) {
+func (v *LayoutWebhook) validate(_ context.Context, newObj runtime.Object) (admission.Warnings, error) {
 	layout, ok := newObj.(*yassv1.Layout)
 	if !ok {
 		return nil, fmt.Errorf("expected a Layout object for the newObj but got %T", newObj)
 	}
-	jah := goutils.NewJoinErrorHelper()
+	jeh := goutils.NewJoinErrorHelper()
 	for elementIndex, node := range layout.Spec {
 		if node.Orbit != nil {
-			validation.ValidateTLE(node.Orbit.TLE, elementIndex, jah)
+			validateTLE(node.Orbit.TLE, elementIndex, jeh)
+		}
+		if !isValidNodeType(string(node.NodeType)) {
+			jeh.Append(fmt.Errorf("element %d: invalid nodeType %s, can be one of %s", elementIndex, node.NodeType, strings.Join(validNodeTypes, ", ")))
 		}
 	}
-	return []string{}, jah.AsError()
+	return []string{}, jeh.AsError()
 }
 
 // ValidateDelete implements webhook.CustomValidator so a webhook will be registered for the type Layout.
-func (v *LayoutCustomValidator) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
+func (v *LayoutWebhook) ValidateDelete(_ context.Context, _ runtime.Object) (admission.Warnings, error) {
 	return nil, nil
+}
+
+func (v *LayoutWebhook) Default(_ context.Context, obj runtime.Object) error {
+	fsNode := obj.(*yassv1.Layout)
+	for _, node := range fsNode.Spec {
+		if node.NodeType == "" {
+			node.NodeType = yassv1.FsNodeTypeSatellite
+		}
+	}
+	return nil
 }

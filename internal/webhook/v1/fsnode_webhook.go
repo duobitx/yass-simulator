@@ -19,9 +19,8 @@ package v1
 import (
 	"context"
 	"fmt"
-	"slices"
+	"strings"
 
-	"github.com/duobitx/yass-operator/internal/validation"
 	"github.com/m-szalik/goutils"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -63,10 +62,10 @@ func (v *FsNodeCustomValidator) validate(_ context.Context, newObj runtime.Objec
 	}
 	jah := goutils.NewJoinErrorHelper()
 	if fsnode.Spec.Orbit != nil {
-		validation.ValidateTLE(fsnode.Spec.Orbit.TLE, 0, jah)
+		validateTLE(fsnode.Spec.Orbit.TLE, 0, jah)
 	}
-	if !slices.Contains([]string{"", string(yassv1.FsNodeTypeSatellite), string(yassv1.FsNodeTypeGroundStation)}, string(fsnode.Spec.NodeType)) {
-		jah.Append(fmt.Errorf("invalid node type: %s", fsnode.Spec.NodeType))
+	if !isValidNodeType(string(fsnode.Spec.NodeType)) {
+		jah.Append(fmt.Errorf("invalid node type: %s, can be one of %s", fsnode.Spec.NodeType, strings.Join(validNodeTypes, ", ")))
 	}
 	return []string{}, jah.AsError()
 }

@@ -28,13 +28,13 @@ var _ = Describe("Layout Webhook", func() {
 	var (
 		obj       *yassv1.Layout
 		oldObj    *yassv1.Layout
-		validator LayoutCustomValidator
+		validator LayoutWebhook
 	)
 
 	BeforeEach(func() {
 		obj = &yassv1.Layout{}
 		oldObj = &yassv1.Layout{}
-		validator = LayoutCustomValidator{}
+		validator = LayoutWebhook{}
 		Expect(validator).NotTo(BeNil(), "Expected validator to be initialized")
 		Expect(oldObj).NotTo(BeNil(), "Expected oldObj to be initialized")
 		Expect(obj).NotTo(BeNil(), "Expected obj to be initialized")
