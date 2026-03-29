@@ -23,12 +23,9 @@ spec:
     - jsonPath: .status.ready
       name: Ready
       type: string
-    - jsonPath: .status.battery
-      name: BatLev
+    - jsonPath: .status.batteryStr
+      name: Bat
       type: string
-    - jsonPath: .status.lowPower
-      name: LowPower
-      type: boolean
     - jsonPath: .status.posStr
       name: PosOverEarth
       type: string
@@ -3603,7 +3600,7 @@ spec:
           status:
             description: status defines the observed state of FsNode
             properties:
-              batteryConsumption:
+              batteryStr:
                 type: string
               conditions:
                 description: The status of each condition is one of True, False, or
@@ -3671,7 +3668,7 @@ spec:
               ready:
                 type: boolean
             required:
-            - batteryConsumption
+            - batteryStr
             - posStr
             - ready
             type: object

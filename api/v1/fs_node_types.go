@@ -62,7 +62,7 @@ type FsNodeStatus struct {
 	Conditions           []*metav1.Condition `json:"conditions,omitempty"`
 	Ready                bool                `json:"ready"`
 	PosStr               string              `json:"posStr"`
-	EnergyConsumptionStr string              `json:"batteryConsumption"`
+	EnergyConsumptionStr string              `json:"batteryStr"`
 }
 
 // +kubebuilder:object:root=true
@@ -71,8 +71,7 @@ type FsNodeStatus struct {
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="NodeType",type=string,JSONPath=`.spec.nodeType`
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.ready`
-// +kubebuilder:printcolumn:name="BatLev",type=string,JSONPath=`.status.battery`
-// +kubebuilder:printcolumn:name="LowPower",type=boolean,JSONPath=`.status.lowPower`
+// +kubebuilder:printcolumn:name="Bat",type=string,JSONPath=`.status.batteryStr`
 // +kubebuilder:printcolumn:name="PosOverEarth",type=string,JSONPath=`.status.posStr`
 // FsNode is the Schema for the FsNode API
 type FsNode struct {
