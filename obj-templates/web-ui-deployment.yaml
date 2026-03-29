@@ -5,7 +5,7 @@ metadata:
   labels:
     app: yass-web-ui
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: yass-web-ui
