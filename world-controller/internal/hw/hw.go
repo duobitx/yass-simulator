@@ -71,8 +71,11 @@ func (s *NodeHwState) format(change float32) string {
 	if s.hw.EnergyConsumption.LowPowerBaseW <= 0 {
 		str = "-"
 	} else {
-		lev := float64(s.batteryLevel) / float64(s.hw.BatteryCapacityWh) * 100.0
-		str = fmt.Sprintf("%d%%,%+.1fW", int(lev), change)
+		lev := int(float64(s.batteryLevel) / float64(s.hw.BatteryCapacityWh) * 100.0)
+		if lev >= 100 {
+			change = 0
+		}
+		str = fmt.Sprintf("%d%%,%+.1fW", lev, change)
 	}
 	if !s.InShadow {
 		str += " ☀"
