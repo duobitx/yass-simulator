@@ -62,8 +62,13 @@ func (s *NodeHwState) Update(tStats []*proto.TrafficStats) ([]byte, string, erro
 }
 
 func (s *NodeHwState) format(change float32) string {
-	lev := float64(s.batteryLevel) / float64(s.hw.BatteryCapacityWh) * 100.0
-	str := fmt.Sprintf("%d%%,%+.1fW", int(lev), change)
+	var str string
+	if s.hw.EnergyConsumption.LowPowerBaseW <= 0 {
+		str = "-"
+	} else {
+		lev := float64(s.batteryLevel) / float64(s.hw.BatteryCapacityWh) * 100.0
+		str = fmt.Sprintf("%d%%,%+.1fW", int(lev), change)
+	}
 	if !s.InShadow {
 		str += " ☀"
 	}
