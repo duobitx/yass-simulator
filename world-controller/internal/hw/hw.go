@@ -8,6 +8,7 @@ import (
 
 	"github.com/duobitx/yass-internal-components/go-common/proto/go"
 	yassv1 "github.com/duobitx/yass-operator/api/v1"
+	"github.com/m-szalik/goutils"
 	"k8s.io/apimachinery/pkg/util/json"
 )
 
@@ -68,17 +69,14 @@ func (s *NodeHwState) Update(tStats []*proto.TrafficStats) ([]byte, string, erro
 
 func (s *NodeHwState) format(change float32) string {
 	var str string
-	if s.hw.EnergyConsumption.LowPowerBaseW <= 0 {
+	if s.hw.EnergyConsumption.LowPowerBaseW <= 0 || s.hw.BatteryCapacityWh <= 0 {
 		str = "-"
 	} else {
 		lev := int(float64(s.batteryLevel) / float64(s.hw.BatteryCapacityWh) * 100.0)
-		if lev >= 100 {
+		if lev >= 100 && change > 0 {
 			change = 0
 		}
-		str = fmt.Sprintf("%d%%,%+.1fW", lev, change)
-	}
-	if !s.InShadow {
-		str += " ☀"
+		str = fmt.Sprintf("%d%%,%+.1fW %s", lev, change, goutils.BoolTo(s.InShadow, "shadow", "sun"))
 	}
 	return str
 }

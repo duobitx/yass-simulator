@@ -19,15 +19,22 @@ func TestNodeHwState_format(t *testing.T) {
 		{
 			batteryLevel: 51,
 			batteryCap:   100,
-			change:       0.1,
-			want:         "51%,+0.1W ☀",
+			change:       +0.1,
+			want:         "51%,+0.1W sun",
 			shadow:       false,
 		},
 		{
 			batteryLevel: 100,
 			batteryCap:   100,
 			change:       -0.1,
-			want:         "100%,-0.1W",
+			want:         "100%,-0.1W shadow",
+			shadow:       true,
+		},
+		{
+			batteryLevel: 100,
+			batteryCap:   100,
+			change:       +0.1,
+			want:         "100%,+0.0W shadow",
 			shadow:       true,
 		},
 	}
@@ -35,7 +42,11 @@ func TestNodeHwState_format(t *testing.T) {
 		t.Run(fmt.Sprintf("Expect %s", tt.want), func(t *testing.T) {
 			s := &NodeHwState{
 				hw: &yassv1.HardwareSpec{
-					BatteryCapacityWh: tt.batteryCap,
+					EnergyConsumption: yassv1.HardwareSpecEnergyConsumption{
+						LowPowerBaseW: 10, // must be more than 0
+					},
+					BatteryCapacityWh:   tt.batteryCap,
+					LowPowerThresholdWh: 0,
 				},
 				InShadow:     tt.shadow,
 				batteryLevel: tt.batteryLevel,
