@@ -256,7 +256,7 @@ func main() {
 					slog.Error("cannot get node object", "error", err)
 					continue
 				}
-				node.Status.EnergyConsumption = statusStr
+				node.Status.EnergyConsumptionStr = statusStr
 				err = app.k8sClient.Status().Update(ctx, &node)
 				if err != nil {
 					slog.Error("cannot update node status", "error", err)

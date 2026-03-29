@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path"
 	"strings"
 	"syscall"
 	"time"
@@ -28,11 +29,9 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM)
 	defer cancel()
 	namespace := goutils.EnvRequired[string]("NAMESPACE")
-	dstFilename := goutils.Env("DST_FILE", "/tmp/exported-resource.json")
+	dstDir := goutils.Env("DST_DIR", "/mnt/shared")
 	resourceName := goutils.EnvRequired[string]("RESOURCE_NAME")
 	resourceKind := goutils.EnvRequired[string]("RESOURCE_KIND")
-	slog.Info("Trying to extract kubernetes resource",
-		"namespace", namespace, "name", resourceName, "kind", resourceKind, "toFilename", dstFilename)
 	scheme := runtime.NewScheme()
 	err := clientgoscheme.AddToScheme(scheme)
 	goutils.ExitOnError(err, 2)
@@ -50,14 +49,14 @@ func main() {
 	case "fsnode":
 		var hwSpec *yassv1.HardwareSpec
 		jsonObj, hwSpec, err = handleFsNodeResource(ctx, k8sClient, namespacedName)
-		exportedResources[dstFilename] = jsonObj
+		exportedResources["fs-node.json"] = jsonObj
 		exportedResources["hardware.json"] = hwSpec
 	case "experiment":
 		jsonObj, err = handleExperimentResource(ctx, k8sClient, namespacedName)
-		exportedResources[dstFilename] = jsonObj
+		exportedResources["experiment.json"] = jsonObj
 	case "hardwareDefinition":
 		jsonObj, err = handleHardwareDefinitionResource(ctx, k8sClient, namespacedName)
-		exportedResources[dstFilename] = jsonObj
+		exportedResources["hardware.json"] = jsonObj
 
 	default:
 		panic(fmt.Sprintf("dont know how to handle kind '%s'", resourceKind))
@@ -66,7 +65,8 @@ func main() {
 		panic(fmt.Sprintf("error handling kind %s for %s :: %s", resourceKind, namespacedName, err))
 	}
 	for fn, obj := range exportedResources {
-		slog.Info("Resource exporting", "resourceType", fmt.Sprintf("%T", obj), "filename", fn)
+		dstFilename := path.Join(dstDir, fn)
+		slog.Info("Resource exporting", "resourceType", fmt.Sprintf("%T", obj), "filename", dstFilename)
 		buff, err := json.Marshal(obj)
 		if err != nil {
 			panic(fmt.Sprintf("cannot convert %T to json :: %s", obj, err))
@@ -76,7 +76,7 @@ func main() {
 		if err != nil {
 			panic(fmt.Sprintf("cannot save file %s :: %s", dstFilename, err))
 		}
-		slog.Info("Resource exported successfully", "resourceType", fmt.Sprintf("%T", obj), "filename", fn)
+		slog.Info("Resource exported successfully", "resourceType", fmt.Sprintf("%T", obj), "filename", dstFilename)
 	}
 	slog.Info("Completed")
 }
