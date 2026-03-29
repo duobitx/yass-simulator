@@ -59,19 +59,17 @@ type FsNodeStatus struct {
 	// +listType=map
 	// +listMapKey=type
 	// +optional
-	Conditions        []*metav1.Condition `json:"conditions,omitempty"`
-	Ready             bool                `json:"ready"`
-	PosStr            string              `json:"posStr"`
-	LowPower          bool                `json:"lowPower"`
-	BatteryInfo       string              `json:"battery"`
-	EnergyConsumption string              `json:"batteryConsumption"`
+	Conditions           []*metav1.Condition `json:"conditions,omitempty"`
+	Ready                bool                `json:"ready"`
+	PosStr               string              `json:"posStr"`
+	EnergyConsumptionStr string              `json:"batteryConsumption"`
 }
 
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:shortName=fsn
 // +kubebuilder:resource:shortName=fsns
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="NodeType",type=string,JSONPath=`.status.nodeType`
+// +kubebuilder:printcolumn:name="NodeType",type=string,JSONPath=`.spec.nodeType`
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.ready`
 // +kubebuilder:printcolumn:name="BatLev",type=string,JSONPath=`.status.battery`
 // +kubebuilder:printcolumn:name="LowPower",type=boolean,JSONPath=`.status.lowPower`

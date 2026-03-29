@@ -3683,7 +3683,7 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.nodeType
+    - jsonPath: .spec.nodeType
       name: NodeType
       type: string
     - jsonPath: .status.ready
@@ -7269,8 +7269,6 @@ spec:
           status:
             description: status defines the observed state of FsNode
             properties:
-              battery:
-                type: string
               batteryConsumption:
                 type: string
               conditions:
@@ -7334,16 +7332,12 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
-              lowPower:
-                type: boolean
               posStr:
                 type: string
               ready:
                 type: boolean
             required:
-            - battery
             - batteryConsumption
-            - lowPower
             - posStr
             - ready
             type: object
