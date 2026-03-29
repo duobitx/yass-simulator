@@ -132,6 +132,8 @@ func main() {
 	facade := com.NewFacade(ctx, fmt.Sprintf("%s-%s-%d", resourceName, consts.AppName, rand.Intn(100)))
 	networkingHandler, err := networking.NewNetworkHandler()
 	goutils.ExitOnErrorf(err, 1, "cannot create Handler")
+	hwSpec, err := hw.Read()
+	goutils.ExitOnErrorf(err, 2, "cannot read hw spec")
 
 	app := &appType{
 		mainCtx:   ctx,
@@ -145,6 +147,7 @@ func main() {
 		experiment:        goutils.Env("YASS_EXPERIMENT", ""),
 		nodes:             map[string]model.SharedNodeInfo{},
 		networkingHandler: networkingHandler,
+		hw:                hw.NewNodeHwState(hwSpec),
 	}
 
 	err = facade.Connect()
@@ -154,7 +157,7 @@ func main() {
 	err = clientgoscheme.AddToScheme(scheme)
 	goutils.ExitOnError(err, 3)
 	err = yassv1.AddToScheme(scheme)
-	goutils.ExitOnError(err, 3)
+	goutils.ExitOnError(err, 4)
 
 	var k8sClient client.Client
 	if goutils.Env("MOCK_K8S", false) {
@@ -177,7 +180,7 @@ func main() {
 			slog.Error("error handling incoming update data", "data", string(data), "topic", topic, "error", err)
 		}
 	})
-	goutils.ExitOnError(err, 4)
+	goutils.ExitOnError(err, 5)
 
 	subscribeAllUpdatesTopic := "online-states/#"
 	slog.Info("Subscribe", "topic", subscribeAllUpdatesTopic)
@@ -187,10 +190,10 @@ func main() {
 			slog.Error("error handling incoming online updates data", "data", string(data), "topic", topic, "error", err)
 		}
 	})
-	goutils.ExitOnError(err, 4)
+	goutils.ExitOnError(err, 6)
 
 	err = app.publishOnlineState(true)
-	goutils.ExitOnError(err, 5)
+	goutils.ExitOnError(err, 7)
 	defer func() {
 		err := app.publishOnlineState(false)
 		if err != nil {
@@ -224,14 +227,6 @@ func main() {
 			}
 		}
 	}()
-
-	hwSpec, err := hw.Read()
-	if err != nil {
-		slog.Error("cannot read hardware spec", "error", err)
-		cancel()
-		goutils.ExitOnError(err, 5)
-	}
-	app.hw = hw.NewNodeHwState(hwSpec)
 
 	energyStatsTicker := time.NewTicker(10 * time.Second)
 	go func() {
@@ -271,7 +266,7 @@ func main() {
 	}()
 
 	err = startup.FileProbe(ctx)
-	goutils.ExitOnError(err, 6)
+	goutils.ExitOnError(err, 8)
 	startup.HttpProbe(ctx, 8801)
 	slog.Info("StartupCompleted")
 	<-ctx.Done()
