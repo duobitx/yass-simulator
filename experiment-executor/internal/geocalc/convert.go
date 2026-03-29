@@ -36,6 +36,7 @@ func Convert(input *geocalcproto.GeoCommon) (*GlobalGeoCalcUpdate, error) {
 			Lat:              float32(item.GetLat()),
 			Lng:              float32(item.GetLon()),
 			Alt:              float32(item.GetAlt()),
+			InShadow:         !item.GetInTheSun(),
 			ReachableFsNodes: []DistanceInfo{},
 		}
 		fsNodesList[i] = &fsn
