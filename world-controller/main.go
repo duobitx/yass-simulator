@@ -28,6 +28,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
+type updates struct {
+	posStr     string
+	batteryStr string
+}
 type appType struct {
 	mainCtx           context.Context
 	facade            com.Facade
@@ -39,6 +43,7 @@ type appType struct {
 	nodesLock         sync.Mutex
 	networkingHandler *networking.Handler
 	hw                *hw.NodeHwState
+	updates           *updates
 }
 
 func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
@@ -49,22 +54,8 @@ func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
 		return err
 	}
 	a.hw.InShadow = dataObj.InShadow
+	a.updates.posStr = dataObj.PosStr
 	jeh := goutils.JoinErrorHelper{}
-	fsNode := &yassv1.FsNode{}
-	err = a.k8sClient.Get(ctx, a.fsNodeObjKey, fsNode)
-	if err != nil {
-		slog.Warn("Error getting fsNode", "objectKey", a.fsNodeObjKey, "error", err)
-		jeh.Append(err)
-	} else {
-		fsNode.Status.PosStr = dataObj.GetPosStr()
-		if err = a.k8sClient.Status().Update(ctx, fsNode); err != nil {
-			slog.Warn("Error updating k8s resource status", "objectKey", a.fsNodeObjKey, "error", err)
-			jeh.Append(err)
-		} else {
-			slog.Default().Debug("Status updated", "newStatus", fsNode.Status)
-		}
-	}
-
 	networkParams := goutils.SliceMap[*proto.FsNodeUpdateNetworkParamEntry, networking.NetworkParam](
 		dataObj.NetworkParams,
 		func(entry *proto.FsNodeUpdateNetworkParamEntry) networking.NetworkParam {
@@ -75,7 +66,6 @@ func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
 		slog.Warn("Error updating networking rules", "params", networkParams, "error", err)
 		jeh.Append(err)
 	}
-
 	return jeh.AsError()
 }
 
@@ -148,6 +138,10 @@ func main() {
 		nodes:             map[string]model.SharedNodeInfo{},
 		networkingHandler: networkingHandler,
 		hw:                hw.NewNodeHwState(hwSpec),
+		updates: &updates{
+			posStr:     "unspecified",
+			batteryStr: "unspecified",
+		},
 	}
 
 	err = facade.Connect()
@@ -201,69 +195,58 @@ func main() {
 		}
 	}()
 
-	networkStatsTicker := time.NewTicker(1 * time.Second)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-networkStatsTicker.C:
-				stats, err := networkingHandler.GetTrafficStats()
-				if err != nil {
-					slog.Error("cannot get networks stats", "error", err)
-					continue
-				}
-				buff, err := com.MsgMarshall(stats)
-				if err != nil {
-					slog.Error("cannot get marshal stats", "error", err)
-					continue
-				}
-				topic := fmt.Sprintf("total-network-stats/%s", app.fsNodeObjKey.Name)
-				err = facade.Publish(ctx, topic, 0, false, buff)
-				if err != nil {
-					slog.Error("cannot publish to topic", "error", err, "topic", topic)
-					continue
-				}
-			}
+	internal.BackgroundPeriodicTask(ctx, 1*time.Second, func() {
+		stats, err := networkingHandler.GetTrafficStats()
+		if err != nil {
+			slog.Error("cannot get networks stats", "error", err)
+			return
 		}
-	}()
+		buff, err := com.MsgMarshall(stats)
+		if err != nil {
+			slog.Error("cannot get marshal stats", "error", err)
+			return
+		}
+		topic := fmt.Sprintf("total-network-stats/%s", app.fsNodeObjKey.Name)
+		err = facade.Publish(ctx, topic, 0, false, buff)
+		if err != nil {
+			slog.Error("cannot publish to topic", "error", err, "topic", topic)
+			return
+		}
+	})
 
-	energyStatsTicker := time.NewTicker(10 * time.Second)
-	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-energyStatsTicker.C:
-				networkStats, err := networkingHandler.GetTrafficStats()
-				if err != nil {
-					slog.Error("cannot get network stats", "error", err)
-				}
-				data, statusStr, err := app.hw.Update(networkStats)
-				if err != nil {
-					slog.Error("cannot update energy stats", "error", err)
-					continue
-				}
-				topic := fmt.Sprintf("energy/%s", app.fsNodeObjKey.Name)
-				err = facade.Publish(ctx, topic, 0, false, data)
-				if err != nil {
-					slog.Error("cannot publish to topic", "error", err, "topic", topic)
-					continue
-				}
-				node := yassv1.FsNode{}
-				err = app.k8sClient.Get(ctx, app.fsNodeObjKey, &node)
-				if err != nil {
-					slog.Error("cannot get node object", "error", err)
-					continue
-				}
-				node.Status.EnergyConsumptionStr = statusStr
-				err = app.k8sClient.Status().Update(ctx, &node)
-				if err != nil {
-					slog.Error("cannot update node status", "error", err)
-				}
-			}
+	internal.BackgroundPeriodicTask(ctx, 10*time.Second, func() {
+		networkStats, err := networkingHandler.GetTrafficStats()
+		if err != nil {
+			slog.Error("cannot get network stats", "error", err)
 		}
-	}()
+		data, statusStr, err := app.hw.Update(networkStats)
+		if err != nil {
+			slog.Error("cannot update energy stats", "error", err)
+			return
+		}
+		app.updates.batteryStr = statusStr
+		topic := fmt.Sprintf("energy/%s", app.fsNodeObjKey.Name)
+		err = facade.Publish(ctx, topic, 0, false, data)
+		if err != nil {
+			slog.Error("cannot publish to topic", "error", err, "topic", topic)
+			return
+		}
+	})
+
+	internal.BackgroundPeriodicTask(ctx, 5*time.Second, func() {
+		node := yassv1.FsNode{}
+		err = app.k8sClient.Get(ctx, app.fsNodeObjKey, &node)
+		if err != nil {
+			slog.Error("cannot get node object", "error", err)
+			return
+		}
+		node.Status.EnergyConsumptionStr = app.updates.batteryStr
+		node.Status.PosStr = app.updates.posStr
+		err = app.k8sClient.Status().Update(ctx, &node)
+		if err != nil {
+			slog.Error("cannot update node status", "error", err)
+		}
+	})
 
 	err = startup.FileProbe(ctx)
 	goutils.ExitOnError(err, 8)

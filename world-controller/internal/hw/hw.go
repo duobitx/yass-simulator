@@ -58,9 +58,16 @@ func (s *NodeHwState) Update(tStats []*proto.TrafficStats) ([]byte, string, erro
 	}
 	s.lastUpdate = now
 	buff, err := json.Marshal(s)
-	lev := float64(s.batteryLevel) / float64(s.hw.BatteryCapacityWh) * 100
-	str := fmt.Sprintf("%d%%,%f.2W", int(lev), change)
-	return buff, str, err
+	return buff, s.format(change), err
+}
+
+func (s *NodeHwState) format(change float32) string {
+	lev := float64(s.batteryLevel) / float64(s.hw.BatteryCapacityWh) * 100.0
+	str := fmt.Sprintf("%d%%,%+.1fW", int(lev), change)
+	if !s.InShadow {
+		str += " ☀"
+	}
+	return str
 }
 
 func NewNodeHwState(spec *yassv1.HardwareSpec) *NodeHwState {

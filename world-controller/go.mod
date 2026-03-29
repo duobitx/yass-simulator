@@ -9,6 +9,7 @@ require (
 	github.com/duobitx/yass-operator v0.0.0-20251205232601-cc05ef46ceb5
 	github.com/m-szalik/goutils v0.2.1
 	github.com/pkg/errors v0.9.1
+	github.com/stretchr/testify v1.11.1
 	github.com/vishvananda/netlink v1.3.1
 	golang.org/x/sys v0.38.0
 	k8s.io/apimachinery v0.34.2
@@ -71,6 +72,7 @@ require (
 	google.golang.org/protobuf v1.36.10 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/api v0.34.2 // indirect
 	k8s.io/apiextensions-apiserver v0.34.2 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
