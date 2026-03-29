@@ -14,6 +14,7 @@ spec:
       labels:
         app: yass-web-ui
     spec:
+      serviceAccountName: yass-experiment-sa
       containers:
       - name: yass-web-ui
         image: ghcr.io/duobitx/yass-web-ui:latest
