@@ -14,6 +14,7 @@ import (
 	"github.com/duobitx/yass-internal-components/go-common/startup"
 	"github.com/duobitx/yass-internal-components/world-controller/consts"
 	"github.com/duobitx/yass-internal-components/world-controller/internal"
+	"github.com/duobitx/yass-internal-components/world-controller/internal/hw"
 	"github.com/duobitx/yass-internal-components/world-controller/internal/model"
 	"github.com/duobitx/yass-internal-components/world-controller/internal/networking"
 	yassv1 "github.com/duobitx/yass-operator/api/v1"
@@ -37,6 +38,7 @@ type appType struct {
 	nodes             map[string]model.SharedNodeInfo
 	nodesLock         sync.Mutex
 	networkingHandler *networking.Handler
+	hw                *hw.NodeHwState
 }
 
 func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
@@ -46,7 +48,7 @@ func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
 	if err != nil {
 		return err
 	}
-
+	a.hw.InShadow = dataObj.InShadow
 	jeh := goutils.JoinErrorHelper{}
 	fsNode := &yassv1.FsNode{}
 	err = a.k8sClient.Get(ctx, a.fsNodeObjKey, fsNode)
@@ -218,6 +220,51 @@ func main() {
 				if err != nil {
 					slog.Error("cannot publish to topic", "error", err, "topic", topic)
 					continue
+				}
+			}
+		}
+	}()
+
+	hwSpec, err := hw.Read()
+	if err != nil {
+		slog.Error("cannot read hardware spec", "error", err)
+		cancel()
+		goutils.ExitOnError(err, 5)
+	}
+	app.hw = hw.NewNodeHwState(hwSpec)
+
+	energyStatsTicker := time.NewTicker(10 * time.Second)
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-energyStatsTicker.C:
+				networkStats, err := networkingHandler.GetTrafficStats()
+				if err != nil {
+					slog.Error("cannot get network stats", "error", err)
+				}
+				data, statusStr, err := app.hw.Update(networkStats)
+				if err != nil {
+					slog.Error("cannot update energy stats", "error", err)
+					continue
+				}
+				topic := fmt.Sprintf("energy/%s", app.fsNodeObjKey.Name)
+				err = facade.Publish(ctx, topic, 0, false, data)
+				if err != nil {
+					slog.Error("cannot publish to topic", "error", err, "topic", topic)
+					continue
+				}
+				node := yassv1.FsNode{}
+				err = app.k8sClient.Get(ctx, app.fsNodeObjKey, &node)
+				if err != nil {
+					slog.Error("cannot get node object", "error", err)
+					continue
+				}
+				node.Status.EnergyConsumption = statusStr
+				err = app.k8sClient.Status().Update(ctx, &node)
+				if err != nil {
+					slog.Error("cannot update node status", "error", err)
 				}
 			}
 		}

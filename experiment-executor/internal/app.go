@@ -248,7 +248,7 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GlobalGeoCalcU
 		}
 		gr := &proto.FsNodeUpdate{
 			Name:              data.Name,
-			InShadow:          false, // TODO later v2
+			InShadow:          data.InShadow,
 			PosStr:            fmt.Sprintf("lat=%.2f,lng=%.2f", data.Lat, data.Lng),
 			X:                 data.X,
 			Y:                 data.Y,
@@ -269,6 +269,7 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GlobalGeoCalcU
 				state.Lat = data.Lat
 				state.Lng = data.Lng
 				state.Alt = data.Alt
+				state.InShadow = data.InShadow
 			}
 		}()
 

@@ -22,5 +22,6 @@ type FsNodeInfo struct {
 	Lat              float32
 	Lng              float32
 	Alt              float32
+	InShadow         bool
 	ReachableFsNodes []DistanceInfo
 }
