@@ -135,6 +135,9 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
+    - jsonPath: .status.experimentTime
+      name: experimentTime
+      type: string
     - jsonPath: .status.experimentState
       name: state
       type: string
@@ -3656,8 +3659,12 @@ spec:
                 x-kubernetes-list-type: map
               experimentState:
                 type: string
+              experimentTime:
+                format: date-time
+                type: string
             required:
             - experimentState
+            - experimentTime
             type: object
         type: object
     served: true

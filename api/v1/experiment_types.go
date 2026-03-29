@@ -21,6 +21,7 @@ const (
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="experimentTime",type=string,JSONPath=`.status.experimentTime`
 // +kubebuilder:printcolumn:name="state",type=string,JSONPath=`.status.experimentState`
 // Experiment main object for simulation.
 type Experiment struct {
@@ -67,6 +68,8 @@ type ExperimentSpec struct {
 // ExperimentStatus defines the desired state of an Experiment
 type ExperimentStatus struct {
 	ExperimentState ExperimentState `json:"experimentState"`
+
+	ExperimentTime metav1.Time `json:"experimentTime"`
 
 	// +listType=map
 	// +listMapKey=type

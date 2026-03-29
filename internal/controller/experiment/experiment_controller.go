@@ -104,6 +104,11 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitRet c
 	// Add finalizer if not present
 	if !controllerutil.ContainsFinalizer(&experiment, removeFsNodesFinalizer) {
 		controllerutil.AddFinalizer(&experiment, removeFsNodesFinalizer)
+		if experiment.Spec.SimulationStartTime.IsZero() {
+			experiment.Status.ExperimentTime = metav1.Now()
+		} else {
+			experiment.Status.ExperimentTime = experiment.Spec.SimulationStartTime
+		}
 		if err := r.Update(ctx, &experiment); err != nil {
 			return ctrl.Result{}, err
 		}
