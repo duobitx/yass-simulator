@@ -48,7 +48,7 @@ func (s *NodeHwState) Update(tStats []*proto.TrafficStats) ([]byte, string, erro
 		gain = float64(s.hw.BatteryChargeW) * t
 	}
 	change := float32(gain - drain)
-	if s.batteryLevel > s.hw.BatteryCapacityWh {
+	if s.batteryLevel >= s.hw.BatteryCapacityWh {
 		s.batteryLevel = s.hw.BatteryCapacityWh
 		change = 0
 	} else {
