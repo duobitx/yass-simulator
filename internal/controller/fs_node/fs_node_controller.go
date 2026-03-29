@@ -259,7 +259,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		ImagePullPolicy: r.Configuration.InternalComponentImagePullPolicy,
 	}
 	modMountSharedVolume(false)(pod, initContainer)
-	modEnvsAppend(map[string]string{"DST_FILE": "/mnt/shared/fs-node.json", "RESOURCE_KIND": fsNode.Kind, "RESOURCE_NAME": fsNode.Name})(pod, initContainer)
+	modEnvsAppend(map[string]string{"DST_DIR": "/mnt/shared", "RESOURCE_KIND": fsNode.Kind, "RESOURCE_NAME": fsNode.Name})(pod, initContainer)
 	modEnvsAppend(globalEnvs)(pod, initContainer)
 	modEnvFromField("NAMESPACE", "metadata.namespace")(pod, initContainer)
 	pod.Spec.InitContainers = []v1.Container{*initContainer}

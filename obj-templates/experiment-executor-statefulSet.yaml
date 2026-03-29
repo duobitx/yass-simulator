@@ -24,8 +24,8 @@ spec:
           env:
             - name: RESOURCE_KIND
               value: "Experiment"
-            - name: DST_FILE
-              value: "/mnt/shared/experiment.json"
+            - name: DST_DIR
+              value: "/mnt/shared"
             - name: RESOURCE_NAME
               valueFrom:
                 fieldRef:
