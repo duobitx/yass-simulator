@@ -18,13 +18,13 @@ func TestProcessTemplate(t *testing.T) {
 	}{
 		{
 			name:     "simple substitution",
-			template: "Hello {{ .name }}!",
+			template: "Hello {{ .Values.name }}!",
 			values:   map[string]any{"name": "World"},
 			expected: "Hello World!",
 		},
 		{
 			name:     "experiment object access",
-			template: "Experiment: {{ .experiment.Name }} in {{ .namespace }}",
+			template: "Experiment: {{ .Values.experiment.Name }} in {{ .Values.namespace }}",
 			values: map[string]any{
 				"experiment": &yassv1.Experiment{
 					ObjectMeta: metav1.ObjectMeta{
@@ -37,7 +37,7 @@ func TestProcessTemplate(t *testing.T) {
 		},
 		{
 			name:     "invalid template",
-			template: "Hello {{ .name }",
+			template: "Hello {{ .Values.name }",
 			values:   map[string]any{"name": "World"},
 			wantErr:  true,
 		},

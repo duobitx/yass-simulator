@@ -332,7 +332,9 @@ func processTemplate(buff []byte, values map[string]any) ([]byte, error) {
 		return nil, err
 	}
 	var b bytes.Buffer
-	err = tmpl.Execute(&b, values)
+	_values := make(map[string]any)
+	_values["Values"] = values
+	err = tmpl.Execute(&b, _values)
 	if err != nil {
 		return nil, err
 	}
