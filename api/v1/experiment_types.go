@@ -51,7 +51,7 @@ type ExperimentSpec struct {
 	LayoutDefRef string `json:"layoutDefRef"`
 	// SimulationStartTime is a starting point of the experiment.
 	// +optional
-	SimulationStartTime *metav1.Time `json:"simulationStartTime"`
+	SimulationStartTime *metav1.Time `json:"simulationStartTime,omitempty"`
 	// Start if to start the experiment as soon as it's ready.
 	Start bool `json:"start"`
 	// FsNodeProperties is a map of properties to be set on all fsNodes in this experiment.

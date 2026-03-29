@@ -3586,6 +3586,7 @@ spec:
               simulationStartTime:
                 description: SimulationStartTime is a starting point of the experiment.
                 format: date-time
+                nullable: true
                 type: string
               start:
                 description: Start if to start the experiment as soon as it's ready.
