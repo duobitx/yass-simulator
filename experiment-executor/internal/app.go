@@ -15,6 +15,7 @@ import (
 	yassv1 "github.com/duobitx/yass-operator/api/v1"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -35,6 +36,7 @@ type AppType struct {
 	nodesLock           sync.Mutex
 	namespace           string
 	experimentStartedAt *time.Time
+	experimentTime      *time.Time
 }
 
 func (t *AppType) handleOnlineUpdate(_ context.Context, data []byte) error {
@@ -160,6 +162,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 				}
 			case upd := <-dataCh:
 				lastTime = upd.CurrentTime
+				t.experimentTime = &lastTime
 				if !experimentEndAt.IsZero() && !experimentEndAt.After(lastTime) {
 					if err := t.sendTimeUpdate(lastTime, false); err != nil {
 						slog.Default().Error("cannot send time update", "error", err)
@@ -190,9 +193,25 @@ func (t *AppType) Start(ctxParent context.Context) error {
 	if t.ExperimentDefData.StartTime != nil {
 		startAt = *t.ExperimentDefData.StartTime
 	}
+	t.experimentStartedAt = &startAt
 	if t.ExperimentDefData.MaxDuration != nil {
 		experimentEndAt = startAt.Add(*t.ExperimentDefData.MaxDuration)
 	}
+	go func() {
+		ticker := time.NewTicker(2 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-experimentCtx.Done():
+				return
+			case <-ticker.C:
+				err := t.updateK8sResource()
+				if err != nil {
+					slog.Error("error updating experiment time", "error", err)
+				}
+			}
+		}
+	}()
 	slog.Default().Info("starting experiment", "startTime", startAt, "maxDuration", t.ExperimentDefData.MaxDuration)
 	t.experimentStartedAt = &startAt
 	return nil
@@ -285,4 +304,20 @@ func (t *AppType) calculateNetworkParam(fsNodeMain *geocalc.FsNodeInfo, dstName 
 	dst.Subject = dstName
 	dst.PackageDelay = 0.001 /* 1ms for transmitter */ + dst.Distance/300_000.00
 	dst.PackageLoss = 0.1 // 10% fixed as for now FIXME calculate
+}
+
+func (t *AppType) updateK8sResource() error {
+	if t.experimentTime != nil {
+		exp := &yassv1.Experiment{}
+		err := t.k8sClient.Get(t.mainCtx, client.ObjectKey{
+			Namespace: t.namespace,
+			Name:      t.ExperimentDefData.Name,
+		}, exp)
+		if err != nil {
+			return err
+		}
+		exp.Status.ExperimentTime = v1.Time{Time: *t.experimentTime}
+		return t.k8sClient.Status().Update(t.mainCtx, exp)
+	}
+	return errors.New("experimentTime is not set")
 }
