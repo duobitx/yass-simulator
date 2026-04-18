@@ -47,9 +47,17 @@ type Handler struct {
 	state      map[string]*NetworkParam
 	netmask    net.IPMask
 	defEthLink netlink.Link
+	disabled   bool
 }
 
-func NewNetworkHandler() (*Handler, error) {
+func NewNetworkHandler(disabled bool) (*Handler, error) {
+	if disabled {
+		slog.Default().Info("Networking manipulation disabled; skipping netlink setup")
+		return &Handler{
+			state:    make(map[string]*NetworkParam),
+			disabled: true,
+		}, nil
+	}
 	netMask, defaultNetworkInterfaceName, err := findDefaultNetworkNetmask()
 	if err != nil {
 		return nil, err
@@ -73,6 +81,9 @@ func NewNetworkHandler() (*Handler, error) {
 }
 
 func (h *Handler) Update(networkParams []NetworkParam) error {
+	if h.disabled {
+		return nil
+	}
 	jeh := goutils.JoinErrorHelper{}
 	stopWatch := goutils.NewStopWatch()
 	stopWatch.Start()
@@ -407,6 +418,9 @@ func isAlmostEqual(s0 *NetworkParam, s1 *NetworkParam) bool {
 }
 
 func (h *Handler) GetTrafficStats() ([]*proto.TrafficStats, error) {
+	if h.disabled {
+		return nil, nil
+	}
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
