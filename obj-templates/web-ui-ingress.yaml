@@ -14,7 +14,7 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: yass-web-ui
+            name: web-ui
             port:
               number: 80
 #  tls:

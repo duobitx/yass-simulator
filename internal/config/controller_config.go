@@ -15,6 +15,7 @@ const (
 type Configuration struct {
 	InternalComponentImage           string
 	InternalComponentImagePullPolicy v1.PullPolicy
+	DisableNetworkingManipulation    bool
 }
 
 func NewConfiguration() (*Configuration, error) {
@@ -26,5 +27,6 @@ func NewConfiguration() (*Configuration, error) {
 	return &Configuration{
 		InternalComponentImage:           fmt.Sprintf("%s:%s", internalComponentsImage, imageVersion),
 		InternalComponentImagePullPolicy: imagePullPolicy,
+		DisableNetworkingManipulation:    goutils.Env("DISABLE_NETWORKING_MANIPULATION", false),
 	}, nil
 }

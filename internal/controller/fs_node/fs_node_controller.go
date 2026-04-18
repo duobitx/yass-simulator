@@ -19,6 +19,7 @@ package fs_node
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -303,7 +304,10 @@ func (r *FsNodeReconciler) getSystemContainers(fsNode *yassv1.FsNode, pod *v1.Po
 				modHttpProbes(8801),
 				modEnvFromField("POD_IP", "status.podIP"),
 				modEnvFromField("NAMESPACE", "metadata.namespace"),
-				modEnvsAppend(map[string]string{"RESOURCE_NAME": fsNode.Name}),
+				modEnvsAppend(map[string]string{
+					"RESOURCE_NAME":                   fsNode.Name,
+					"DISABLE_NETWORKING_MANIPULATION": strconv.FormatBool(r.Configuration.DisableNetworkingManipulation),
+				}),
 				modMountSharedVolume(false),
 				modCapability("NET_ADMIN"),
 			},
