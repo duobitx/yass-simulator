@@ -1,0 +1,35 @@
+version: '3'
+
+silent: true
+
+tasks:
+
+  internal-components:
+    desc: Build & push internal-components image (ghcr.io/duobitx/yass-internal-components)
+    dir: internal-components
+    cmds:
+      - task
+
+  yass-operator:
+    desc: Build & push yass-operator image (ghcr.io/duobitx/yass-operator)
+    dir: yass-operator
+    cmds:
+      - task
+
+  internal-components:build:
+    desc: Build internal-components docker image only
+    dir: internal-components
+    cmds:
+      - task: docker-build
+
+  yass-operator:build:
+    desc: Build yass-operator docker image only
+    dir: yass-operator
+    cmds:
+      - make docker-build
+
+  default:
+    desc: Build & push all images
+    cmds:
+      - task: internal-components
+      - task: yass-operator

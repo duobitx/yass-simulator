@@ -1,0 +1,181 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: '1.25'
+  GOPRIVATE: github.com/duobitx/*,github.com/ESA-PhiLab/*
+  REGISTRY: ghcr.io
+
+jobs:
+  lint-test-internal-components:
+    name: IC - Lint & Test (${{ matrix.module }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module:
+          - experiment-executor
+          - go-common
+          - resource-to-json
+          - world-controller
+          - events-webapp
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Configure Git for private Go modules
+        run: |
+          git config --global url."https://${{ secrets.GH_REPO_READ_TOKEN }}@github.com/duobitx/".insteadOf "https://github.com/duobitx/"
+
+      - name: Setup Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c  # v6.1.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b  # v3.0.0
+        with:
+          version: '25.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run linter in ${{ matrix.module }}
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20  # v9.2.0
+        with:
+          version: v2.7.2
+          working-directory: internal-components/${{ matrix.module }}
+
+      - name: Run tests in ${{ matrix.module }}
+        run: cd internal-components/${{ matrix.module }} && go test -short ./...
+
+  lint-test-yass-operator:
+    name: Operator - Lint & Test
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Setup Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c  # v6.1.0
+        with:
+          go-version-file: yass-operator/go.mod
+
+      - name: Run linter
+        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20  # v9.2.0
+        with:
+          version: v2.7.2
+          working-directory: yass-operator
+
+      - name: Run tests
+        working-directory: yass-operator
+        run: go test ./...
+
+  build-push-internal-components:
+    name: IC - Build & Push
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: lint-test-internal-components
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: duobitx/yass-internal-components
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Login to Docker image registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef  # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get Docker metadata
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE }}
+          tags: |
+            type=ref,event=tag
+            type=ref,event=pr
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Configure Git for private Go modules
+        run: |
+          git config --global url."https://${{ secrets.GH_REPO_READ_TOKEN }}@github.com/duobitx/".insteadOf "https://github.com/duobitx/"
+
+      - name: Setup Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c  # v6.1.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b  # v3.0.0
+        with:
+          version: '25.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611  # v2.0.0
+        with:
+          version: 3.x
+
+      - name: Run default task
+        working-directory: internal-components
+        run: task
+
+  build-push-yass-operator:
+    name: Operator - Build & Push
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: lint-test-yass-operator
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: duobitx/yass-operator
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Login to Docker image registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef  # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get Docker metadata
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE }}
+          tags: |
+            type=ref,event=tag
+            type=ref,event=pr
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
+        with:
+          context: yass-operator
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          labels: ${{ steps.meta.outputs.labels }}
