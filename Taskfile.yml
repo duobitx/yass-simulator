@@ -20,7 +20,7 @@ tasks:
     desc: Build internal-components docker image only
     dir: internal-components
     cmds:
-      - task: docker-build
+      - task docker-build
 
   yass-operator:build:
     desc: Build yass-operator docker image only
