@@ -12,8 +12,9 @@ import (
 	"time"
 
 	"github.com/duobitx/yass-internal-components/events-webapp/internal/conv"
-	"github.com/duobitx/yass-internal-components/go-common/com"
 	"github.com/duobitx/yass-internal-components/go-common/startup"
+	com "github.com/m-szalik/com-facade"
+	"github.com/m-szalik/com-facade/mqtt"
 	"github.com/m-szalik/goutils"
 	"github.com/m-szalik/goutils/pubsub"
 	"k8s.io/apimachinery/pkg/util/json"
@@ -138,7 +139,8 @@ func main() {
 	slog.Info("Events Webapp")
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
-	facade := com.NewFacade(ctx, fmt.Sprintf("%s-%d", appName, rand.Intn(100)))
+	facade := mqtt.NewFacade(ctx, fmt.Sprintf("%s-%d", appName, rand.Intn(100)),
+		mqtt.WithHostPort("tcp://"+goutils.Env("MESSAGING_BROKER_HOST_PORT", "messaging:1883")))
 
 	ps := pubsub.NewPubSub[any](ctx)
 	app := &appType{

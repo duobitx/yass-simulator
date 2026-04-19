@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -10,9 +11,9 @@ import (
 	"github.com/duobitx/yass-internal-components/experiment-executor/internal/geocalc"
 	"github.com/duobitx/yass-internal-components/experiment-executor/internal/model"
 	"github.com/duobitx/yass-internal-components/go-common/cmodel"
-	"github.com/duobitx/yass-internal-components/go-common/com"
 	proto "github.com/duobitx/yass-internal-components/go-common/proto/go"
 	yassv1 "github.com/duobitx/yass-operator/api/v1"
+	com "github.com/m-szalik/com-facade"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,7 +42,7 @@ type AppType struct {
 
 func (t *AppType) handleOnlineUpdate(_ context.Context, data []byte) error {
 	msg := &proto.FsNodeOnlineState{}
-	err := com.MsgUnmarshall(data, msg)
+	err := json.Unmarshal(data, msg)
 	if err != nil {
 		return err
 	}
@@ -128,7 +129,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 	err = t.facade.Subscribe(experimentEndTopic, func(sCtx context.Context, topic string, retained bool, data []byte) {
 		if len(data) > 0 {
 			req := &proto.AgentExperimentEndRequest{}
-			err := com.MsgUnmarshall(data, req)
+			err := json.Unmarshal(data, req)
 			if err != nil {
 				slog.Default().Warn("cannot unmarshal content from topic", "topic", experimentEndTopic, "error", err)
 				return

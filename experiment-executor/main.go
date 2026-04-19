@@ -16,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/duobitx/yass-internal-components/experiment-executor/consts"
-	"github.com/duobitx/yass-internal-components/go-common/com"
+	"github.com/m-szalik/com-facade/mqtt"
 	"github.com/m-szalik/goutils"
 )
 
@@ -26,7 +26,8 @@ func main() {
 	slog.Info("ExperimentExecutor", "experiment", experiment)
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
-	facade := com.NewFacade(ctx, fmt.Sprintf("%s-%d", consts.AppName, rand.Int()))
+	facade := mqtt.NewFacade(ctx, fmt.Sprintf("%s-%d", consts.AppName, rand.Int()),
+		mqtt.WithHostPort("tcp://"+goutils.Env("MESSAGING_BROKER_HOST_PORT", "messaging:1883")))
 	err := facade.Connect()
 	goutils.ExitOnError(err, 2)
 	app, err := internal.NewApp(ctx, facade)

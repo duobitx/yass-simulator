@@ -1,11 +1,11 @@
 package conv
 
 import (
+	"encoding/json"
 	"strings"
 	"time"
 
 	"github.com/duobitx/yass-internal-components/events-webapp/pkg/api"
-	"github.com/duobitx/yass-internal-components/go-common/com"
 	proto "github.com/duobitx/yass-internal-components/go-common/proto/go"
 )
 
@@ -17,7 +17,7 @@ type CFunc func(topic string, data []byte) (any, error)
 
 func FsNodeUpdateConv(_ string, data []byte) (any, error) {
 	in := &proto.FsNodeUpdate{}
-	err := com.MsgUnmarshall(data, in)
+	err := json.Unmarshal(data, in)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +39,7 @@ func FsNodeUpdateConv(_ string, data []byte) (any, error) {
 
 func FsNodeNetworkUsageConv(topic string, data []byte) (any, error) {
 	in := make([]*proto.TrafficStats, 0)
-	err := com.MsgUnmarshall(data, &in)
+	err := json.Unmarshal(data, &in)
 	if err != nil {
 		return nil, err
 	}

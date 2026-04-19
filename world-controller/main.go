@@ -9,7 +9,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/duobitx/yass-internal-components/go-common/com"
 	proto "github.com/duobitx/yass-internal-components/go-common/proto/go"
 	"github.com/duobitx/yass-internal-components/go-common/startup"
 	"github.com/duobitx/yass-internal-components/world-controller/consts"
@@ -18,6 +17,8 @@ import (
 	"github.com/duobitx/yass-internal-components/world-controller/internal/model"
 	"github.com/duobitx/yass-internal-components/world-controller/internal/networking"
 	yassv1 "github.com/duobitx/yass-operator/api/v1"
+	com "github.com/m-szalik/com-facade"
+	"github.com/m-szalik/com-facade/mqtt"
 	"github.com/m-szalik/goutils"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/json"
@@ -49,7 +50,7 @@ type appType struct {
 func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
 	slog.Info("incoming data", "data", data)
 	dataObj := &proto.FsNodeUpdate{}
-	err := com.MsgUnmarshall(data, &dataObj)
+	err := json.Unmarshal(data, &dataObj)
 	if err != nil {
 		return err
 	}
@@ -85,7 +86,7 @@ func (a *appType) publishOnlineState(online bool) error {
 
 func (a *appType) updateListOfExperimentNodes(_ context.Context, data []byte) error {
 	msg := &proto.FsNodeOnlineState{}
-	err := com.MsgUnmarshall(data, msg)
+	err := json.Unmarshal(data, msg)
 	if err != nil {
 		return err
 	}
@@ -119,7 +120,8 @@ func main() {
 	ctxWithName := context.WithValue(context.Background(), consts.CtxKeyFsName, resourceName)
 	ctx, cancel := signal.NotifyContext(ctxWithName, syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
-	facade := com.NewFacade(ctx, fmt.Sprintf("%s-%s-%d", resourceName, consts.AppName, rand.Intn(100)))
+	facade := mqtt.NewFacade(ctx, fmt.Sprintf("%s-%s-%d", resourceName, consts.AppName, rand.Intn(100)),
+		mqtt.WithHostPort("tcp://"+goutils.Env("MESSAGING_BROKER_HOST_PORT", "messaging:1883")))
 	disableNetworking := goutils.Env("DISABLE_NETWORKING_MANIPULATION", false)
 	slog.Info("Networking manipulation", "disabled", disableNetworking)
 	networkingHandler, err := networking.NewNetworkHandler(disableNetworking)
@@ -203,7 +205,7 @@ func main() {
 			slog.Error("cannot get networks stats", "error", err)
 			return
 		}
-		buff, err := com.MsgMarshall(stats)
+		buff, err := json.Marshal(stats)
 		if err != nil {
 			slog.Error("cannot get marshal stats", "error", err)
 			return
