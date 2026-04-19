@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package yass.fs;
+
+option go_package = "github.com/duobitx/yass-internal-components/go-common/proto;proto";
+
+enum Status {
+  EXPERIMENT_END_REQUEST_SUCCESS = 0;
+  EXPERIMENT_END_REQUEST_FAILURE = 1;
+}
+message AgentExperimentEndRequest {
+  Status status = 1;
+  string comment = 2;
+}
+

@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package yass.fs;
+
+option go_package = "github.com/duobitx/yass-internal-components/go-common/proto;proto";
+import "google/protobuf/timestamp.proto";
+
+
+message Item {
+  int32 id = 1;
+  string name = 2;
+  double x = 3;
+  double y = 4;
+  double z = 5;
+
+  double lat = 6;
+  double lon = 7;
+  double alt = 8;
+  bool  in_the_sun =9;
+}
+
+message Distance {
+  int32 item_id_a =1;
+  int32 item_id_b =2;
+  float distance = 3;
+  bool los = 4;
+}
+
+message GeoCommon {
+  int32 nsat = 1;
+  int32 nbs = 2;
+  google.protobuf.Timestamp time = 3;
+  repeated Item items = 4;
+  repeated Distance distances = 5;
+}

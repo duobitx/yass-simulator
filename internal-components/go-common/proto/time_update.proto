@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package yass.fs;
+
+option go_package = "github.com/duobitx/yass-internal-components/go-common/proto;proto";
+
+message TimeUpdate {
+
+  bool ongoing = 1;
+
+  // Now timestamp as Unix milliseconds.
+  int64 now = 2;
+
+}

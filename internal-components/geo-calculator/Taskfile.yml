@@ -1,0 +1,18 @@
+version: '3'
+
+vars:
+  TARGETARCH: 'amd64'
+  TARGETOS:   'linux'
+
+silent: true
+
+tasks:
+  build:
+    desc: Build the geo-calculator in Docker
+    cmds:
+      - docker build --target geo-calc-builder -t docker.io/library/geo-calc-builder .
+
+  default:
+    desc: Alias to build
+    cmds:
+      - task: build
