@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: experiment-executor
+spec:
+  serviceName: experiment-executor
+  replicas: 1
+  selector:
+    matchLabels:
+      app: experiment-executor
+  template:
+    metadata:
+      labels:
+        app: experiment-executor
+    spec:
+      serviceAccountName: "yass-experiment-sa"
+      terminationGracePeriodSeconds: 10
+      initContainers:
+        - name: resource-to-json-experiment
+          image: "ghcr.io/duobitx/yass-internal-components:latest"
+          imagePullPolicy: "Always"
+          command:
+            - "/resource-to-json"
+          env:
+            - name: RESOURCE_KIND
+              value: "Experiment"
+            - name: DST_DIR
+              value: "/mnt/shared"
+            - name: RESOURCE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['yass-experiment']
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - mountPath: /mnt/shared
+              name: shared
+      containers:
+        - name: experiment-executor
+          image: "ghcr.io/duobitx/yass-internal-components:latest"
+          imagePullPolicy: "Always"
+          command:
+            - "/experiment-executor"
+          ports:
+            - containerPort: 8080
+          env:
+            - name: YASS_EXPERIMENT
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['yass-experiment']
+            - name: EXPERIMENT_FILE
+              value: "/mnt/shared/experiment.json"
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - mountPath: /mnt/shared
+              name: shared
+          readinessProbe:
+            httpGet:
+              port: 8080
+              path: "/"
+            periodSeconds: 6
+            initialDelaySeconds: 12
+          livenessProbe:
+            httpGet:
+              port: 8080
+              path: "/"
+            periodSeconds: 5
+            initialDelaySeconds: 12
+      volumes:
+        - name: shared
+          emptyDir:
+            sizeLimit: 2M

@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: messaging
+spec:
+  serviceName: messaging
+  replicas: 1
+  selector:
+    matchLabels:
+      app: messaging
+  template:
+    metadata:
+      labels:
+        app: messaging
+    spec:
+      serviceAccountName: yass-experiment-sa
+      terminationGracePeriodSeconds: 10
+      containers:
+        - name: mosquitto
+          image: "ghcr.io/duobitx/yass-eclipse-mosquitto:v1"
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 1883
+              name: mqtt
+          livenessProbe:
+            tcpSocket:
+              port: 1883
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            tcpSocket:
+              port: 1883
+            initialDelaySeconds: 5
+            periodSeconds: 10
+#          volumeMounts:
+#            - mountPath: /mosquitto/data
+#              name: data
+#            - mountPath: /mosquitto/log
+#              name: log
+#      volumes:
+#        - name: data
+#          emptyDir: {}
+#        - name: log
+#          emptyDir: {}

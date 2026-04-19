@@ -1,0 +1,106 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: hardwaredefinitions.int.esa.yass
+spec:
+  group: int.esa.yass
+  names:
+    kind: HardwareDefinition
+    listKind: HardwareDefinitionList
+    plural: hardwaredefinitions
+    singular: hardwaredefinition
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.cpu
+      name: CPU
+      type: string
+    - jsonPath: .spec.memory
+      name: Memory
+      type: string
+    - jsonPath: .spec.diskSpace
+      name: DiskSpace
+      type: string
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: HardwareDefinition definition of the hardware installed on the
+          satellite or ground station.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          description:
+            description: Description of the hardware specification.
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            properties:
+              batteryCapacityWh:
+                type: number
+              batteryChargeW:
+                type: number
+              cpu:
+                anyOf:
+                - type: integer
+                - type: string
+                description: Number of available CPUs.
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              diskSpace:
+                anyOf:
+                - type: integer
+                - type: string
+                description: Available disk space. If not defined then unlimited.
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+              energyConsumption:
+                properties:
+                  lowPowerBaseW:
+                    type: number
+                  normalPowerBaseW:
+                    type: number
+                  perkByteDiskRD:
+                    type: number
+                  perkByteDiskWR:
+                    type: number
+                  perkByteTXWh:
+                    type: number
+                required:
+                - normalPowerBaseW
+                type: object
+              lowPowerThresholdWh:
+                type: number
+              memory:
+                anyOf:
+                - type: integer
+                - type: string
+                description: Number of available RAM.
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
+            required:
+            - batteryCapacityWh
+            - cpu
+            - memory
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

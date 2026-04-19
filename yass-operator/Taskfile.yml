@@ -1,0 +1,21 @@
+version: '3'
+
+tasks:
+  default:
+    desc: Run Makefile default target
+    cmds:
+      - make
+      - make build-installer
+      # FIXME - make docker-buildx
+      - make docker-build
+      - make docker-push
+
+  help:
+    desc: Display Makefile help
+    cmds:
+      - make help
+
+  make:
+    desc: "Run any Makefile target (example: task make -- test)"
+    cmds:
+      - make {{.CLI_ARGS}}

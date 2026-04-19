@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: events-webapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: events-webapp
+  template:
+    metadata:
+      labels:
+        app: events-webapp
+    spec:
+      serviceAccountName: yass-experiment-sa
+      containers:
+        - name: events-webapp
+          image: "ghcr.io/duobitx/yass-internal-components:latest"
+          imagePullPolicy: "Always"
+          command:
+            - "/events-webapp"
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"

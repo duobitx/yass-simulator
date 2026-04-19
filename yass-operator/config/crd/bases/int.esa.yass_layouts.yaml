@@ -1,0 +1,171 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.19.0
+  name: layouts.int.esa.yass
+spec:
+  group: int.esa.yass
+  names:
+    kind: Layout
+    listKind: LayoutList
+    plural: layouts
+    singular: layout
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.start
+      name: Start
+      type: boolean
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Layout describe how satellites and groud stations are located
+          in space or/and on the Earth.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          description:
+            description: Description of the layout
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            items:
+              properties:
+                earthPosition:
+                  description: A position of an object on the Earth.
+                  properties:
+                    heightOverSeaLevel:
+                      description: Height over sea level in meters.
+                      type: number
+                    lat:
+                      description: Latitude in numeric format.
+                      type: number
+                    lng:
+                      description: Longitude in numeric format.
+                      type: number
+                  required:
+                  - lat
+                  - lng
+                  type: object
+                fsNode:
+                  type: string
+                hardwareSpec:
+                  description: Satellite hardware spec.
+                  properties:
+                    batteryCapacityWh:
+                      type: number
+                    batteryChargeW:
+                      type: number
+                    cpu:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: Number of available CPUs.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    diskSpace:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: Available disk space. If not defined then unlimited.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                    energyConsumption:
+                      properties:
+                        lowPowerBaseW:
+                          type: number
+                        normalPowerBaseW:
+                          type: number
+                        perkByteDiskRD:
+                          type: number
+                        perkByteDiskWR:
+                          type: number
+                        perkByteTXWh:
+                          type: number
+                      required:
+                      - normalPowerBaseW
+                      type: object
+                    lowPowerThresholdWh:
+                      type: number
+                    memory:
+                      anyOf:
+                      - type: integer
+                      - type: string
+                      description: Number of available RAM.
+                      pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                      x-kubernetes-int-or-string: true
+                  required:
+                  - batteryCapacityWh
+                  - cpu
+                  - memory
+                  type: object
+                hardwareSpecRef:
+                  description: Satellite Hardware specification. Field hardwareSpec
+                    has priority over hardwareSpecRef.
+                  type: string
+                nodeType:
+                  type: string
+                orbit:
+                  description: A position of an object as TLE.
+                  properties:
+                    tle:
+                      description: TLE lines
+                      items:
+                        type: string
+                      maxItems: 2
+                      minItems: 2
+                      type: array
+                  required:
+                  - tle
+                  type: object
+                properties:
+                  additionalProperties:
+                    type: string
+                  description: Properties of the node. Injected as environment variables.
+                  type: object
+                rotation:
+                  description: Rotation of an object
+                  properties:
+                    pitch:
+                      type: number
+                    roll:
+                      type: number
+                    yaw:
+                      type: number
+                  type: object
+              required:
+              - fsNode
+              - nodeType
+              type: object
+              x-kubernetes-validations:
+              - message: Exactly one of spec.orbit or spec.earthPosition must be set
+                rule: (has(self.orbit) && !has(self.earthPosition)) || (!has(self.orbit)
+                  && has(self.earthPosition))
+              - message: At least one of spec.hardwareSpecRef or spec.hardwareSpec
+                  must be set
+                rule: has(self.hardwareSpecRef) || has(self.hardwareSpec)
+            type: array
+            x-kubernetes-list-map-keys:
+            - fsNode
+            x-kubernetes-list-type: map
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

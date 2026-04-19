@@ -1,0 +1,65 @@
+version: "2"
+run:
+  allow-parallel-runners: true
+linters:
+  default: none
+  enable:
+    - copyloopvar
+    - dupl
+    - errcheck
+    - funlen
+    - ginkgolinter
+    - gocognit
+    - goconst
+    - gocyclo
+    - govet
+    - ineffassign
+    - lll
+    - maintidx
+    - misspell
+    - nakedret
+    - nilerr
+    - nilnil
+    - prealloc
+    - revive
+    - staticcheck
+    - tagalign
+    - testableexamples
+    - unconvert
+    - unparam
+    - unused
+    - whitespace
+  settings:
+    funlen:
+      lines: 150
+      statements: 90
+    gocognit:
+      min-complexity: 40
+    revive:
+      rules:
+        - name: comment-spacings
+        - name: import-shadowing
+  exclusions:
+    generated: lax
+    rules:
+      - linters:
+          - lll
+        path: api/*
+      - linters:
+          - dupl
+          - lll
+        path: internal/*
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

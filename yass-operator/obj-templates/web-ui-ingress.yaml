@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: yass-web-ui
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  rules:
+  - host: {{.Values.experimentName}}.yass.duobit.pl
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: web-ui
+            port:
+              number: 80
+#  tls:
+#  - hosts:
+#    - {{.Values.experimentName}}.yass.duobit.pl
+#    secretName: yass-web-ui-tls

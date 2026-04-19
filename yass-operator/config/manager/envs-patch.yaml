@@ -1,0 +1,16 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: controller-manager
+spec:
+  template:
+    spec:
+      containers:
+        - name: manager
+          env:
+            - name: INTERNAL_COMPONENTS_VERSION
+              value: latest
+            - name: EXPERIMENT_LOG_LEVEL
+              value: INFO
+            - name: DISABLE_NETWORKING_MANIPULATION
+              value: "false"

@@ -1,0 +1,17 @@
+resources:
+- manager.yaml
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+images:
+- name: controller
+  newName: ghcr.io/duobitx/yass-operator
+  newTag: latest
+patches:
+- path: image-pull-policy-patch.yaml
+  target:
+    kind: Deployment
+    name: controller-manager
+- path: envs-patch.yaml
+  target:
+    kind: Deployment
+    name: controller-manager

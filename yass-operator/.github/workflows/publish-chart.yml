@@ -1,0 +1,70 @@
+name: Publish Helm Chart
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  REGISTRY: ghcr.io
+  CHART_REPO: ghcr.io/duobitx/charts
+  CHART_NAME: yass-operator
+jobs:
+  publish:
+    name: Package and push
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Set up Helm
+        uses: azure/setup-helm@b9e51907a09c216f16ebe8536097933489208112  # v4.3.0
+        with:
+          version: v3.19.0
+
+      - name: Set up ORAS
+        uses: oras-project/setup-oras@8d34698a59f5ffe24821f0b48ab62a3de8b64b20  # v1.2.3
+
+      - name: Resolve chart version
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="0.0.0-main.$(git rev-parse --short HEAD)"
+          fi
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "Chart version: ${VERSION}"
+
+      - name: Package chart
+        run: |
+          helm package charts/${CHART_NAME} \
+            --version "${{ steps.version.outputs.version }}" \
+            --app-version "${{ steps.version.outputs.version }}" \
+            --destination dist/
+
+      - name: Log in to GHCR
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | helm registry login ${REGISTRY} -u ${{ github.actor }} --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" \
+            | oras login ${REGISTRY} -u ${{ github.actor }} --password-stdin
+
+      - name: Push chart
+        run: |
+          helm push "dist/${CHART_NAME}-${{ steps.version.outputs.version }}.tgz" \
+            "oci://${CHART_REPO}"
+
+      - name: Tag as latest (main branch only)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          oras tag \
+            "${CHART_REPO}/${CHART_NAME}:${{ steps.version.outputs.version }}" \
+            latest
