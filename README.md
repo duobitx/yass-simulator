@@ -42,15 +42,13 @@ Assuming you have working kubernetes cluster with admin role.
 kubectl create namespace yass-system
 ```
 
-3. Create `docker-registry` secret
+3. Option 1Create `docker-registry` secret
 
-```shell
-vim -o .github/{USER,TOKEN,EMAIL}  # adjust your secrets
+```shell  # adjust your secrets
 kubectl -n yass-system create secret docker-registry docker-secret \
   --docker-server=https://ghcr.io/v1/ \
-  --docker-username=$(<.github/USER) \
-  --docker-password=$(<.github/TOKEN) \
-  --docker-email=$(<.github/EMAIL)
+  --docker-username=YOUR_GITHUB_USER \
+  --docker-password=YOUR_GITHUB_PAT
 ```
 
 ### 2. Install cert-manager
