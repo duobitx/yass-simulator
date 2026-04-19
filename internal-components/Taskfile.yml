@@ -36,7 +36,9 @@ tasks:
       - "docker-build"
     cmds:
       - "{{.DOCKER}} push {{.IMAGE_NAME}}:{{.TAG}}"
+      - 'echo "📦 pushed {{.IMAGE_NAME}}:{{.TAG}}"'
       - "{{.DOCKER}} push {{.IMAGE_NAME}}:latest"
+      - 'echo "📦 pushed {{.IMAGE_NAME}}:latest"'
 
   default:
     desc: Run deps, docker-build and docker-push

@@ -3,12 +3,16 @@ version: '3'
 tasks:
   default:
     desc: Run Makefile default target
+    vars:
+      IMG:
+        sh: "grep -E '^IMG\\s*\\?=' Makefile | sed -E 's/^IMG\\s*\\?=\\s*//'"
     cmds:
       - make
       - make build-installer
       # FIXME - make docker-buildx
       - make docker-build
       - make docker-push
+      - 'echo "📦 pushed {{.IMG}}"'
 
   help:
     desc: Display Makefile help
