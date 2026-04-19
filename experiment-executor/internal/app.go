@@ -124,6 +124,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 	// do not call cancel by default, we want that to continue.
 	err := t.facade.Publish(experimentCtx, experimentEndTopic, 0, true, "")
 	if err != nil {
+		cancel(err)
 		return errors.Wrapf(err, "cannot publish to %s", experimentEndTopic)
 	}
 	err = t.facade.Subscribe(experimentEndTopic, func(sCtx context.Context, topic string, retained bool, data []byte) {

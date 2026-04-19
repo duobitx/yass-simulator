@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/duobitx/yass-internal-components/go-common/proto/go"
+	proto "github.com/duobitx/yass-internal-components/go-common/proto/go"
 	yassv1 "github.com/duobitx/yass-operator/api/v1"
 	"github.com/m-szalik/goutils"
 	"k8s.io/apimachinery/pkg/util/json"

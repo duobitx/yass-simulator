@@ -81,7 +81,9 @@ func main() {
 	slog.Info("Completed")
 }
 
-func handleFsNodeResource(ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName) (*cmodel.FsNode, *yassv1.HardwareSpec, error) {
+func handleFsNodeResource(
+	ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName,
+) (*cmodel.FsNode, *yassv1.HardwareSpec, error) {
 	ret := &cmodel.FsNode{}
 	obj := &yassv1.FsNode{}
 	err := k8sClient.Get(ctx, namespacedName, obj)
@@ -106,7 +108,9 @@ func handleFsNodeResource(ctx context.Context, k8sClient client.Client, namespac
 	}
 	return ret, obj.Spec.HardwareSpec, nil
 }
-func handleHardwareDefinitionResource(ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName) (*yassv1.HardwareDefinition, error) {
+func handleHardwareDefinitionResource(
+	ctx context.Context, k8sClient client.Client, namespacedName types.NamespacedName,
+) (*yassv1.HardwareDefinition, error) {
 	obj := &yassv1.HardwareDefinition{}
 	err := k8sClient.Get(ctx, namespacedName, obj)
 	if err != nil {

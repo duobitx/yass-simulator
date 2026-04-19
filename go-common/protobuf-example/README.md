@@ -1,11 +1,11 @@
 # Example of protobuf usage
 
-## Example.ccp
-Example.ccp generates a binary file `common.bin` that is prefixed with a length of the structure.
+## cpp/example.cpp
+`cpp/example.cpp` generates a binary file `common.bin` that is prefixed with a length of the structure.
 
 ### Compile
 ```shell
-g++ -o example example.cpp ../../go-common/proto/cpp/geocalc_message.pb.cc -I../../go-common/proto -lprotobuf -std=c++17
+g++ -o example cpp/example.cpp ../../go-common/proto/cpp/geocalc_message.pb.cc -I../../go-common/proto -lprotobuf -std=c++17
 ```
 ### Run
 ```shell

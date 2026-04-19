@@ -47,7 +47,7 @@ type appType struct {
 	updates           *updates
 }
 
-func (a *appType) handleUpdate(ctx context.Context, data []byte) error {
+func (a *appType) handleUpdate(_ context.Context, data []byte) error {
 	slog.Info("incoming data", "data", data)
 	dataObj := &proto.FsNodeUpdate{}
 	err := json.Unmarshal(data, &dataObj)

@@ -5,7 +5,9 @@ import (
 	"log/slog"
 )
 
-const key = "common_slog"
+type ctxKey struct{}
+
+var key = ctxKey{}
 
 func FromContext(ctx context.Context) *slog.Logger {
 	ctxSlog := ctx.Value(key)
@@ -15,6 +17,6 @@ func FromContext(ctx context.Context) *slog.Logger {
 	return ctxSlog.(*slog.Logger)
 }
 
-func NewContext(ctx context.Context, slog *slog.Logger) context.Context {
-	return context.WithValue(ctx, key, slog)
+func NewContext(ctx context.Context, logger *slog.Logger) context.Context {
+	return context.WithValue(ctx, key, logger)
 }
