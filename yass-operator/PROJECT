@@ -9,7 +9,7 @@ layout:
 plugins:
   helm.kubebuilder.io/v1-alpha: {}
 projectName: yass
-repo: github.com/duobitx/yass-operator
+repo: github.com/duobitx/yass-simulator/yass-operator
 resources:
 - api:
     crdVersion: v1
@@ -18,7 +18,7 @@ resources:
   domain: int.esa
   group: yass
   kind: Experiment
-  path: github.com/duobitx/yass-operator/api/v1
+  path: github.com/duobitx/yass-simulator/yass-operator/api/v1
   version: v1
 - api:
     crdVersion: v1
@@ -27,7 +27,7 @@ resources:
   domain: int.esa
   group: yass
   kind: FsNode
-  path: github.com/duobitx/yass-operator/api/v1
+  path: github.com/duobitx/yass-simulator/yass-operator/api/v1
   version: v1
   webhooks:
     validation: true
@@ -39,7 +39,7 @@ resources:
   domain: int.esa
   group: yass
   kind: Layout
-  path: github.com/duobitx/yass-operator/api/v1
+  path: github.com/duobitx/yass-simulator/yass-operator/api/v1
   version: v1
   webhooks:
     validation: true
@@ -50,7 +50,7 @@ resources:
   domain: int.esa
   group: yass
   kind: ExperimentDefinition
-  path: github.com/duobitx/yass-operator/api/v1
+  path: github.com/duobitx/yass-simulator/yass-operator/api/v1
   version: v1
 - api:
     crdVersion: v1
@@ -58,7 +58,7 @@ resources:
   domain: int.esa
   group: yass
   kind: HardwareDefinition
-  path: github.com/duobitx/yass-operator/api/v1
+  path: github.com/duobitx/yass-simulator/yass-operator/api/v1
   version: v1
 - api:
     crdVersion: v1
@@ -66,6 +66,6 @@ resources:
   domain: int.esa
   group: yass
   kind: Layout
-  path: github.com/duobitx/yass-operator/api/v1
+  path: github.com/duobitx/yass-simulator/yass-operator/api/v1
   version: v1
 version: "3"

@@ -1,17 +1,19 @@
 version: '3'
 
+vars:
+  VERSION:
+    sh: "v=$(git describe --tags --exact-match 2>/dev/null || true); if [ -n \"$v\" ]; then echo \"${v#v}\"; else echo latest; fi"
+  IMG: 'ghcr.io/duobitx/yass-operator:{{.VERSION}}'
+
 tasks:
   default:
     desc: Run Makefile default target
-    vars:
-      IMG:
-        sh: "grep -E '^IMG\\s*\\?=' Makefile | sed -E 's/^IMG\\s*\\?=\\s*//'"
     cmds:
-      - make
-      - make build-installer
+      - make IMG={{.IMG}}
+      - make build-installer IMG={{.IMG}}
       # FIXME - make docker-buildx
-      - make docker-build
-      - make docker-push
+      - make docker-build IMG={{.IMG}}
+      - make docker-push IMG={{.IMG}}
       - 'echo "📦 pushed {{.IMG}}"'
 
   help:

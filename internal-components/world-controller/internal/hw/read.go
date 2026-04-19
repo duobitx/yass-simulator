@@ -6,7 +6,7 @@ import (
 	"os"
 	"path"
 
-	yassv1 "github.com/duobitx/yass-operator/api/v1"
+	yassv1 "github.com/duobitx/yass-simulator/yass-operator/api/v1"
 	"github.com/m-szalik/goutils"
 )
 

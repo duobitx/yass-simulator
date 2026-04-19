@@ -25,10 +25,7 @@ import (
 	"os/exec"
 	"testing"
 
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-
-	"github.com/duobitx/yass-operator/test/utils"
+	"github.com/duobitx/yass-simulator/yass-operator/test/utils"
 )
 
 var (

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/duobitx/yass-internal-components/experiment-executor/consts"
+	"github.com/duobitx/yass-simulator/internal-components/experiment-executor/consts"
 	"github.com/gorilla/mux"
 	"k8s.io/apimachinery/pkg/util/json"
 )

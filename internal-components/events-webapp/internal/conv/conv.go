@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/duobitx/yass-internal-components/events-webapp/pkg/api"
-	proto "github.com/duobitx/yass-internal-components/go-common/proto/go"
+	"github.com/duobitx/yass-simulator/internal-components/events-webapp/pkg/api"
+	proto "github.com/duobitx/yass-simulator/internal-components/go-common/proto/go"
 )
 
 func timestamp(millis int64) time.Time {

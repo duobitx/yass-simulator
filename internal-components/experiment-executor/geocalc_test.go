@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/duobitx/yass-internal-components/experiment-executor/internal/geocalc"
+	"github.com/duobitx/yass-simulator/internal-components/experiment-executor/internal/geocalc"
 )
 
 func TestRunGeoCalc(_ *testing.T) {

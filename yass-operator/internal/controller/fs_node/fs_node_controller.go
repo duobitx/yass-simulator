@@ -23,8 +23,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/duobitx/yass-operator/internal/config"
-	"github.com/duobitx/yass-operator/internal/controller"
+	"github.com/duobitx/yass-simulator/yass-operator/internal/config"
+	"github.com/duobitx/yass-simulator/yass-operator/internal/controller"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
 	"gopkg.in/inf.v0"
@@ -40,7 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
-	yassv1 "github.com/duobitx/yass-operator/api/v1"
+	yassv1 "github.com/duobitx/yass-simulator/yass-operator/api/v1"
 )
 
 const (

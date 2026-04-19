@@ -1,4 +1,4 @@
-module github.com/duobitx/yass-operator
+module github.com/duobitx/yass-simulator/yass-operator
 
 go 1.24.0
 

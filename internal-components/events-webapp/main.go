@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/duobitx/yass-internal-components/events-webapp/internal/conv"
-	"github.com/duobitx/yass-internal-components/go-common/startup"
+	"github.com/duobitx/yass-simulator/internal-components/events-webapp/internal/conv"
+	"github.com/duobitx/yass-simulator/internal-components/go-common/startup"
 	com "github.com/m-szalik/com-facade"
 	"github.com/m-szalik/com-facade/mqtt"
 	"github.com/m-szalik/goutils"

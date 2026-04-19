@@ -26,7 +26,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	yassv1 "github.com/duobitx/yass-operator/api/v1"
+	yassv1 "github.com/duobitx/yass-simulator/yass-operator/api/v1"
 )
 
 // SetupLayoutWebhookWithManager registers the webhook for Layout in the manager.

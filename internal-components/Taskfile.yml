@@ -3,7 +3,7 @@ version: '3'
 vars:
   IMAGE_NAME: 'ghcr.io/duobitx/yass-internal-components'
   TAG:
-    sh: date '+%Y%m%dt%H%M%S'
+    sh: "v=$(git describe --tags --exact-match 2>/dev/null || true); if [ -n \"$v\" ]; then echo \"${v#v}\"; else date '+%Y%m%dt%H%M%S'; fi"
   DOCKER: 'docker'
 
 silent: true

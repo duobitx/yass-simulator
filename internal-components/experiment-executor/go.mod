@@ -1,10 +1,10 @@
-module github.com/duobitx/yass-internal-components/experiment-executor
+module github.com/duobitx/yass-simulator/internal-components/experiment-executor
 
 go 1.25.7
 
 require (
-	github.com/duobitx/yass-internal-components/go-common v0.0.0-20251214230811-f06efdbb16cf
-	github.com/duobitx/yass-operator v0.0.0-20251205232601-cc05ef46ceb5
+	github.com/duobitx/yass-simulator/internal-components/go-common v0.0.0-20251214230811-f06efdbb16cf
+	github.com/duobitx/yass-simulator/yass-operator v0.0.0-00010101000000-000000000000
 	github.com/gorilla/mux v1.8.1
 	github.com/m-szalik/com-facade v0.0.0-20260419000112-a6e0e334d5ca
 	github.com/m-szalik/goutils v0.4.0
@@ -83,4 +83,6 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/duobitx/yass-internal-components/go-common => ../go-common
+replace github.com/duobitx/yass-simulator/internal-components/go-common => ../go-common
+
+replace github.com/duobitx/yass-simulator/yass-operator => ../../yass-operator

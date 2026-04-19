@@ -43,6 +43,18 @@ jobs:
           echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
           echo "Chart version: ${VERSION}"
 
+      - name: Pin image versions in values.yaml (tag builds only)
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          yq -i '
+            .controllerManager.container.image.tag = strenv(VERSION) |
+            .controllerManager.container.env.INTERNAL_COMPONENTS_VERSION = strenv(VERSION)
+          ' yass-operator/charts/${CHART_NAME}/values.yaml
+          echo "Updated values.yaml:"
+          yq '.controllerManager.container' yass-operator/charts/${CHART_NAME}/values.yaml
+
       - name: Package chart
         run: |
           helm package yass-operator/charts/${CHART_NAME} \

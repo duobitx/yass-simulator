@@ -10,12 +10,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/duobitx/yass-internal-components/experiment-executor/internal"
-	"github.com/duobitx/yass-internal-components/go-common/startup"
+	"github.com/duobitx/yass-simulator/internal-components/experiment-executor/consts"
+	"github.com/duobitx/yass-simulator/internal-components/experiment-executor/internal"
+	"github.com/duobitx/yass-simulator/internal-components/go-common/startup"
 	"github.com/gorilla/mux"
 	"k8s.io/apimachinery/pkg/util/rand"
 
-	"github.com/duobitx/yass-internal-components/experiment-executor/consts"
 	"github.com/m-szalik/com-facade/mqtt"
 	"github.com/m-szalik/goutils"
 )

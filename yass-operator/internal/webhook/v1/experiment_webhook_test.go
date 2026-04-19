@@ -17,11 +17,9 @@ limitations under the License.
 package v1
 
 import (
+	yassv1 "github.com/duobitx/yass-simulator/yass-operator/api/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	yassv1 "github.com/duobitx/yass-operator/api/v1"
-	// TODO (user): Add any additional imports if needed
 )
 
 var _ = Describe("Experiment Webhook", func() {

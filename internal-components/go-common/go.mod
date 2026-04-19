@@ -1,4 +1,4 @@
-module github.com/duobitx/yass-internal-components/go-common
+module github.com/duobitx/yass-simulator/internal-components/go-common
 
 go 1.25
 

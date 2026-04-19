@@ -27,7 +27,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 
-	yassv1 "github.com/duobitx/yass-operator/api/v1"
+	yassv1 "github.com/duobitx/yass-simulator/yass-operator/api/v1"
 )
 
 // log is for logging in this package.

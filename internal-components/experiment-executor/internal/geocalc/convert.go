@@ -4,7 +4,7 @@ import (
 	"math"
 	"time"
 
-	geocalcproto "github.com/duobitx/yass-internal-components/go-common/proto/go"
+	geocalcproto "github.com/duobitx/yass-simulator/internal-components/go-common/proto/go"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
 )

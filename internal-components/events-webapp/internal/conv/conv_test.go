@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/duobitx/yass-internal-components/events-webapp/pkg/api"
+	"github.com/duobitx/yass-simulator/internal-components/events-webapp/pkg/api"
 	"github.com/stretchr/testify/assert"
 )
 

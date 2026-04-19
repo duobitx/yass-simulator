@@ -1,11 +1,11 @@
-module github.com/duobitx/yass-internal-components/resource-to-json
+module github.com/duobitx/yass-simulator/internal-components/resource-to-json
 
 go 1.25
 
 require (
-	github.com/duobitx/yass-internal-components/go-common v0.0.0-20251214230353-b70dd607bb37
-	github.com/duobitx/yass-operator v0.0.0-20251214224632-b2d22f526b67
-	github.com/m-szalik/goutils v0.3.0
+	github.com/duobitx/yass-simulator/internal-components/go-common v0.0.0-20251214230353-b70dd607bb37
+	github.com/duobitx/yass-simulator/yass-operator v0.0.0-20251214224632-b2d22f526b67
+	github.com/m-szalik/goutils v0.4.0
 	github.com/pkg/errors v0.9.1
 	k8s.io/apimachinery v0.34.2
 	k8s.io/client-go v0.34.2
@@ -75,4 +75,6 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/duobitx/yass-internal-components/go-common => ../go-common
+replace github.com/duobitx/yass-simulator/internal-components/go-common => ../go-common
+
+replace github.com/duobitx/yass-simulator/yass-operator => ../../yass-operator

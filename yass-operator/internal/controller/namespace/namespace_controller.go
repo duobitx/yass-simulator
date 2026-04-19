@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/duobitx/yass-operator/internal/config"
+	"github.com/duobitx/yass-simulator/yass-operator/internal/config"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"

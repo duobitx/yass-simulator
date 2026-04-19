@@ -14,9 +14,9 @@ import (
 	"text/template"
 	"time"
 
-	yassv1 "github.com/duobitx/yass-operator/api/v1"
-	"github.com/duobitx/yass-operator/internal/config"
-	"github.com/duobitx/yass-operator/internal/controller"
+	yassv1 "github.com/duobitx/yass-simulator/yass-operator/api/v1"
+	"github.com/duobitx/yass-simulator/yass-operator/internal/config"
+	"github.com/duobitx/yass-simulator/yass-operator/internal/controller"
 	"github.com/m-szalik/goutils"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"

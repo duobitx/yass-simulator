@@ -14,8 +14,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/duobitx/yass-internal-components/go-common/common_slog"
-	geocalcproto "github.com/duobitx/yass-internal-components/go-common/proto/go"
+	"github.com/duobitx/yass-simulator/internal-components/go-common/common_slog"
+	geocalcproto "github.com/duobitx/yass-simulator/internal-components/go-common/proto/go"
 	"github.com/m-szalik/goutils"
 	errors2 "github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"

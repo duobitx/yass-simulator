@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	pb "github.com/duobitx/yass-internal-components/go-common/proto/go"
+	pb "github.com/duobitx/yass-simulator/internal-components/go-common/proto/go"
 	"google.golang.org/protobuf/proto"
 )
 

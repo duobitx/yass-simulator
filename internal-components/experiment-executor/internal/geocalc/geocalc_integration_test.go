@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	geocalcproto "github.com/duobitx/yass-internal-components/go-common/proto/go"
+	geocalcproto "github.com/duobitx/yass-simulator/internal-components/go-common/proto/go"
 )
 
 func TestGeoCalcSharedMemoryIntegration(t *testing.T) {

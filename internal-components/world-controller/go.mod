@@ -1,10 +1,10 @@
-module github.com/duobitx/yass-internal-components/world-controller
+module github.com/duobitx/yass-simulator/internal-components/world-controller
 
 go 1.25.7
 
 require (
-	github.com/duobitx/yass-internal-components/go-common v0.0.0-20251130234904-36bc4d78cc85
-	github.com/duobitx/yass-operator v0.0.0-20251205232601-cc05ef46ceb5
+	github.com/duobitx/yass-simulator/internal-components/go-common v0.0.0-20251130234904-36bc4d78cc85
+	github.com/duobitx/yass-simulator/yass-operator v0.0.0-20251205232601-cc05ef46ceb5
 	github.com/m-szalik/com-facade v0.0.0-20260419000112-a6e0e334d5ca
 	github.com/m-szalik/goutils v0.4.0
 	github.com/pkg/errors v0.9.1
@@ -84,4 +84,6 @@ require (
 	sigs.k8s.io/yaml v1.6.0 // indirect
 )
 
-replace github.com/duobitx/yass-internal-components/go-common => ../go-common
+replace github.com/duobitx/yass-simulator/internal-components/go-common => ../go-common
+
+replace github.com/duobitx/yass-simulator/yass-operator => ../../yass-operator
