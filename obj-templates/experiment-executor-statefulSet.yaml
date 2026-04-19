@@ -17,7 +17,7 @@ spec:
       terminationGracePeriodSeconds: 10
       initContainers:
         - name: resource-to-json-experiment
-          image: "ghcr.io/duobitx/yass/internal-components:latest"
+          image: "ghcr.io/duobitx/yass-internal-components:latest"
           imagePullPolicy: "Always"
           command:
             - "/resource-to-json"
@@ -39,7 +39,7 @@ spec:
               name: shared
       containers:
         - name: experiment-executor
-          image: "ghcr.io/duobitx/yass/internal-components:latest"
+          image: "ghcr.io/duobitx/yass-internal-components:latest"
           imagePullPolicy: "Always"
           command:
             - "/experiment-executor"

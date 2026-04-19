@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	internalComponentsImage = "ghcr.io/duobitx/yass/internal-components"
+	internalComponentsImage = "ghcr.io/duobitx/yass-internal-components"
 	latest                  = "latest"
 )
 
