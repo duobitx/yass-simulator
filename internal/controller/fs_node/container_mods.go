@@ -50,7 +50,7 @@ func modVolumeMount(volumeName, mountPoint string, ro bool) modFunc {
 				MountPath: mountPoint,
 			},
 		}
-		if container.VolumeDevices == nil {
+		if container.VolumeMounts == nil {
 			container.VolumeMounts = vms
 		} else {
 			container.VolumeMounts = append(container.VolumeMounts, vms...)
