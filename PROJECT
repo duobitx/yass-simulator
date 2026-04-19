@@ -6,6 +6,8 @@ cliVersion: 4.9.0
 domain: int.esa
 layout:
 - go.kubebuilder.io/v4
+plugins:
+  helm.kubebuilder.io/v1-alpha: {}
 projectName: yass
 repo: github.com/duobitx/yass-operator
 resources:
@@ -18,7 +20,6 @@ resources:
   kind: Experiment
   path: github.com/duobitx/yass-operator/api/v1
   version: v1
-  webhooks:
 - api:
     crdVersion: v1
     namespaced: true

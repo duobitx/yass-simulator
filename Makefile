@@ -146,6 +146,19 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > dist/install.yaml
 
+.PHONY: helm-chart
+helm-chart: manifests ## Regenerate the Helm chart at charts/yass-operator from config/ via kubebuilder helm plugin.
+	@command -v kubebuilder >/dev/null 2>&1 || { echo "kubebuilder is required. See https://book.kubebuilder.io"; exit 1; }
+	@command -v rsync >/dev/null 2>&1 || { echo "rsync is required."; exit 1; }
+	kubebuilder edit --plugins=helm/v1-alpha --force
+	mkdir -p charts/yass-operator
+	rsync -a --delete \
+		--exclude='Chart.yaml' \
+		--exclude='values.yaml' \
+		--exclude='templates/manager/manager.yaml' \
+		dist/chart/ charts/yass-operator/
+	rm -rf dist/chart
+
 ##@ Deployment
 
 ifndef ignore-not-found
