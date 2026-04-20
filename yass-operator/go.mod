@@ -2,8 +2,6 @@ module github.com/duobitx/yass-simulator/yass-operator
 
 go 1.25.7
 
-toolchain go1.24.6
-
 require (
 	github.com/m-szalik/goutils v0.4.0
 	github.com/onsi/ginkgo/v2 v2.22.0
