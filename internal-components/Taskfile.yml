@@ -11,7 +11,7 @@ silent: true
 tasks:
 
   deps:
-    desc: Build prerequisite artifacts from submodules (go-common, resource-to-json, world-controller)
+    desc: "Build prerequisite artifacts from submodules (go-common, resource-to-json, world-controller, except:mosquitto)"
     cmds:
       - task -d go-common tools
       - task -d go-common proto
@@ -20,7 +20,6 @@ tasks:
       - task -d events-webapp build
       - task -d experiment-executor build
       - task -d geo-calculator build
-      - task -d mosquitto-docker-image docker-push
 
   docker-build:
     desc: Build root Docker image tagged with TAG and latest
