@@ -28,10 +28,14 @@ func TestConvert_DistanceCounts(t *testing.T) {
 	assert.Equal(t, 3, len(result.FsNodeInfos))
 
 	// For Node1 (index 0), it should have Node2 in ReachableFsNodes
-	assert.Equal(t, 1, len(result.FsNodeInfos[0].ReachableFsNodes), "Node1 should have 1 reachable node")
+	assert.Equal(t, 2, len(result.FsNodeInfos[0].ReachableFsNodes), "Node1 should have 2 reachable node")
 	assert.Equal(t, "Node2", result.FsNodeInfos[0].ReachableFsNodes[0].NameTo)
 
 	// For Node2 (index 1), it should have Node1 in ReachableFsNodes
 	assert.Equal(t, 1, len(result.FsNodeInfos[1].ReachableFsNodes), "Node2 should have 1 reachable node")
+	assert.Equal(t, "Node1", result.FsNodeInfos[1].ReachableFsNodes[0].NameTo)
+
+	// For Node3 (index 2), it should have Node1 in ReachableFsNodes
+	assert.Equal(t, 1, len(result.FsNodeInfos[1].ReachableFsNodes), "Node3 should have 1 reachable node")
 	assert.Equal(t, "Node1", result.FsNodeInfos[1].ReachableFsNodes[0].NameTo)
 }
