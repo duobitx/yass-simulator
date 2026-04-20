@@ -7,10 +7,21 @@ vars:
 
 tasks:
   default:
-    desc: Run Makefile default target
+    desc: Build and push
+    cmds:
+      - task: build
+      - task: push
+
+  build:
+    desc: Build
     cmds:
       - make IMG={{.IMG}}
       - make build-installer IMG={{.IMG}}
+      - make helm-chart IMG={{.IMG}}
+
+  push:
+    desc: Push
+    cmds:
       # FIXME - make docker-buildx
       - make docker-build IMG={{.IMG}}
       - make docker-push IMG={{.IMG}}
