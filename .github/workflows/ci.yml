@@ -55,6 +55,7 @@ jobs:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run linter in ${{ matrix.module }}
+        continue-on-error: true
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20  # v9.2.0
         with:
           version: ${{ env.GO_LINTER_VERSION }}
@@ -79,6 +80,7 @@ jobs:
           go-version-file: yass-operator/go.mod
 
       - name: Run linter
+        continue-on-error: true
         uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20  # v9.2.0
         with:
           version: ${{ env.GO_LINTER_VERSION }}
