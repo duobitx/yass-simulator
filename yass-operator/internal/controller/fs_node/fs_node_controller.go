@@ -242,6 +242,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 			},
 			TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
 			ServiceAccountName:            "yass-experiment-sa",
+			RestartPolicy:                 v1.RestartPolicyNever,
 		},
 	}
 	globalEnvs := map[string]string{

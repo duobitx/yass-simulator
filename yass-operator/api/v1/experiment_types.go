@@ -12,11 +12,13 @@ func init() {
 type ExperimentState string
 
 const (
-	ExperimentStateInit      = "Init"
-	ExperimentStateReady     = "Ready"
-	ExperimentStateErrored   = "Errored"
-	ExperimentStateOngoing   = "Ongoing"
-	ExperimentStateCompleted = "Completed"
+	ExperimentStateInit     = "Init"
+	ExperimentStateReady    = "Ready"
+	ExperimentStateErrored  = "Errored"
+	ExperimentStateOngoing  = "Ongoing"
+	ExperimentStateTimedOut = "TimedOut"
+	ExperimentStateSuccess  = "Success"
+	ExperimentStateFailure  = "Failure"
 )
 
 // +kubebuilder:object:root=true

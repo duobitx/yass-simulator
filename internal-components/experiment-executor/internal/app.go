@@ -170,7 +170,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 						slog.Default().Error("cannot send time update", "error", err)
 					}
 					slog.Default().Info("experiment time ended", "shouldEndAt", experimentEndAt, "now", lastTime)
-					err := t.experimentCompletedUpdateExperimentResource("timeout")
+					err := t.experimentTimedOutUpdateExperimentResource()
 					if err != nil {
 						slog.Default().Error("error updating experiment.status resource", "error", err)
 					}
@@ -227,7 +227,7 @@ func (t *AppType) sendTimeUpdate(now time.Time, ongoing bool) error {
 	return t.facade.Publish(t.mainCtx, "updates/_time_", 0, true, obj)
 }
 
-func (t *AppType) experimentCompletedUpdateExperimentResource(completionReason string) error {
+func (t *AppType) experimentTimedOutUpdateExperimentResource() error {
 	if t.namespace == "" {
 		slog.Default().Warn("namespace not set, experiment resource will not be updated")
 		return nil
@@ -241,9 +241,8 @@ func (t *AppType) experimentCompletedUpdateExperimentResource(completionReason s
 		return err
 	}
 	if exp.Status.ExperimentState == yassv1.ExperimentStateOngoing {
-		slog.Default().Info(fmt.Sprintf("Experiment Completed, reason: %s", completionReason))
-		exp.Status.ExperimentState = yassv1.ExperimentStateCompleted
-		// TODO event
+		slog.Default().Info("Experiment timed out")
+		exp.Status.ExperimentState = yassv1.ExperimentStateTimedOut
 		return t.k8sClient.Status().Update(t.mainCtx, exp)
 	}
 	return nil

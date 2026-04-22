@@ -32,7 +32,9 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -130,6 +132,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitRet c
 	if err != nil {
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, err
 	}
+	if err := r.evaluateAgentExitCodes(recon, ctx, &experiment); err != nil {
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, err
+	}
 	if experiment.Status.ExperimentState == yassv1.ExperimentStateInit {
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
@@ -143,8 +148,17 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&yassv1.Experiment{}).
 		Owns(&yassv1.FsNode{}).
+		Watches(&v1.Pod{}, handler.EnqueueRequestsFromMapFunc(mapPodToExperiment)).
 		Named("experiment-controller").
 		Complete(r)
+}
+
+func mapPodToExperiment(_ context.Context, obj client.Object) []reconcile.Request {
+	expName := obj.GetLabels()[controller.LabelExperiment]
+	if expName == "" {
+		return nil
+	}
+	return []reconcile.Request{{NamespacedName: types.NamespacedName{Namespace: obj.GetNamespace(), Name: expName}}}
 }
 
 func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx context.Context, req ctrl.Request, experiment *yassv1.Experiment) error {
@@ -480,6 +494,46 @@ func (r *Reconciler) httpExperimentExecutor(recon *reconciliationStatus, endpoin
 		body, _ := io.ReadAll(response.Body)
 		r.recorder.Eventf(experiment, v1.EventTypeNormal, "ExperimentStarted", "experiment started - %s", string(body))
 		r.updateExperimentState(recon, experiment, yassv1.ExperimentStateOngoing)
+	}
+	return nil
+}
+
+// evaluateAgentExitCodes transitions the experiment to Success/Failure once every agent container has terminated.
+func (r *Reconciler) evaluateAgentExitCodes(recon *reconciliationStatus, ctx context.Context, experiment *yassv1.Experiment) error {
+	state := experiment.Status.ExperimentState
+	if state != yassv1.ExperimentStateOngoing && state != yassv1.ExperimentStateTimedOut {
+		return nil
+	}
+	podList := &v1.PodList{}
+	err := r.List(ctx, podList,
+		client.InNamespace(experiment.Namespace),
+		client.MatchingLabels(map[string]string{controller.LabelExperiment: experiment.Name}))
+	if err != nil {
+		return err
+	}
+	if len(podList.Items) == 0 {
+		return nil
+	}
+	anyFailure := false
+	for _, pod := range podList.Items {
+		var agent *v1.ContainerStatus
+		for i := range pod.Status.ContainerStatuses {
+			if pod.Status.ContainerStatuses[i].Name == "agent" {
+				agent = &pod.Status.ContainerStatuses[i]
+				break
+			}
+		}
+		if agent == nil || agent.State.Terminated == nil {
+			return nil
+		}
+		if agent.State.Terminated.ExitCode != 0 {
+			anyFailure = true
+		}
+	}
+	if anyFailure {
+		r.updateExperimentState(recon, experiment, yassv1.ExperimentStateFailure)
+	} else {
+		r.updateExperimentState(recon, experiment, yassv1.ExperimentStateSuccess)
 	}
 	return nil
 }
