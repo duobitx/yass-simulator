@@ -1,9 +1,9 @@
 go 1.25.7
 
 use (
-	./internal-components/go-common
 	./internal-components/events-webapp
 	./internal-components/experiment-executor
+	./internal-components/go-common
 	./internal-components/resource-to-json
 	./internal-components/world-controller
 	./yass-operator
