@@ -167,24 +167,25 @@ func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx c
 	componentDefinitions := []struct {
 		fName    string
 		compName string
+		resName  string
 		objSrc   client.Object
 		mod      func(object client.Object)
 	}{
-		{"messaging-statefulSet.yaml", "messaging", &appsv1.StatefulSet{}, modAddExperimentAnnotation(experiment.Name)},
-		{"messaging-service.yaml", "messaging", &v1.Service{}, nil},
-		{"experiment-executor-statefulSet.yaml", "experiment-executor", &appsv1.StatefulSet{}, modAddExperimentAnnotation(experiment.Name)},
-		{"experiment-executor-service.yaml", "experiment-executor", &v1.Service{}, nil},
-		{"events-webapp-deployment.yaml", "events-webapp", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
-		{"events-webapp-service.yaml", "events-webapp", &v1.Service{}, nil},
-		{"web-ui-deployment.yaml", "web-ui", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
-		{"web-ui-service.yaml", "web-ui", &v1.Service{}, modAddExperimentAnnotation(experiment.Name)},
-		{"web-ui-ingress.yaml", "web-ui", &netv1.Ingress{}, modAddExperimentAnnotation(experiment.Name)},
+		{"messaging-statefulSet.yaml", "messaging", "", &appsv1.StatefulSet{}, modAddExperimentAnnotation(experiment.Name)},
+		{"messaging-service.yaml", "messaging", "", &v1.Service{}, nil},
+		{"experiment-executor-statefulSet.yaml", "experiment-executor", "", &appsv1.StatefulSet{}, modAddExperimentAnnotation(experiment.Name)},
+		{"experiment-executor-service.yaml", "experiment-executor", "", &v1.Service{}, nil},
+		{"events-webapp-deployment.yaml", "events-webapp", "", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
+		{"events-webapp-service.yaml", "events-webapp", "", &v1.Service{}, nil},
+		{"web-ui-deployment.yaml", "web-ui", "", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
+		{"web-ui-service.yaml", "web-ui", "", &v1.Service{}, modAddExperimentAnnotation(experiment.Name)},
+		{"web-ui-ingress.yaml", "web-ui", experiment.Name, &netv1.Ingress{}, modAddExperimentAnnotation(experiment.Name)},
 	}
 	joinErrHelper := &goutils.JoinErrorHelper{}
 	for _, cDef := range componentDefinitions {
 		objCopy := cDef.objSrc.DeepCopyObject()
 		obj := objCopy.(client.Object)
-		objErr := r.createExperimentComponentIfRequired(recon, ctx, req.Namespace, experiment, cDef.fName, cDef.compName, obj, cDef.mod)
+		objErr := r.createExperimentComponentIfRequired(recon, ctx, req.Namespace, experiment, cDef.fName, cDef.compName, cDef.resName, obj, cDef.mod)
 		if objErr != nil {
 			joinErrHelper.Append(errors.Wrap(objErr, fmt.Sprintf("error creating experiment component %s/%s for %s from template %s", cDef.objSrc.GetObjectKind().GroupVersionKind(), cDef.compName, experiment.Name, cDef.fName)))
 		}
@@ -280,8 +281,11 @@ func (r *Reconciler) deleteExperimentObjects(ctx context.Context, namespace, exp
 	return nil
 }
 
-func (r *Reconciler) createExperimentComponentIfRequired(recon *reconciliationStatus, ctx context.Context, namespace string, experiment *yassv1.Experiment, fName string, objName string, obj client.Object, modifier func(o client.Object)) (exitErr error) {
-	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: objName}, obj)
+func (r *Reconciler) createExperimentComponentIfRequired(recon *reconciliationStatus, ctx context.Context, namespace string, experiment *yassv1.Experiment, fName string, objName string, resName string, obj client.Object, modifier func(o client.Object)) (exitErr error) {
+	if resName == "" {
+		resName = objName
+	}
+	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: resName}, obj)
 	defer func() {
 		r.updateStatusConditionForExperimentObject(recon, experiment, objName, kebabToCamel(objName), obj, exitErr)
 	}()
@@ -311,7 +315,7 @@ func (r *Reconciler) createExperimentComponentIfRequired(recon *reconciliationSt
 		return errors.Wrap(err, fmt.Sprintf("cannot unmarshall file %s", fn))
 	}
 	obj.SetNamespace(namespace)
-	obj.SetName(objName)
+	obj.SetName(resName)
 	labels := obj.GetLabels()
 	if labels == nil {
 		labels = make(map[string]string)
