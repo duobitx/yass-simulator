@@ -7924,7 +7924,7 @@ spec:
         - name: EXPERIMENT_LOG_LEVEL
           value: INFO
         - name: DISABLE_NETWORKING_MANIPULATION
-          value: "false"
+          value: "true"
         image: ghcr.io/duobitx/yass-operator:latest
         imagePullPolicy: Always
         livenessProbe:
