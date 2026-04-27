@@ -1,6 +1,6 @@
 package networking
 
-// engine open ports 3000-3015 (included)
+// engine open ports 9090-9100 (included)
 import (
 	"encoding/binary"
 	"fmt"
@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	portsFrom = 3000
-	portsTo   = 3020
+	portsFrom = 9090
+	portsTo   = 9100
 )
 
 func NetworkParamFromFsNodeUpdateNetworkParamEntry(in *proto.FsNodeUpdateNetworkParamEntry) NetworkParam {

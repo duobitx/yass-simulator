@@ -52,9 +52,9 @@ const (
 )
 
 var engineOpenPorts = map[int]v1.Protocol{
-	3000: v1.ProtocolTCP, 3001: v1.ProtocolTCP, 3002: v1.ProtocolTCP, 3003: v1.ProtocolTCP, 3004: v1.ProtocolTCP, 3005: v1.ProtocolTCP, 3006: v1.ProtocolTCP,
-	3007: v1.ProtocolTCP, 3008: v1.ProtocolTCP, 3009: v1.ProtocolTCP, 3010: v1.ProtocolTCP,
-	3011: v1.ProtocolUDP, 3012: v1.ProtocolUDP, 3013: v1.ProtocolUDP, 3014: v1.ProtocolUDP, 3015: v1.ProtocolUDP,
+	9090: v1.ProtocolTCP, 9091: v1.ProtocolTCP, 9092: v1.ProtocolTCP, 9093: v1.ProtocolTCP,
+	9094: v1.ProtocolTCP, 9095: v1.ProtocolTCP, 9096: v1.ProtocolTCP, 9097: v1.ProtocolTCP,
+	9098: v1.ProtocolUDP, 9099: v1.ProtocolUDP, 9100: v1.ProtocolUDP,
 }
 
 // FsNodeReconciler reconciles a FsNode object
