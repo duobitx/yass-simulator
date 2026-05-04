@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import type { MutableRefObject } from "react";
 import {
   ScreenSpaceEventHandler,
   ScreenSpaceEventType,
@@ -24,6 +25,8 @@ import {
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
+import type { SsePositionEvent } from "@/lib/sse-types";
+
 // Cesium Ion access token
 Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlZWViZWY4NS1kY2ViLTRjNmItYjM2OS00NWY4MmRjZDY1YTUiLCJpZCI6Mzc5MDgzLCJpYXQiOjE3Njg0ODA2OTN9.xaHKt0sIqM-7mTqizQGILb0yoRGBYSZ9u9zaEiDCaLM";
 
@@ -47,9 +50,7 @@ interface GroundStationClickInfo {
 }
 
 interface CesiumSceneProps {
-  showLEO: boolean;
-  showMEO: boolean;
-  showGEO: boolean;
+  orbitLayerVisibility: Record<string, boolean>;
   showGroundStations: boolean;
   showDataTransfer: boolean;
   showGroundLinks: boolean;
@@ -60,6 +61,10 @@ interface CesiumSceneProps {
   maxLinkDistance: number;
   satellites?: SatelliteData[];
   groundStationsList?: GroundStationData[];
+  liveMode?: boolean;
+  /** Hide Cesium animation + timeline (EXP-001 / live stream — not driven by sim clock). */
+  hideSimulationTimeControls?: boolean;
+  liveTracksRef?: MutableRefObject<Record<string, SsePositionEvent>>;
   onSatelliteClick?: (satellite: SatelliteClickInfo) => void;
   onGroundStationClick?: (station: GroundStationClickInfo) => void;
 }
@@ -123,6 +128,67 @@ const generateOrbitPoints = (altitude: number, inclination: number, numPoints: n
     const lon = Math.atan2(y, x) * (180 / Math.PI);
     const lat = Math.asin(z) * (180 / Math.PI);
     points.push(Cartesian3.fromDegrees(lon, lat, altitude * 1000));
+  }
+  return points;
+};
+
+/** Near-equatorial / GEO-style ring: one revolution of longitude at the subsatellite lat. */
+const generateEquatorialLikeRing = (
+  altitudeKm: number,
+  subsatLatDeg: number,
+  subsatLngDeg: number,
+  numPoints: number = 180
+): Cartesian3[] => {
+  const points: Cartesian3[] = [];
+  for (let k = 0; k <= numPoints; k++) {
+    let lonDeg = subsatLngDeg + (k / numPoints) * 360;
+    while (lonDeg > 180) lonDeg -= 360;
+    while (lonDeg < -180) lonDeg += 360;
+    points.push(Cartesian3.fromDegrees(lonDeg, subsatLatDeg, altitudeKm * 1000));
+  }
+  return points;
+};
+
+/**
+ * Same geometry as unphased `generateOrbitPoints`, rotated so the ring passes through the subsatellite point.
+ * Uses geodetic subsat so the polyline matches billboard positions driven by `Lat`/`Lng`/`Alt` in live mode.
+ */
+const generateOrbitPointsPhased = (
+  altitudeKm: number,
+  inclinationDeg: number,
+  subsatLatDeg: number,
+  subsatLngDeg: number,
+  orbitType: SatelliteData["orbitType"],
+  numPoints: number = 180
+): Cartesian3[] => {
+  if (orbitType === "GEO" || inclinationDeg < 0.5) {
+    return generateEquatorialLikeRing(altitudeKm, subsatLatDeg, subsatLngDeg, numPoints);
+  }
+  const i = (inclinationDeg * Math.PI) / 180;
+  const lat0 = (subsatLatDeg * Math.PI) / 180;
+  const lon0 = (subsatLngDeg * Math.PI) / 180;
+  const sinI = Math.sin(i);
+  let sa = sinI !== 0 ? Math.sin(lat0) / sinI : 0;
+  sa = Math.max(-1, Math.min(1, sa));
+  const theta = Math.asin(sa);
+  const lonForTheta = (th: number) => Math.atan2(Math.sin(th) * Math.cos(i), Math.cos(th));
+  let phase = lon0 - lonForTheta(theta);
+  while (phase > Math.PI) phase -= 2 * Math.PI;
+  while (phase <= -Math.PI) phase += 2 * Math.PI;
+
+  const points: Cartesian3[] = [];
+  for (let k = 0; k <= numPoints; k++) {
+    const ang = (k / numPoints) * 2 * Math.PI;
+    const x = Math.cos(ang);
+    const y = Math.sin(ang) * Math.cos(i);
+    const z = Math.sin(ang) * Math.sin(i);
+    const lat = Math.asin(Math.max(-1, Math.min(1, z)));
+    let lon = Math.atan2(y, x) + phase;
+    let lonDeg = (lon * 180) / Math.PI;
+    const latDeg = (lat * 180) / Math.PI;
+    while (lonDeg > 180) lonDeg -= 360;
+    while (lonDeg < -180) lonDeg += 360;
+    points.push(Cartesian3.fromDegrees(lonDeg, latDeg, altitudeKm * 1000));
   }
   return points;
 };
@@ -280,9 +346,7 @@ const defaultGroundStations: GroundStationData[] = [
 ];
 
 const CesiumScene = ({
-  showLEO,
-  showMEO,
-  showGEO,
+  orbitLayerVisibility,
   showGroundStations,
   showDataTransfer,
   showGroundLinks,
@@ -293,6 +357,9 @@ const CesiumScene = ({
   maxLinkDistance,
   satellites: satellitesProp,
   groundStationsList: groundStationsProp,
+  liveMode = false,
+  hideSimulationTimeControls = false,
+  liveTracksRef,
   onSatelliteClick,
   onGroundStationClick,
 }: CesiumSceneProps) => {
@@ -300,6 +367,8 @@ const CesiumScene = ({
   const viewerRef = useRef<Viewer | null>(null);
   const connectionsRef = useRef<{ satLinks: Record<string, string[]>; gsLinks: Record<string, string[]>; stationToSat: Record<string, string> }>({ satLinks: {}, gsLinks: {}, stationToSat: {} });
   const [isInitialized, setIsInitialized] = useState(false);
+  const orbitLayerVisRef = useRef(orbitLayerVisibility);
+  orbitLayerVisRef.current = orbitLayerVisibility;
 
   const satellites = satellitesProp || defaultSatellites;
   const groundStationsList = groundStationsProp || defaultGroundStations;
@@ -366,6 +435,16 @@ const CesiumScene = ({
     };
   }, []);
 
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed() || !isInitialized) return;
+    const hide = hideSimulationTimeControls;
+    const animEl = viewer.animation?.container as HTMLElement | undefined;
+    const timeEl = viewer.timeline?.container as HTMLElement | undefined;
+    if (animEl) animEl.style.display = hide ? "none" : "";
+    if (timeEl) timeEl.style.display = hide ? "none" : "";
+  }, [hideSimulationTimeControls, isInitialized]);
+
   // Handle entity clicks (satellites and ground stations)
   useEffect(() => {
     if (!viewerRef.current || !isInitialized) return;
@@ -422,7 +501,7 @@ const CesiumScene = ({
     }, ScreenSpaceEventType.LEFT_CLICK);
 
     return () => handler.destroy();
-  }, [isInitialized, onSatelliteClick, onGroundStationClick]);
+  }, [isInitialized, onSatelliteClick, onGroundStationClick, satellites, groundStationsList]);
 
   // Update simulation speed and pause state
   useEffect(() => {
@@ -443,10 +522,21 @@ const CesiumScene = ({
     // Add ground stations
     if (showGroundStations) {
       groundStationsList.forEach((station) => {
+        const stationPosition =
+          liveMode && liveTracksRef
+            ? new CallbackProperty((_time, result) => {
+                const t = liveTracksRef.current[station.id];
+                if (!t) {
+                  return Cartesian3.fromDegrees(station.lon, station.lat, 0, Ellipsoid.WGS84, result);
+                }
+                return Cartesian3.fromDegrees(t.Lng, t.Lat, (t.Alt ?? 0) * 1000, Ellipsoid.WGS84, result);
+              }, false)
+            : Cartesian3.fromDegrees(station.lon, station.lat, 0);
+
         viewer.entities.add({
           id: station.id,
           name: station.name,
-          position: Cartesian3.fromDegrees(station.lon, station.lat, 0),
+          position: stationPosition as any,
           billboard: {
             image: createGroundStationIcon(36),
             width: 28,
@@ -471,22 +561,39 @@ const CesiumScene = ({
       });
     }
 
-    // Filter and add satellites
-    const visibleSatellites = satellites.filter((sat) => {
-      if (sat.orbitType === "LEO") return showLEO;
-      if (sat.orbitType === "MEO") return showMEO;
-      if (sat.orbitType === "GEO") return showGEO;
-      return true;
-    });
+    const makeSatelliteShow = (sat: SatelliteData) =>
+      new CallbackProperty(() => {
+        if (orbitLayerVisRef.current[sat.orbitType] === false) return false;
+        if (liveMode && liveTracksRef && !liveTracksRef.current[sat.id]) return false;
+        return true;
+      }, false);
 
-    visibleSatellites.forEach((sat) => {
-      // Orbit lines
+    const makeOrbitShow = (sat: SatelliteData) =>
+      new CallbackProperty(() => {
+        if (orbitLayerVisRef.current[sat.orbitType] === false) return false;
+        if (liveMode && liveTracksRef && !liveTracksRef.current[sat.id]) return false;
+        return true;
+      }, false);
+
+    satellites.forEach((sat) => {
       if (showOrbits) {
-        const orbitPoints = generateOrbitPoints(sat.altitude, sat.inclination);
+        let positions: Cartesian3[] | CallbackProperty;
+        if (liveMode && liveTracksRef) {
+          positions = new CallbackProperty(() => {
+            const t = liveTracksRef.current[sat.id];
+            if (!t) return [];
+            const altKm = t.Alt > 0 ? t.Alt : sat.altitude;
+            const incEff = Math.max(sat.inclination, Math.abs(t.Lat) + 0.5, 0.5);
+            return generateOrbitPointsPhased(altKm, incEff, t.Lat, t.Lng, sat.orbitType);
+          }, false);
+        } else {
+          positions = generateOrbitPoints(sat.altitude, sat.inclination);
+        }
         viewer.entities.add({
           id: `orbit-${sat.id}`,
+          show: makeOrbitShow(sat) as any,
           polyline: {
-            positions: orbitPoints,
+            positions: positions as any,
             width: 1.5,
             material: new PolylineGlowMaterialProperty({
               glowPower: 0.2,
@@ -496,34 +603,43 @@ const CesiumScene = ({
         });
       }
 
-      // Satellite entity
-      const position = createOrbitPath(sat.altitude, sat.inclination, sat.startAngle, startTime, 86400);
-      const velocityVector = new VelocityVectorProperty(position, false);
+      let position: SampledPositionProperty | CallbackProperty;
+      let billRotation: any;
 
-      // Compute 2D rotation from velocity projected to local ENU frame
-      const rotationCallback = new CallbackProperty((time) => {
-        const pos = position.getValue(time);
-        const vel = velocityVector.getValue(time);
-        if (!pos || !vel) return 0;
+      if (liveMode && liveTracksRef) {
+        position = new CallbackProperty((_time, result) => {
+          const t = liveTracksRef.current[sat.id];
+          if (!t) return undefined;
+          return Cartesian3.fromDegrees(t.Lng, t.Lat, t.Alt * 1000, Ellipsoid.WGS84, result);
+        }, false);
+        billRotation = 0;
+      } else {
+        const orbitPosition = createOrbitPath(sat.altitude, sat.inclination, sat.startAngle, startTime, 86400);
+        position = orbitPosition;
+        const velocityVector = new VelocityVectorProperty(orbitPosition, false);
+        billRotation = new CallbackProperty((time) => {
+          const pos = orbitPosition.getValue(time);
+          const vel = velocityVector.getValue(time);
+          if (!pos || !vel) return 0;
 
-        // Transform velocity to local East-North-Up frame
-        const transform = Transforms.eastNorthUpToFixedFrame(pos);
-        const inverseTransform = Matrix4.inverse(transform, new Matrix4());
-        const localVel = Matrix4.multiplyByPointAsVector(inverseTransform, vel, new Cartesian3());
+          const transform = Transforms.eastNorthUpToFixedFrame(pos);
+          const inverseTransform = Matrix4.inverse(transform, new Matrix4());
+          const localVel = Matrix4.multiplyByPointAsVector(inverseTransform, vel, new Cartesian3());
 
-        // Angle from East axis (atan2 of north/east), negated for billboard CW rotation
-        return -Math.atan2(localVel.x, localVel.y);
-      }, false);
+          return -Math.atan2(localVel.x, localVel.y);
+        }, false);
+      }
 
       viewer.entities.add({
         id: sat.id,
         name: sat.name,
-        position: position,
+        show: makeSatelliteShow(sat) as any,
+        position: position as any,
         billboard: {
           image: createSatelliteIcon(sat.color, sat.orbitType === "GEO" ? 40 : sat.orbitType === "MEO" ? 36 : 32),
           width: sat.orbitType === "GEO" ? 28 : sat.orbitType === "MEO" ? 24 : 20,
           height: sat.orbitType === "GEO" ? 28 : sat.orbitType === "MEO" ? 24 : 20,
-          rotation: rotationCallback as any,
+          rotation: billRotation as any,
         },
         label: {
           text: sat.name,
@@ -537,14 +653,15 @@ const CesiumScene = ({
           backgroundColor: Color.BLACK.withAlpha(0.6),
           scale: 0.8,
         },
-        path: showTrails
-          ? {
-              width: 2,
-              material: sat.color.withAlpha(0.6),
-              leadTime: sat.orbitType === "LEO" ? 900 : sat.orbitType === "MEO" ? 3600 : 7200,
-              trailTime: sat.orbitType === "LEO" ? 900 : sat.orbitType === "MEO" ? 3600 : 7200,
-            }
-          : undefined,
+        path:
+          showTrails && !liveMode
+            ? {
+                width: 2,
+                material: sat.color.withAlpha(0.6),
+                leadTime: sat.orbitType === "LEO" ? 900 : sat.orbitType === "MEO" ? 3600 : 7200,
+                trailTime: sat.orbitType === "LEO" ? 900 : sat.orbitType === "MEO" ? 3600 : 7200,
+              }
+            : undefined,
         description: `
           <div style="padding: 12px; font-family: sans-serif;">
             <h3 style="margin: 0 0 8px 0; color: ${sat.color.toCssColorString()};">${sat.name}</h3>
@@ -556,7 +673,40 @@ const CesiumScene = ({
         `,
       });
     });
-  }, [isInitialized, showLEO, showMEO, showGEO, showGroundStations, showOrbits, showTrails]);
+  }, [
+    isInitialized,
+    showGroundStations,
+    showOrbits,
+    showTrails,
+    satellites,
+    groundStationsList,
+    liveMode,
+    liveTracksRef,
+  ]);
+
+  /** Replace show properties when layer toggles change — fresh Property instances so Cesium applies visibility. */
+  useEffect(() => {
+    if (!viewerRef.current || !isInitialized) return;
+    const viewer = viewerRef.current;
+    for (const sat of satellites) {
+      const se = viewer.entities.getById(sat.id);
+      const oe = viewer.entities.getById(`orbit-${sat.id}`);
+      if (se) {
+        se.show = new CallbackProperty(() => {
+          if (orbitLayerVisRef.current[sat.orbitType] === false) return false;
+          if (liveMode && liveTracksRef && !liveTracksRef.current[sat.id]) return false;
+          return true;
+        }, false) as any;
+      }
+      if (oe) {
+        oe.show = new CallbackProperty(() => {
+          if (orbitLayerVisRef.current[sat.orbitType] === false) return false;
+          if (liveMode && liveTracksRef && !liveTracksRef.current[sat.id]) return false;
+          return true;
+        }, false) as any;
+      }
+    }
+  }, [orbitLayerVisibility, isInitialized, satellites, liveMode, liveTracksRef, showOrbits]);
 
   // Dynamic data transfer & ground links - computed each tick
   useEffect(() => {
@@ -597,20 +747,16 @@ const CesiumScene = ({
 
       const currentTime = viewer.clock.currentTime;
 
-      // Get visible satellites with positions
-      const visibleSatellites = satellites.filter((sat) => {
-        if (sat.orbitType === "LEO") return showLEO;
-        if (sat.orbitType === "MEO") return showMEO;
-        if (sat.orbitType === "GEO") return showGEO;
-        return true;
-      });
-
+      // Satellites whose orbit layer is on (and live track present when streaming)
       const satPositions: { sat: SatelliteData; position: Cartesian3 }[] = [];
-      visibleSatellites.forEach((sat) => {
+      satellites.forEach((sat) => {
         const satEntity = viewer.entities.getById(sat.id);
         if (!satEntity || !satEntity.position) return;
         const pos = satEntity.position.getValue(currentTime);
-        if (pos) satPositions.push({ sat, position: pos });
+        if (!pos) return;
+        if (orbitLayerVisRef.current[sat.orbitType] === false) return;
+        if (liveMode && !liveTracksRef?.current[sat.id]) return;
+        satPositions.push({ sat, position: pos });
       });
 
       // Inter-satellite links: connect each satellite to its nearest neighbor within range
@@ -820,7 +966,7 @@ const CesiumScene = ({
         });
       }
     };
-  }, [isInitialized, showDataTransfer, showGroundLinks, showGroundStations, showLEO, showMEO, showGEO, maxLinkDistance]);
+  }, [isInitialized, showDataTransfer, showGroundLinks, showGroundStations, maxLinkDistance, satellites, groundStationsList, liveMode, liveTracksRef]);
 
   return (
     <div

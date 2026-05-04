@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 import ExperimentCard from "@/components/dashboard/ExperimentCard";
@@ -10,57 +11,80 @@ import {
   Satellite,
   Database,
   Activity,
-  Clock,
   Search,
-  Plus,
   Filter,
+  Globe,
 } from "lucide-react";
+import { useSatelliteSse } from "@/hooks/useSatelliteSse";
+import { sseEventsUrl, isGroundStationEvent } from "@/lib/sse-types";
+import { experimentConfigs } from "@/lib/experiment-configs";
 
-// Mock data - will be replaced with real API calls
-const mockExperiments = [
-  {
-    id: "EXP-001",
-    name: "LEO Constellation Data Relay",
-    status: "running" as const,
-    satellites: 12,
-    groundStations: 4,
-    duration: "72h 15m",
-    lastUpdated: "2 min ago",
-  },
-  {
-    id: "EXP-002",
-    name: "Disaster Response Network Test",
-    status: "completed" as const,
-    satellites: 8,
-    groundStations: 6,
-    duration: "48h 00m",
-    lastUpdated: "1 day ago",
-  },
-  {
-    id: "EXP-003",
-    name: "MEO-GEO Hybrid Routing",
-    status: "pending" as const,
-    satellites: 16,
-    groundStations: 8,
-    duration: "Scheduled",
-    lastUpdated: "3 days ago",
-  },
-  {
-    id: "EXP-004",
-    name: "Blockchain Provenance Trial",
-    status: "running" as const,
-    satellites: 6,
-    groundStations: 3,
-    duration: "24h 30m",
-    lastUpdated: "5 min ago",
-  },
-];
+const LIVE_EXPERIMENT = {
+  id: "EXP-001",
+  name: "Satellite Network Live",
+  status: "running" as const,
+  duration: "Live",
+};
 
 const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const navigate = useNavigate();
+  const { tracks, status } = useSatelliteSse(sseEventsUrl(), true);
 
-  const filteredExperiments = mockExperiments.filter(
+  const satelliteCount = useMemo(
+    () => Object.keys(tracks).filter((id) => !isGroundStationEvent(tracks[id])).length,
+    [tracks]
+  );
+  const groundCount = useMemo(
+    () => Object.keys(tracks).filter((id) => isGroundStationEvent(tracks[id])).length,
+    [tracks]
+  );
+  const trackTotal = Object.keys(tracks).length;
+
+  const lastUpdatedLabel = useMemo(() => {
+    const times = Object.values(tracks)
+      .map((t) => new Date(t.timestamp).getTime())
+      .filter((n) => !Number.isNaN(n));
+    if (!times.length) {
+      if (status === "connecting") return "Connecting…";
+      if (status === "error") return "Stream error";
+      return "Waiting for data…";
+    }
+    const latest = Math.max(...times);
+    return formatDistanceToNow(new Date(latest), { addSuffix: true });
+  }, [tracks, status]);
+
+  const experiments = useMemo(() => {
+    const demo = experimentConfigs["EXP-DEMO"];
+    return [
+      {
+        ...LIVE_EXPERIMENT,
+        satellites: satelliteCount,
+        groundStations: groundCount,
+        lastUpdated: lastUpdatedLabel,
+      },
+      {
+        id: demo.id,
+        name: demo.name,
+        status: "running" as const,
+        satellites: demo.satellites.length,
+        groundStations: demo.groundStations.length,
+        duration: "Simulation",
+        lastUpdated: "Static catalog",
+      },
+    ];
+  }, [satelliteCount, groundCount, lastUpdatedLabel]);
+
+  const streamSubtitle =
+    status === "live"
+      ? "Receiving positions"
+      : status === "connecting"
+        ? "Connecting to stream…"
+        : status === "error"
+          ? "Check backend / proxy"
+          : "Idle";
+
+  const filteredExperiments = experiments.filter(
     (exp) =>
       exp.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       exp.id.toLowerCase().includes(searchQuery.toLowerCase())
@@ -71,37 +95,33 @@ const Dashboard = () => {
       <DashboardHeader />
 
       <main className="container mx-auto px-6 py-8">
-        {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <StatsCard
             title="Active Experiments"
-            value={2}
+            value={experiments.length}
             subtitle="Currently running"
             icon={Activity}
-            trend={{ value: 12, positive: true }}
           />
           <StatsCard
-            title="Total Satellites"
-            value={42}
-            subtitle="In active experiments"
+            title="Satellites (stream)"
+            value={satelliteCount}
+            subtitle={status === "live" ? "Live positions" : streamSubtitle}
             icon={Satellite}
           />
           <StatsCard
-            title="Data Processed"
-            value="2.4 TB"
-            subtitle="This month"
-            icon={Database}
-            trend={{ value: 8, positive: true }}
+            title="Ground segment"
+            value={groundCount}
+            subtitle="Alt = 0 on stream"
+            icon={Globe}
           />
           <StatsCard
-            title="Avg. Response Time"
-            value="124 ms"
-            subtitle="Network latency"
-            icon={Clock}
+            title="Tracked sources"
+            value={trackTotal}
+            subtitle={streamSubtitle}
+            icon={Database}
           />
         </div>
 
-        {/* Experiments Section */}
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
             <div>
@@ -110,10 +130,6 @@ const Dashboard = () => {
                 Manage and visualize your EO data experiments
               </p>
             </div>
-            <Button className="flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              New Experiment
-            </Button>
           </div>
 
           <div className="flex gap-4 mb-6">
@@ -150,7 +166,6 @@ const Dashboard = () => {
             </div>
           )}
         </div>
-
       </main>
 
       <Footer />
