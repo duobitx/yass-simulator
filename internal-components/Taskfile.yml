@@ -2,6 +2,7 @@ version: '3'
 
 vars:
   IMAGE_NAME: 'ghcr.io/duobitx/yass-internal-components'
+  WEB_UI_IMAGE_NAME: 'ghcr.io/duobitx/yass-web-ui'
   TAG:
     sh: "v=$(git describe --tags --exact-match 2>/dev/null || true); if [ -n \"$v\" ]; then echo \"${v#v}\"; else date '+%Y%m%dt%H%M%S'; fi"
   DOCKER: 'docker'
@@ -11,7 +12,7 @@ silent: true
 tasks:
 
   deps:
-    desc: "Build prerequisite artifacts from submodules (go-common, resource-to-json, world-controller, except:mosquitto)"
+    desc: "Build prerequisite artifacts from submodules (go-common, resource-to-json, world-controller, except:mosquitto,web-ui)"
     cmds:
       - task -d go-common tools
       - task -d go-common proto
@@ -39,9 +40,37 @@ tasks:
       - "{{.DOCKER}} push {{.IMAGE_NAME}}:latest"
       - 'echo "📦 pushed {{.IMAGE_NAME}}:latest"'
 
+  web-ui-deps:
+    desc: Install web-ui dependencies and build static assets
+    cmds:
+      - task -d web-ui install
+      - task -d web-ui lint
+      - task -d web-ui test
+      - task -d web-ui build
+
+  web-ui-docker-build:
+    desc: Build web-ui Docker image tagged with TAG and latest
+    deps:
+      - web-ui-deps
+    cmds:
+      - "{{.DOCKER}} build -t {{.WEB_UI_IMAGE_NAME}}:{{.TAG}} -f web-ui/Dockerfile web-ui"
+      - "{{.DOCKER}} tag {{.WEB_UI_IMAGE_NAME}}:{{.TAG}} {{.WEB_UI_IMAGE_NAME}}:latest"
+
+  web-ui-docker-push:
+    desc: Push web-ui images with TAG and latest
+    deps:
+      - web-ui-docker-build
+    cmds:
+      - "{{.DOCKER}} push {{.WEB_UI_IMAGE_NAME}}:{{.TAG}}"
+      - 'echo "📦 pushed {{.WEB_UI_IMAGE_NAME}}:{{.TAG}}"'
+      - "{{.DOCKER}} push {{.WEB_UI_IMAGE_NAME}}:latest"
+      - 'echo "📦 pushed {{.WEB_UI_IMAGE_NAME}}:latest"'
+
   default:
-    desc: Run deps, docker-build and docker-push
+    desc: Run deps, docker-build and docker-push for all images (combined + web-ui)
     deps: [deps]
     cmds:
       - task: docker-build
       - task: docker-push
+      - task: web-ui-docker-build
+      - task: web-ui-docker-push
