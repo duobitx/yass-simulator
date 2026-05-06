@@ -1,0 +1,40 @@
+resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+
+server {
+    listen ${PORT};
+    server_name _;
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # SSE stream from events-webapp (same namespace)
+    location = /events-sse {
+        set $events_upstream "events-webapp:8080";
+        proxy_pass http://$events_upstream;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header Connection "";
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 24h;
+        chunked_transfer_encoding off;
+    }
+
+    # Experiment Executor API (same namespace); strip /experiment-executor prefix
+    location /experiment-executor/ {
+        set $exec_upstream "experiment-executor:8080";
+        proxy_pass http://$exec_upstream/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+    }
+
+    location /assets/ {
+        access_log off;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-cache";
+    }
+}

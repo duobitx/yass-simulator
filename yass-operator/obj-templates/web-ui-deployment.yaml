@@ -19,6 +19,9 @@ spec:
       - name: yass-web-ui
         image: ghcr.io/duobitx/yass-web-ui:latest
         imagePullPolicy: Always
+        env:
+        - name: PORT
+          value: "80"
         ports:
         - containerPort: 80
         resources:

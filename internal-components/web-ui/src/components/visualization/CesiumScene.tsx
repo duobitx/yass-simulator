@@ -6,6 +6,7 @@ import {
   defined,
   Viewer,
   Ion,
+  Cartesian2,
   Cartesian3,
   Color,
   JulianDate,
@@ -22,6 +23,7 @@ import {
   Transforms,
   Matrix4,
   Event as CesiumEvent,
+  Entity,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
@@ -183,7 +185,7 @@ const generateOrbitPointsPhased = (
     const y = Math.sin(ang) * Math.cos(i);
     const z = Math.sin(ang) * Math.sin(i);
     const lat = Math.asin(Math.max(-1, Math.min(1, z)));
-    let lon = Math.atan2(y, x) + phase;
+    const lon = Math.atan2(y, x) + phase;
     let lonDeg = (lon * 180) / Math.PI;
     const latDeg = (lat * 180) / Math.PI;
     while (lonDeg > 180) lonDeg -= 360;
@@ -451,7 +453,7 @@ const CesiumScene = ({
     const viewer = viewerRef.current;
 
     const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
-    handler.setInputAction((click: any) => {
+    handler.setInputAction((click: ScreenSpaceEventHandler.PositionedEvent) => {
       const pickedObjects = viewer.scene.drillPick(click.position, 10);
       for (const picked of pickedObjects) {
         if (!defined(picked) || !picked.id || !picked.id.id) continue;
@@ -536,7 +538,7 @@ const CesiumScene = ({
         viewer.entities.add({
           id: station.id,
           name: station.name,
-          position: stationPosition as any,
+          position: stationPosition,
           billboard: {
             image: createGroundStationIcon(36),
             width: 28,
@@ -550,7 +552,7 @@ const CesiumScene = ({
             outlineColor: Color.BLACK,
             outlineWidth: 2,
             style: 2,
-            pixelOffset: { x: 0, y: -22 } as any,
+            pixelOffset: new Cartesian2(0, -22),
             heightReference: 1,
             showBackground: true,
             backgroundColor: Color.BLACK.withAlpha(0.6),
@@ -591,9 +593,9 @@ const CesiumScene = ({
         }
         viewer.entities.add({
           id: `orbit-${sat.id}`,
-          show: makeOrbitShow(sat) as any,
+          show: makeOrbitShow(sat),
           polyline: {
-            positions: positions as any,
+            positions: positions,
             width: 1.5,
             material: new PolylineGlowMaterialProperty({
               glowPower: 0.2,
@@ -604,7 +606,7 @@ const CesiumScene = ({
       }
 
       let position: SampledPositionProperty | CallbackProperty;
-      let billRotation: any;
+      let billRotation: number | CallbackProperty;
 
       if (liveMode && liveTracksRef) {
         position = new CallbackProperty((_time, result) => {
@@ -633,13 +635,13 @@ const CesiumScene = ({
       viewer.entities.add({
         id: sat.id,
         name: sat.name,
-        show: makeSatelliteShow(sat) as any,
-        position: position as any,
+        show: makeSatelliteShow(sat),
+        position: position,
         billboard: {
           image: createSatelliteIcon(sat.color, sat.orbitType === "GEO" ? 40 : sat.orbitType === "MEO" ? 36 : 32),
           width: sat.orbitType === "GEO" ? 28 : sat.orbitType === "MEO" ? 24 : 20,
           height: sat.orbitType === "GEO" ? 28 : sat.orbitType === "MEO" ? 24 : 20,
-          rotation: billRotation as any,
+          rotation: billRotation,
         },
         label: {
           text: sat.name,
@@ -648,7 +650,7 @@ const CesiumScene = ({
           outlineColor: Color.BLACK,
           outlineWidth: 2,
           style: 2,
-          pixelOffset: { x: 0, y: -15 } as any,
+          pixelOffset: new Cartesian2(0, -15),
           showBackground: true,
           backgroundColor: Color.BLACK.withAlpha(0.6),
           scale: 0.8,
@@ -696,14 +698,14 @@ const CesiumScene = ({
           if (orbitLayerVisRef.current[sat.orbitType] === false) return false;
           if (liveMode && liveTracksRef && !liveTracksRef.current[sat.id]) return false;
           return true;
-        }, false) as any;
+        }, false);
       }
       if (oe) {
         oe.show = new CallbackProperty(() => {
           if (orbitLayerVisRef.current[sat.orbitType] === false) return false;
           if (liveMode && liveTracksRef && !liveTracksRef.current[sat.id]) return false;
           return true;
-        }, false) as any;
+        }, false);
       }
     }
   }, [orbitLayerVisibility, isInitialized, satellites, liveMode, liveTracksRef, showOrbits]);
@@ -717,7 +719,7 @@ const CesiumScene = ({
     const EARTH_RADIUS = 6371000;
     const MIN_ELEVATION_DEG = 5;
     const MAX_INTER_SAT_DISTANCE_KM = maxLinkDistance;
-    const linkEntities: any[] = [];
+    const linkEntities: Entity[] = [];
 
     let lastUpdateTime = 0;
     const UPDATE_INTERVAL_MS = 500;
@@ -811,7 +813,7 @@ const CesiumScene = ({
                 islPacketA.y + (islPacketB.y - islPacketA.y) * t,
                 islPacketA.z + (islPacketB.z - islPacketA.z) * t,
               );
-            }, false) as any,
+            }, false),
             point: {
               pixelSize: 5,
               color: Color.fromCssColorString("#ff88ff"),
@@ -831,7 +833,7 @@ const CesiumScene = ({
                 islPacketB.y + (islPacketA.y - islPacketB.y) * t,
                 islPacketB.z + (islPacketA.z - islPacketB.z) * t,
               );
-            }, false) as any,
+            }, false),
             point: {
               pixelSize: 4,
               color: Color.fromCssColorString("#ff88ff").withAlpha(0.7),
@@ -919,7 +921,7 @@ const CesiumScene = ({
                   gsPos.y + (satPos.y - gsPos.y) * t,
                   gsPos.z + (satPos.z - gsPos.z) * t,
                 );
-              }, false) as any,
+              }, false),
               point: {
                 pixelSize: 4,
                 color: Color.CYAN,
@@ -939,7 +941,7 @@ const CesiumScene = ({
                   satPos.y + (gsPos.y - satPos.y) * t,
                   satPos.z + (gsPos.z - satPos.z) * t,
                 );
-              }, false) as any,
+              }, false),
               point: {
                 pixelSize: 3,
                 color: Color.CYAN.withAlpha(0.7),

@@ -7,7 +7,8 @@ describe("cn", () => {
   });
 
   it("handles conditional and array inputs", () => {
-    expect(cn("base", false && "hidden", ["ring-2", "ring-offset-2"])).toBe(
+    const showHidden: boolean = false;
+    expect(cn("base", showHidden && "hidden", ["ring-2", "ring-offset-2"])).toBe(
       "base ring-2 ring-offset-2"
     );
   });
