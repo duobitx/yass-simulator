@@ -195,3 +195,5 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           annotations: ${{ steps.meta.outputs.annotations }}
           labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=yass-operator
+          cache-to: type=gha,mode=max,scope=yass-operator
