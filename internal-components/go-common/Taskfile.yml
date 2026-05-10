@@ -1,9 +1,5 @@
 version: '3'
 
-vars:
-  GO_BIN:
-    sh: go env GOPATH
-
 silent: true
 
 tasks:
