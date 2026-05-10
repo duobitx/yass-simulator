@@ -32,23 +32,22 @@ tasks:
   proto:
     desc: Generate Go and CPP files from all .proto files
     deps: [tools]
-    
     cmds:
       - |
-        
-        mkdir proto/go proto/cpp || true
-        PROTO_FILES=$(find proto -type f -name '*.proto'); \
-        if [ -z "${PROTO_FILES}" ]; then \
-          echo "No .proto files found."; \
-          exit 0; \
-        fi; \
-        echo "Generating Go code from protos..."; \
-        cd proto; \
-        for f in *.proto; do \
-          echo "  protoc ${f}"; \
-          protoc --proto_path=. --go_out=go --go_opt=paths=source_relative ${f} || true; \
-          protoc --proto_path=. --cpp_out=cpp ${f} || true; \
-        done; \
+        set -euo pipefail
+        mkdir -p proto/go proto/cpp
+        PROTO_FILES=$(find proto -maxdepth 1 -type f -name '*.proto')
+        if [ -z "${PROTO_FILES}" ]; then
+          echo "No .proto files found."
+          exit 0
+        fi
+        echo "Generating Go and CPP code from protos..."
+        cd proto
+        for f in *.proto; do
+          echo "  protoc ${f}"
+          protoc --proto_path=. --go_out=go --go_opt=paths=source_relative "${f}"
+          protoc --proto_path=. --cpp_out=cpp "${f}"
+        done
         echo "Done."
 
   proto-clean:

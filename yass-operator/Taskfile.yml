@@ -2,7 +2,11 @@ version: '3'
 
 vars:
   VERSION:
-    sh: "v=$(git describe --tags --exact-match 2>/dev/null || true); if [ -n \"$v\" ]; then echo \"${v#v}\"; else echo latest; fi"
+    sh: |
+      v=$(git describe --tags --exact-match 2>/dev/null || true)
+      if [ -n "$v" ]; then echo "${v#v}";
+      elif s=$(git rev-parse --short=8 HEAD 2>/dev/null); then echo "$(date '+%Y%m%d')-${s}";
+      else echo latest; fi
   IMG: 'ghcr.io/duobitx/yass-operator:{{.VERSION}}'
 
 tasks:
@@ -13,14 +17,13 @@ tasks:
       - task: push
 
   build:
-    desc: Build
+    desc: Generate manifests, installer YAML, and helm chart
     cmds:
-      - make IMG={{.IMG}}
       - make build-installer IMG={{.IMG}}
       - make helm-chart IMG={{.IMG}}
 
   push:
-    desc: Push
+    desc: Build & push Docker image
     cmds:
       # FIXME - make docker-buildx
       - make docker-build IMG={{.IMG}}

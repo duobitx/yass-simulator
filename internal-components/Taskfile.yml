@@ -4,7 +4,11 @@ vars:
   IMAGE_NAME: 'ghcr.io/duobitx/yass-internal-components'
   WEB_UI_IMAGE_NAME: 'ghcr.io/duobitx/yass-web-ui'
   TAG:
-    sh: "v=$(git describe --tags --exact-match 2>/dev/null || true); if [ -n \"$v\" ]; then echo \"${v#v}\"; else date '+%Y%m%dt%H%M%S'; fi"
+    sh: |
+      v=$(git describe --tags --exact-match 2>/dev/null || true)
+      if [ -n "$v" ]; then echo "${v#v}";
+      elif s=$(git rev-parse --short=8 HEAD 2>/dev/null); then echo "$(date '+%Y%m%d')-${s}";
+      else date '+%Y%m%dt%H%M%S'; fi
   DOCKER: 'docker'
 
 silent: true
@@ -12,14 +16,14 @@ silent: true
 tasks:
 
   deps:
-    desc: "Build prerequisite artifacts from submodules (go-common, resource-to-json, world-controller, except:mosquitto,web-ui)"
+    desc: "Build & test prerequisite artifacts from submodules (go-common, resource-to-json, world-controller, except:mosquitto,web-ui)"
     cmds:
       - task -d go-common tools
       - task -d go-common proto
-      - task -d resource-to-json build
-      - task -d world-controller build
-      - task -d events-webapp build
-      - task -d experiment-executor build
+      - task -d resource-to-json default
+      - task -d world-controller default
+      - task -d events-webapp default
+      - task -d experiment-executor default
       - task -d geo-calculator build
 
   docker-build:
