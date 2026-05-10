@@ -44,7 +44,7 @@ jobs:
 
       - name: Lint Helm Chart
         run: |
-          helm lint ./dist/chart
+          helm lint ./charts/yass-operator
 
 # TODO: Uncomment if cert-manager is enabled
       - name: Install cert-manager via Helm
@@ -78,7 +78,7 @@ jobs:
 
       - name: Install Helm chart for project
         run: |
-          helm install my-release ./dist/chart --create-namespace --namespace yass-system
+          helm install my-release ./charts/yass-operator --create-namespace --namespace yass-system
 
       - name: Check Helm release status
         run: |
