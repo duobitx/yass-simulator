@@ -7,7 +7,7 @@ vars:
       if [ -n "$v" ]; then echo "${v#v}";
       elif s=$(git rev-parse --short=8 HEAD 2>/dev/null); then echo "$(date '+%Y%m%d')-${s}";
       else echo latest; fi
-  IMG: 'ghcr.io/duobitx/yass-operator:{{.VERSION}}'
+  IMG: 'ghcr.io/duobitx/yass-operator'
 
 tasks:
   default:
@@ -29,6 +29,8 @@ tasks:
       - make docker-build IMG={{.IMG}}
       - make docker-push IMG={{.IMG}}
       - 'echo "📦 pushed {{.IMG}}"'
+      - make docker-push IMG={{.IMG}}:{{.VERSION}}
+      - 'echo "📦 pushed {{.IMG}}:{{.VERSION}}"'
 
   help:
     desc: Display Makefile help
