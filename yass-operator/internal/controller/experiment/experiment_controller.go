@@ -193,6 +193,7 @@ func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx c
 		{"events-webapp-service.yaml", "events-webapp", "", &v1.Service{}, nil},
 		{"web-ui-deployment.yaml", "web-ui", "", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
 		{"web-ui-service.yaml", "web-ui", "", &v1.Service{}, modAddExperimentAnnotation(experiment.Name)},
+		{"web-ui-basic-auth-secret.yaml", "web-ui-basic-auth", "web-ui-basic-auth", &v1.Secret{}, modAddExperimentAnnotation(experiment.Name)},
 		{"web-ui-ingress.yaml", "web-ui", experiment.Name, &netv1.Ingress{}, modAddExperimentAnnotation(experiment.Name)},
 	}
 	joinErrHelper := &goutils.JoinErrorHelper{}

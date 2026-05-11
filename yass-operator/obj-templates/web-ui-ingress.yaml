@@ -4,6 +4,9 @@ metadata:
   name: yass-web-ui
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/auth-type: basic
+    nginx.ingress.kubernetes.io/auth-secret: web-ui-basic-auth
+    nginx.ingress.kubernetes.io/auth-realm: "YASS"
 spec:
   ingressClassName: nginx
   rules:
