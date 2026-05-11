@@ -257,7 +257,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 	waitForMessaging := &v1.Container{
 		Name:    "wait-for-messaging",
 		Image:   "busybox:1.37",
-		Command: []string{"sh", "-c", "until nc -z messaging 1883; do echo 'waiting for messaging:1883...'; sleep 1; done"},
+		Command: []string{"sh", "-c", "until nc -z messaging 1883; do echo 'waiting for messaging:1883...'; sleep 1; done; echo 'messaging:1883 is reachable'"},
 	}
 
 	initContainer := &v1.Container{
