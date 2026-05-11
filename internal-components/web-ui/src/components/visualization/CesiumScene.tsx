@@ -5,7 +5,6 @@ import {
   ScreenSpaceEventType,
   defined,
   Viewer,
-  Ion,
   Cartesian2,
   Cartesian3,
   Color,
@@ -15,7 +14,8 @@ import {
   PolylineDashMaterialProperty,
   ClockRange,
   ClockStep,
-  IonImageryProvider,
+  ImageryLayer,
+  OpenStreetMapImageryProvider,
   Ellipsoid,
   Cartographic,
   CallbackProperty,
@@ -28,9 +28,6 @@ import {
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
 import type { SsePositionEvent } from "@/lib/sse-types";
-
-// Cesium Ion access token
-Ion.defaultAccessToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJqdGkiOiJlZWViZWY4NS1kY2ViLTRjNmItYjM2OS00NWY4MmRjZDY1YTUiLCJpZCI6Mzc5MDgzLCJpYXQiOjE3Njg0ODA2OTN9.xaHKt0sIqM-7mTqizQGILb0yoRGBYSZ9u9zaEiDCaLM";
 
 interface SatelliteClickInfo {
   id: string;
@@ -378,6 +375,12 @@ const CesiumScene = ({
 
     const initViewer = async () => {
       try {
+        // OpenStreetMap tiles — no Cesium Ion token, no external auth.
+        const baseLayer = new ImageryLayer(
+          new OpenStreetMapImageryProvider({ url: "https://tile.openstreetmap.org/" }),
+          {},
+        );
+
         const viewer = new Viewer(containerRef.current!, {
           animation: false,
           timeline: false,
@@ -391,6 +394,7 @@ const CesiumScene = ({
           selectionIndicator: true,
           infoBox: false,
           shouldAnimate: true,
+          baseLayer,
         });
 
         viewer.scene.renderError.addEventListener((_scene, err) => {
@@ -400,13 +404,6 @@ const CesiumScene = ({
             console.error("message:", anyErr?.message, "stack:", anyErr?.stack);
           } catch { /* ignore */ }
         });
-
-        try {
-          const imageryProvider = await IonImageryProvider.fromAssetId(2);
-          viewer.imageryLayers.addImageryProvider(imageryProvider);
-        } catch (e) {
-          console.log("Using default imagery", e);
-        }
 
         viewer.camera.setView({
           destination: Cartesian3.fromDegrees(10, 30, 35000000),
