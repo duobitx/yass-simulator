@@ -5,12 +5,6 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppRoutes } from "@/App";
 
-vi.mock("@/pages/Index", () => ({
-  default: () => <div data-testid="route-index">index</div>,
-}));
-vi.mock("@/pages/Dashboard", () => ({
-  default: () => <div data-testid="route-dashboard">dashboard</div>,
-}));
 vi.mock("@/pages/Visualization", () => ({
   default: () => <div data-testid="route-visualization">visualization</div>,
 }));
@@ -34,23 +28,13 @@ function renderAt(path: string) {
 }
 
 describe("AppRoutes", () => {
-  it("renders / as Index", () => {
+  it("redirects / to /visualization", () => {
     renderAt("/");
-    expect(screen.getByTestId("route-index")).toBeInTheDocument();
-  });
-
-  it("renders /dashboard as Dashboard", () => {
-    renderAt("/dashboard");
-    expect(screen.getByTestId("route-dashboard")).toBeInTheDocument();
+    expect(screen.getByTestId("route-visualization")).toBeInTheDocument();
   });
 
   it("renders /visualization as Visualization", () => {
     renderAt("/visualization");
-    expect(screen.getByTestId("route-visualization")).toBeInTheDocument();
-  });
-
-  it("renders /visualization/:experimentId as Visualization", () => {
-    renderAt("/visualization/EXP-001");
     expect(screen.getByTestId("route-visualization")).toBeInTheDocument();
   });
 

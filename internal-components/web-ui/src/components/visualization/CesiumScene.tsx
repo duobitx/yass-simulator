@@ -54,18 +54,16 @@ interface GroundStationClickInfo {
 interface CesiumSceneProps {
   orbitLayerVisibility: Record<string, boolean>;
   showGroundStations: boolean;
-  showDataTransfer: boolean;
-  showGroundLinks: boolean;
   showOrbits: boolean;
-  showTrails: boolean;
-  simulationSpeed: number;
-  isPaused: boolean;
-  maxLinkDistance: number;
+  showDataTransfer?: boolean;
+  showGroundLinks?: boolean;
+  showTrails?: boolean;
+  simulationSpeed?: number;
+  isPaused?: boolean;
+  maxLinkDistance?: number;
   satellites?: SatelliteData[];
   groundStationsList?: GroundStationData[];
   liveMode?: boolean;
-  /** Hide Cesium animation + timeline (EXP-001 / live stream — not driven by sim clock). */
-  hideSimulationTimeControls?: boolean;
   liveTracksRef?: MutableRefObject<Record<string, SsePositionEvent>>;
   onSatelliteClick?: (satellite: SatelliteClickInfo) => void;
   onGroundStationClick?: (station: GroundStationClickInfo) => void;
@@ -350,21 +348,21 @@ const defaultGroundStations: GroundStationData[] = [
 const CesiumScene = ({
   orbitLayerVisibility,
   showGroundStations,
-  showDataTransfer,
-  showGroundLinks,
   showOrbits,
-  showTrails,
-  simulationSpeed,
-  isPaused,
-  maxLinkDistance,
+  showDataTransfer = false,
+  showGroundLinks = false,
+  showTrails = false,
+  simulationSpeed = 1,
+  isPaused = false,
+  maxLinkDistance = 8000,
   satellites: satellitesProp,
   groundStationsList: groundStationsProp,
   liveMode = false,
-  hideSimulationTimeControls = false,
   liveTracksRef,
   onSatelliteClick,
   onGroundStationClick,
 }: CesiumSceneProps) => {
+  const hideSimulationTimeControls = liveMode;
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const connectionsRef = useRef<{ satLinks: Record<string, string[]>; gsLinks: Record<string, string[]>; stationToSat: Record<string, string> }>({ satLinks: {}, gsLinks: {}, stationToSat: {} });
@@ -396,11 +394,19 @@ const CesiumScene = ({
           shouldAnimate: true,
         });
 
+        viewer.scene.renderError.addEventListener((_scene, err) => {
+          console.error("Cesium render error:", err);
+          try {
+            const anyErr = err as unknown as { message?: string; stack?: string };
+            console.error("message:", anyErr?.message, "stack:", anyErr?.stack);
+          } catch { /* ignore */ }
+        });
+
         try {
           const imageryProvider = await IonImageryProvider.fromAssetId(2);
           viewer.imageryLayers.addImageryProvider(imageryProvider);
         } catch (e) {
-          console.log("Using default imagery");
+          console.log("Using default imagery", e);
         }
 
         viewer.camera.setView({
@@ -521,6 +527,9 @@ const CesiumScene = ({
 
     viewer.entities.removeAll();
 
+    const isFiniteLatLon = (lat: number, lon: number, alt: number) =>
+      Number.isFinite(lat) && Number.isFinite(lon) && Number.isFinite(alt);
+
     // Add ground stations
     if (showGroundStations) {
       groundStationsList.forEach((station) => {
@@ -528,10 +537,13 @@ const CesiumScene = ({
           liveMode && liveTracksRef
             ? new CallbackProperty((_time, result) => {
                 const t = liveTracksRef.current[station.id];
-                if (!t) {
+                const lng = t ? t.Lng : station.lon;
+                const lat = t ? t.Lat : station.lat;
+                const altKm = t ? (t.Alt ?? 0) : 0;
+                if (!isFiniteLatLon(lat, lng, altKm)) {
                   return Cartesian3.fromDegrees(station.lon, station.lat, 0, Ellipsoid.WGS84, result);
                 }
-                return Cartesian3.fromDegrees(t.Lng, t.Lat, (t.Alt ?? 0) * 1000, Ellipsoid.WGS84, result);
+                return Cartesian3.fromDegrees(lng, lat, altKm * 1000, Ellipsoid.WGS84, result);
               }, false)
             : Cartesian3.fromDegrees(station.lon, station.lat, 0);
 
@@ -583,7 +595,7 @@ const CesiumScene = ({
         if (liveMode && liveTracksRef) {
           positions = new CallbackProperty(() => {
             const t = liveTracksRef.current[sat.id];
-            if (!t) return [];
+            if (!t || !isFiniteLatLon(t.Lat, t.Lng, t.Alt)) return undefined;
             const altKm = t.Alt > 0 ? t.Alt : sat.altitude;
             const incEff = Math.max(sat.inclination, Math.abs(t.Lat) + 0.5, 0.5);
             return generateOrbitPointsPhased(altKm, incEff, t.Lat, t.Lng, sat.orbitType);
@@ -611,7 +623,7 @@ const CesiumScene = ({
       if (liveMode && liveTracksRef) {
         position = new CallbackProperty((_time, result) => {
           const t = liveTracksRef.current[sat.id];
-          if (!t) return undefined;
+          if (!t || !isFiniteLatLon(t.Lat, t.Lng, t.Alt)) return undefined;
           return Cartesian3.fromDegrees(t.Lng, t.Lat, t.Alt * 1000, Ellipsoid.WGS84, result);
         }, false);
         billRotation = 0;

@@ -24,6 +24,10 @@ func (t *AppType) handleRoot(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write([]byte(message))
 }
 
+func (t *AppType) handleInfo(w http.ResponseWriter, r *http.Request) {
+	output(w, map[string]string{"name": t.ExperimentDefData.Name})
+}
+
 func (t *AppType) handleStartExperiment(w http.ResponseWriter, r *http.Request) {
 	slog.Info("Experiment start requested...")
 	err := t.Start(t.mainCtx)
@@ -58,6 +62,7 @@ func (t *AppType) DefineEndpoints(router *mux.Router) {
 		panic("router cannot be nil")
 	}
 	router.HandleFunc("/", t.handleRoot)
+	router.HandleFunc("/info", t.handleInfo).Methods(http.MethodGet)
 	router.HandleFunc("/start", t.handleStartExperiment).Methods(http.MethodPost)
 	router.HandleFunc("/fsNodes/{fsNode}", t.handleGetFsNodeData).Methods(http.MethodGet)
 	router.HandleFunc("/fsNodes", t.handleGetFsNodesList).Methods(http.MethodGet)
