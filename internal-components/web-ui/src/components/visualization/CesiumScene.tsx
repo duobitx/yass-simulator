@@ -362,7 +362,6 @@ const CesiumScene = ({
   onSatelliteClick,
   onGroundStationClick,
 }: CesiumSceneProps) => {
-  const hideSimulationTimeControls = liveMode;
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const connectionsRef = useRef<{ satLinks: Record<string, string[]>; gsLinks: Record<string, string[]>; stationToSat: Record<string, string> }>({ satLinks: {}, gsLinks: {}, stationToSat: {} });
@@ -380,8 +379,8 @@ const CesiumScene = ({
     const initViewer = async () => {
       try {
         const viewer = new Viewer(containerRef.current!, {
-          animation: true,
-          timeline: true,
+          animation: false,
+          timeline: false,
           homeButton: true,
           sceneModePicker: true,
           baseLayerPicker: false,
@@ -424,8 +423,6 @@ const CesiumScene = ({
         viewer.clock.multiplier = 60;
         viewer.clock.shouldAnimate = true;
 
-        viewer.timeline.zoomTo(startTime, stopTime);
-
         viewerRef.current = viewer;
         setIsInitialized(true);
       } catch (error) {
@@ -442,16 +439,6 @@ const CesiumScene = ({
       }
     };
   }, []);
-
-  useEffect(() => {
-    const viewer = viewerRef.current;
-    if (!viewer || viewer.isDestroyed() || !isInitialized) return;
-    const hide = hideSimulationTimeControls;
-    const animEl = viewer.animation?.container as HTMLElement | undefined;
-    const timeEl = viewer.timeline?.container as HTMLElement | undefined;
-    if (animEl) animEl.style.display = hide ? "none" : "";
-    if (timeEl) timeEl.style.display = hide ? "none" : "";
-  }, [hideSimulationTimeControls, isInitialized]);
 
   // Handle entity clicks (satellites and ground stations)
   useEffect(() => {
