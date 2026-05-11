@@ -254,6 +254,12 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		globalEnvs[strings.ToUpper(strings.ReplaceAll(propKey, "-", "_"))] = propVal
 	}
 
+	waitForMessaging := &v1.Container{
+		Name:    "wait-for-messaging",
+		Image:   "busybox:1.37",
+		Command: []string{"sh", "-c", "until nc -z messaging 1883; do echo 'waiting for messaging:1883...'; sleep 1; done"},
+	}
+
 	initContainer := &v1.Container{
 		Name:            "resource-to-json-fsnode",
 		Command:         []string{"/resource-to-json"},
@@ -264,7 +270,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 	modEnvsAppend(map[string]string{"DST_DIR": "/mnt/shared", "RESOURCE_KIND": fsNode.Kind, "RESOURCE_NAME": fsNode.Name})(pod, initContainer)
 	modEnvsAppend(globalEnvs)(pod, initContainer)
 	modEnvFromField("NAMESPACE", "metadata.namespace")(pod, initContainer)
-	pod.Spec.InitContainers = []v1.Container{*initContainer}
+	pod.Spec.InitContainers = []v1.Container{*waitForMessaging, *initContainer}
 
 	containers, err := r.getSystemContainers(fsNode, pod)
 	if err != nil {
