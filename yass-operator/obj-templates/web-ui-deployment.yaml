@@ -15,6 +15,16 @@ spec:
         app: yass-web-ui
     spec:
       serviceAccountName: yass-experiment-sa
+      initContainers:
+        - name: wait-for-events-webapp
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until wget -q -O- http://events-webapp:8080/ ; do
+                echo "waiting for events-webapp"; sleep 2
+              done
       containers:
       - name: yass-web-ui
         image: ghcr.io/duobitx/yass-web-ui:latest
