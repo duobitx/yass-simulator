@@ -5,7 +5,7 @@ vars:
     sh: |
       v=$(git describe --tags --exact-match 2>/dev/null || true)
       if [ -n "$v" ]; then echo "${v#v}";
-      elif s=$(git rev-parse --short=8 HEAD 2>/dev/null); then echo "$(date '+%Y%m%d')-${s}";
+      elif s=$(git rev-parse --short=8 HEAD 2>/dev/null); then echo "${s}";
       else echo latest; fi
   IMG: 'ghcr.io/duobitx/yass-operator'
 
@@ -29,6 +29,7 @@ tasks:
       - make docker-build IMG={{.IMG}}
       - make docker-push IMG={{.IMG}}
       - 'echo "📦 pushed {{.IMG}}"'
+      - docker tag {{.IMG}} {{.IMG}}:{{.VERSION}}
       - make docker-push IMG={{.IMG}}:{{.VERSION}}
       - 'echo "📦 pushed {{.IMG}}:{{.VERSION}}"'
 

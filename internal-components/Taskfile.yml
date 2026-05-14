@@ -7,7 +7,7 @@ vars:
     sh: |
       v=$(git describe --tags --exact-match 2>/dev/null || true)
       if [ -n "$v" ]; then echo "${v#v}";
-      elif s=$(git rev-parse --short=8 HEAD 2>/dev/null); then echo "$(date '+%Y%m%d')-${s}";
+      elif s=$(git rev-parse --short=8 HEAD 2>/dev/null); then echo "${s}";
       else date '+%Y%m%dt%H%M%S'; fi
   DOCKER: 'docker'
 
