@@ -155,6 +155,7 @@ helm-chart: manifests ## Regenerate the Helm chart at charts/yass-operator from 
 	rsync -a --delete \
 		--exclude='Chart.yaml' \
 		--exclude='values.yaml' \
+		--exclude='README.md' \
 		--exclude='templates/manager/manager.yaml' \
 		dist/chart/ charts/yass-operator/
 	rm -rf dist/chart
