@@ -6,7 +6,7 @@ set -euo pipefail
 ################################
 
 IFACE="$1"
-export PORT_RANGE="3000-3020"
+export PORT_RANGE="4001-9900"
 
 OUT_LIMIT=4mbit
 
@@ -61,7 +61,7 @@ tc filter add dev "$IFACE" parent 1: protocol ip prio 100 flower \
 # - rate: egress rate for this class (e.g., 100kbit, 10mbit)
 # - delay: netem delay (e.g., 0ms, 20ms)
 # - loss: packet loss percent (e.g., 0%, 1%)
-# - ports (optional): single port or range (e.g., 5201 or 3000-3020). Defaults to PORT_RANGE.
+# - ports (optional): single port or range (e.g., 5201 or 4001-9900). Defaults to PORT_RANGE.
 #
 # Example to allow iperf3 default port (5201) to a specific server:
 #   ip_profile 15.235.13.240 101 100kbit 0ms 0% 5201

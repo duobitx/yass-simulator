@@ -1,6 +1,6 @@
 package networking
 
-// engine open ports 9090-9100 (included)
+// engine open ports 4001-9900 (included) - covers IPFS swarm (4001), tus (9090) and ipfs-cluster (9094, 9096)
 import (
 	"encoding/binary"
 	"fmt"
@@ -18,16 +18,16 @@ import (
 )
 
 const (
-	portsFrom = 9090
-	portsTo   = 9100
+	portsFrom = 4001
+	portsTo   = 9900
 )
 
 func NetworkParamFromFsNodeUpdateNetworkParamEntry(in *proto.FsNodeUpdateNetworkParamEntry) NetworkParam {
 	return NetworkParam{
 		ToIP:         in.Ip,
-		PackageLoss:  0.0, // FIXME in.PackageLoss * 100,
+		PackageLoss:  in.PackageLoss * 100, // proto value is 0..1, netem expects 0..100
 		PackageDelay: in.PackageDelay,
-		Bandwidth:    10 * 1024 * 1024, // As for now 10mbits, TODO limit bandwidth when we know know - bandwidth=f(distance)
+		Bandwidth:    10 * 1024 * 1024, // As for now 10mbits, TODO limit bandwidth when we know - bandwidth=f(distance)
 	}
 }
 
@@ -308,10 +308,8 @@ func (h *Handler) addIngressFilters(srcIP net.IP) error {
 	return nil
 }
 
+// removeIPProfile assumes h.lock is already held by the caller.
 func (h *Handler) removeIPProfile(ip string) error {
-	h.lock.Lock()
-	defer h.lock.Unlock()
-
 	cid, err := h.getCID(ip)
 	if err != nil {
 		return errors.Wrapf(err, "error generating CID for ip=%s", ip)

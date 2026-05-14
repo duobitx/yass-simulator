@@ -57,8 +57,8 @@
          ┌────────▼────────────┐    ┌────────▼────────┐
          │ Traffic Filtering:  │    │   getCID(ip)    │
          │                     │    │                 │
-         │ • TCP (9090-9100)   │    │  IP → ClassID   │
-         │ • UDP (9090-9100)   │    │   Conversion    │
+         │ • TCP (4001-9900)   │    │  IP → ClassID   │
+         │ • UDP (4001-9900)   │    │   Conversion    │
          │ • ICMP (all)        │    └─────────────────┘
          │                     │
          │ DestIP: Target Node │
@@ -104,7 +104,7 @@ NetworkParam Input                    State Management
 
 1. **HTB Class (1:CID)** - Hierarchical Token Bucket limiting bandwidth
 2. **NETEM Qdisc (CID:0)** - Network Emulator adding delays and packet loss
-3. **Flower Filters** - Traffic classifiers for TCP/UDP (ports 9090-9100) and ICMP
+3. **Flower Filters** - Traffic classifiers for TCP/UDP (ports 4001-9900) and ICMP
 4. **CID Generation** - IP to ClassID conversion via bitwise operations with network mask
 
 ### Controlled Parameters
@@ -112,5 +112,5 @@ NetworkParam Input                    State Management
 - **Bandwidth**: bits/s (default 10 Mbps)
 - **Delay**: ms → μs
 - **Loss**: 0-100%
-- **Port range**: 9090-9100
+- **Port range**: 4001-9900 (covers IPFS swarm on 4001 TCP/UDP, tus on 9090, ipfs-cluster on 9094/9096)
 
