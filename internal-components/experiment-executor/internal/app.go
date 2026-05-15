@@ -35,6 +35,7 @@ type AppType struct {
 	ExperimentDefData   *cmodel.ExperimentDefinition
 	k8sClient           client.Client
 	nodes               map[string]*model.FsNodeState
+	nodeTypes           map[string]yassv1.FsNodeType
 	nodesLock           sync.Mutex
 	namespace           string
 	experimentStartedAt *time.Time
@@ -101,8 +102,13 @@ func NewApp(ctx context.Context, facade com.Facade) (*AppType, error) {
 		ExperimentDefData: expData,
 		k8sClient:         k8sClient,
 		nodes:             map[string]*model.FsNodeState{},
+		nodeTypes:         map[string]yassv1.FsNodeType{},
 		nodesLock:         sync.Mutex{},
 		namespace:         goutils.Env("NAMESPACE", ""),
+	}
+
+	if err := app.refreshNodeTypes(ctx); err != nil {
+		slog.Default().Warn("cannot load FsNode types from k8s; GS-GS link override disabled until types are known", "error", err)
 	}
 
 	err = facade.Subscribe("online-states/#", func(sCtx context.Context, topic string, retained bool, data []byte) {
@@ -252,6 +258,7 @@ func (t *AppType) experimentTimedOutUpdateExperimentResource() error {
 func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GlobalGeoCalcUpdate) error {
 	nowMillis := upd.CurrentTime.UnixMilli()
 	jeh := goutils.JoinErrorHelper{}
+	t.augmentGroundStationLinks(upd.FsNodeInfos)
 	for _, data := range upd.FsNodeInfos {
 		networkParams := make([]*proto.FsNodeUpdateNetworkParamEntry, 0, len(data.ReachableFsNodes))
 		for _, peer := range data.ReachableFsNodes {
@@ -303,20 +310,25 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GlobalGeoCalcU
 
 // Reference parameters for distance-dependent link metrics.
 const (
-	bandwidthMaxBps      = 100 * 1024 * 1024 // 100 Mbit/s at or below dRefKm
-	bandwidthMinBps      = 100 * 1024        // 100 kbit/s floor
-	bandwidthRefDistance = 1000.0            // km — distance at which we still get full bandwidth
-	transmitterDelayMs   = 1.0               // fixed transmitter delay in ms
-	speedOfLightKmPerMs  = 300.0             // km per millisecond
-	packageLossBase      = 0.001             // 0.1% baseline loss
-	packageLossSlope     = 0.001             // per (d/d_ref)^2 unit
-	packageLossMax       = 0.5               // 50% cap; above that link is effectively dead
+	bandwidthMaxBps      = 100 * 1024 * 1024       // 100 Mbit/s at or below dRefKm
+	bandwidthMinBps      = 100 * 1024              // 100 kbit/s floor
+	bandwidthRefDistance = 1000.0                  // km — distance at which we still get full bandwidth
+	transmitterDelayMs   = 1.0                     // fixed transmitter delay in ms
+	speedOfLightKmPerMs  = 300.0                   // km per millisecond
+	packageLossBase      = 0.001                   // 0.1% baseline loss
+	packageLossSlope     = 0.001                   // per (d/d_ref)^2 unit
+	packageLossMax       = 0.5                     // 50% cap; above that link is effectively dead
+	gsBandwidthBps       = 10 * 1000 * 1000 * 1000 // 10 Gbit/s — terrestrial GS-GS link
 )
 
 func (t *AppType) calculateNetworkParam(fsNodeMain *geocalc.FsNodeInfo, dstName string, dst *proto.FsNodeUpdateNetworkParamEntry) {
-	_ = fsNodeMain
 	dst.Subject = dstName
 	dst.PackageDelay = transmitterDelayMs + dst.Distance/speedOfLightKmPerMs
+	if t.isGroundStation(fsNodeMain.Name) && t.isGroundStation(dstName) {
+		dst.PackageLoss = 0
+		dst.Bandwidth = float32(gsBandwidthBps)
+		return
+	}
 	// Loss grows quadratically with distance to mimic worse SNR over longer hops.
 	distRatio := float64(dst.Distance) / float64(bandwidthRefDistance)
 	loss := packageLossBase + packageLossSlope*distRatio*distRatio
@@ -331,6 +343,72 @@ func (t *AppType) calculateNetworkParam(fsNodeMain *geocalc.FsNodeInfo, dstName 
 		bw = bandwidthMinBps
 	}
 	dst.Bandwidth = float32(bw)
+}
+
+func (t *AppType) refreshNodeTypes(ctx context.Context) error {
+	list := &yassv1.FsNodeList{}
+	if err := t.k8sClient.List(ctx, list, client.InNamespace(t.namespace)); err != nil {
+		return errors.Wrapf(err, "cannot list FsNodes in namespace %q", t.namespace)
+	}
+	types := make(map[string]yassv1.FsNodeType, len(list.Items))
+	for i := range list.Items {
+		types[list.Items[i].Name] = list.Items[i].Spec.NodeType
+	}
+	t.nodesLock.Lock()
+	t.nodeTypes = types
+	t.nodesLock.Unlock()
+	slog.Default().Info("Loaded FsNode types", "count", len(types))
+	return nil
+}
+
+func (t *AppType) isGroundStation(name string) bool {
+	t.nodesLock.Lock()
+	nt, ok := t.nodeTypes[name]
+	t.nodesLock.Unlock()
+	return ok && nt == yassv1.FsNodeTypeGroundStation
+}
+
+// Terrestrial GS-GS links bypass line-of-sight filtering done by geo_calc;
+// distance falls back to a great-circle arc so delay stays realistic.
+func (t *AppType) augmentGroundStationLinks(nodes []*geocalc.FsNodeInfo) {
+	gsList := make([]*geocalc.FsNodeInfo, 0, len(nodes))
+	for _, n := range nodes {
+		if t.isGroundStation(n.Name) {
+			gsList = append(gsList, n)
+		}
+	}
+	if len(gsList) < 2 {
+		return
+	}
+	for _, src := range gsList {
+		existing := make(map[string]bool, len(src.ReachableFsNodes))
+		for _, p := range src.ReachableFsNodes {
+			existing[p.NameTo] = true
+		}
+		for _, dst := range gsList {
+			if dst.Name == src.Name || existing[dst.Name] {
+				continue
+			}
+			src.ReachableFsNodes = append(src.ReachableFsNodes, geocalc.DistanceInfo{
+				NameTo:   dst.Name,
+				Distance: greatCircleDistanceKm(src.Lat, src.Lng, dst.Lat, dst.Lng),
+			})
+		}
+	}
+}
+
+func greatCircleDistanceKm(lat1, lng1, lat2, lng2 float32) float32 {
+	const earthRadiusKm = 6371.0
+	const degToRad = math.Pi / 180.0
+	la1 := float64(lat1) * degToRad
+	la2 := float64(lat2) * degToRad
+	dLat := la2 - la1
+	dLng := (float64(lng2) - float64(lng1)) * degToRad
+	sinDLat := math.Sin(dLat / 2)
+	sinDLng := math.Sin(dLng / 2)
+	a := sinDLat*sinDLat + math.Cos(la1)*math.Cos(la2)*sinDLng*sinDLng
+	c := 2 * math.Atan2(math.Sqrt(a), math.Sqrt(1-a))
+	return float32(earthRadiusKm * c)
 }
 
 func (t *AppType) updateK8sResource() error {
