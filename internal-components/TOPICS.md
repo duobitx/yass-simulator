@@ -14,7 +14,7 @@ binary proto wire format.
 | `experiment/end-request` | experiment-executor (init publish), agents | experiment-executor | `proto.AgentExperimentEndRequest` (JSON) or empty | 0 | true |
 | `total-network-stats/<fsNode>` | world-controller | events-webapp | `[]proto.TrafficStats` (JSON) | 0 | false |
 | `energy/<fsNode>` ⚠️ **deprecated** | world-controller | — | JSON of internal `NodeHwState` (battery, in-shadow, etc.) | 0 | false |
-| `<fsNode>/resources` | world-controller (planned — proto schema in place, publisher not yet implemented) | events-webapp | `proto.FsNodeResources` (JSON) — power mode, per-volume disk usage, per-engine-container CPU/RAM | 0 | false |
+| `<fsNode>/resources` | world-controller (1 Hz) | events-webapp | `proto.FsNodeResources` (JSON) — power mode, per-volume disk usage, per-engine-container CPU/RAM | 0 | false |
 | `crud-events` | fs-engines via `fs_engine_wrapper`'s `facadeNotifier` | — (retained for later retrieval) | `notifier.NotifyEvent` (JSON) — file `PUT` / `DELETE` / `RECEIVED` with size, md5, attributes | 0 | true |
 | `edfs-name-server` | edfs_engine (each instance) | edfs_engine (each instance — full mesh) | `TopicMessage` (JSON) — CID ↔ name mapping for the EDFS cluster | 0 | true |
 

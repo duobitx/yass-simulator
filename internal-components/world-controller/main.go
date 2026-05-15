@@ -16,6 +16,7 @@ import (
 	"github.com/duobitx/yass-simulator/internal-components/world-controller/internal/hw"
 	"github.com/duobitx/yass-simulator/internal-components/world-controller/internal/model"
 	"github.com/duobitx/yass-simulator/internal-components/world-controller/internal/networking"
+	"github.com/duobitx/yass-simulator/internal-components/world-controller/internal/resources"
 	yassv1 "github.com/duobitx/yass-simulator/yass-operator/api/v1"
 	com "github.com/m-szalik/com-facade"
 	"github.com/m-szalik/com-facade/mqtt"
@@ -235,6 +236,16 @@ func main() {
 		if err != nil {
 			slog.Error("cannot publish to topic", "error", err, "topic", topic)
 			return
+		}
+	})
+
+	resPublisher := resources.NewPublisher(app.fsNodeObjKey.Name, app.fsNodeObjKey.Namespace, app.k8sClient, app.hw, hwSpec)
+	const resourcesPeriod = 1 * time.Second
+	internal.BackgroundPeriodicTask(ctx, resourcesPeriod, func() {
+		snap := resPublisher.Snapshot(ctx, resourcesPeriod.Seconds())
+		topic := fmt.Sprintf("%s/resources", app.fsNodeObjKey.Name)
+		if err := facade.Publish(ctx, topic, 0, false, snap); err != nil {
+			slog.Error("cannot publish to topic", "error", err, "topic", topic)
 		}
 	})
 

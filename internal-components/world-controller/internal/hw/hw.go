@@ -67,6 +67,17 @@ func (s *NodeHwState) Update(tStats []*proto.TrafficStats) ([]byte, string, erro
 	return buff, s.format(change), err
 }
 
+// Power returns a snapshot of the current battery state. Safe for concurrent use.
+func (s *NodeHwState) Power() (batteryWh, capacityWh float32, inShadow, lowPower bool) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	if s.hw == nil {
+		return s.batteryLevel, 0, s.InShadow, false
+	}
+	low := s.hw.BatteryCapacityWh > 0 && s.batteryLevel <= s.hw.LowPowerThresholdWh
+	return s.batteryLevel, s.hw.BatteryCapacityWh, s.InShadow, low
+}
+
 func (s *NodeHwState) format(change float32) string {
 	var str string
 	if s.hw.EnergyConsumption.LowPowerBaseW <= 0 || s.hw.BatteryCapacityWh <= 0 {
