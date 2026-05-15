@@ -32,6 +32,15 @@ func TestGeoUpdateConv(t *testing.T) {
 				Lat: -30.334846,
 				Lng: 116.85053,
 				Alt: 0,
+				NetworkParams: []api.NetworkLink{
+					{
+						Subject:      "yaogan-25c",
+						IP:           "10.244.0.20",
+						Distance:     2475.0374,
+						PackageDelay: 0.009250125,
+						PackageLoss:  0.1,
+					},
+				},
 			},
 			wantErr: false,
 		},
