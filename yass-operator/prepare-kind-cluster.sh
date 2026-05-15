@@ -6,7 +6,7 @@ sleep 1
 
 set -euo pipefail
 
-CLUSTER_NAME=yass
+CLUSTER_NAME="${CLUSTER_NAME:-yass}"
 
 kind delete cluster --name $CLUSTER_NAME || true
 kind create cluster --name $CLUSTER_NAME
