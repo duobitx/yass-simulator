@@ -243,6 +243,9 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 			TerminationGracePeriodSeconds: &terminationGracePeriodSeconds,
 			ServiceAccountName:            "yass-experiment-sa",
 			RestartPolicy:                 v1.RestartPolicyNever,
+			// Required for world-controller's per-engine-container CPU/RAM scan
+			// (walks /proc to attribute PIDs to sibling containers via cgroup).
+			ShareProcessNamespace: &True,
 		},
 	}
 	globalEnvs := map[string]string{
@@ -316,6 +319,10 @@ func (r *FsNodeReconciler) getSystemContainers(fsNode *yassv1.FsNode, pod *v1.Po
 					"DISABLE_NETWORKING_MANIPULATION": strconv.FormatBool(r.Configuration.DisableNetworkingManipulation),
 				}),
 				modMountSharedVolume(false),
+				// Read-only mounts so the resources publisher can statfs each volume.
+				modVolumeMount(transferVolumeName, "/var/yass/transfer", true),
+				modVolumeMount(engineTMPVolumeName, "/var/yass/engine-tmp", true),
+				modVolumeMount(agentTMPVolumeName, "/var/yass/agent-tmp", true),
 				modCapability("NET_ADMIN"),
 			},
 		},
