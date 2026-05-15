@@ -253,19 +253,20 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GlobalGeoCalcU
 	nowMillis := upd.CurrentTime.UnixMilli()
 	jeh := goutils.JoinErrorHelper{}
 	for _, data := range upd.FsNodeInfos {
-		networkParams := make([]*proto.FsNodeUpdateNetworkParamEntry, len(data.ReachableFsNodes))
-		for i := 0; i < len(networkParams); i++ {
-			np := &proto.FsNodeUpdateNetworkParamEntry{}
-			ipFsState, ok := t.nodes[data.ReachableFsNodes[i].NameTo]
+		networkParams := make([]*proto.FsNodeUpdateNetworkParamEntry, 0, len(data.ReachableFsNodes))
+		for _, peer := range data.ReachableFsNodes {
+			ipFsState, ok := t.nodes[peer.NameTo]
 			if !ok {
-				slog.Default().Warn("cannot resolve IP for fsNode", "fsNode", data.ReachableFsNodes[i].NameTo, "processingFsNode", data.Name)
-				// FIXME return fmt.Errorf("cannot resolve IP for fsNode %s, no fsStateEntry", data.ReachableFsNodes[i].To)
-			} else {
-				np.Ip = ipFsState.IP
+				// Peer hasn't published its online-state on MQTT yet; skip until it does.
+				slog.Default().Warn("cannot resolve IP for fsNode", "fsNode", peer.NameTo, "processingFsNode", data.Name)
+				continue
 			}
-			np.Distance = data.ReachableFsNodes[i].Distance
-			t.calculateNetworkParam(data, data.ReachableFsNodes[i].NameTo, np)
-			networkParams[i] = np
+			np := &proto.FsNodeUpdateNetworkParamEntry{
+				Ip:       ipFsState.IP,
+				Distance: peer.Distance,
+			}
+			t.calculateNetworkParam(data, peer.NameTo, np)
+			networkParams = append(networkParams, np)
 		}
 		gr := &proto.FsNodeUpdate{
 			Name:              data.Name,

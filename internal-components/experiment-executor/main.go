@@ -56,14 +56,10 @@ func main() {
 
 	slog.Info("StartupCompleted....")
 
-	autoStart := goutils.Env("AUTOSTART", false)
-	if autoStart {
+	if goutils.Env("AUTOSTART", false) {
 		slog.Info("Starting experiment... - autostart")
-		err = app.Start(ctx)          // FIXME
-		goutils.ExitOnError(err, 111) // FIXME mock
-	}
-
-	if !autoStart {
+		goutils.ExitOnError(app.Start(ctx), 111)
+	} else {
 		slog.Info("Waiting for experiment to start....")
 	}
 	err = srv.ListenAndServe()
