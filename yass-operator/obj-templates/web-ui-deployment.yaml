@@ -16,6 +16,15 @@ spec:
     spec:
       serviceAccountName: yass-experiment-sa
       initContainers:
+        - name: wait-for-experiment-executor
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until wget -q -O- http://experiment-executor:8080/ ; do
+                echo "waiting for experiment-executor"; sleep 2
+              done
         - name: wait-for-events-webapp
           image: busybox:1.36
           command:

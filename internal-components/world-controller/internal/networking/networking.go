@@ -102,15 +102,12 @@ func (h *Handler) Update(networkParams []NetworkParam) error {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	currentProfiles := make(map[string]bool)
-	for k, v := range h.state {
-		if v != nil {
-			currentProfiles[k] = false
-		}
+	for k := range h.state {
+		currentProfiles[k] = false
 	}
 	for _, param := range networkParams {
 		currentProfiles[param.ToIP] = true
-		oldState, ok := h.state[param.ToIP]
-		if ok && oldState != nil && isAlmostEqual(oldState, &param) {
+		if oldState, ok := h.state[param.ToIP]; ok && isAlmostEqual(oldState, &param) {
 			continue
 		}
 		h.state[param.ToIP] = &param
@@ -134,7 +131,7 @@ func (h *Handler) Update(networkParams []NetworkParam) error {
 			if err := h.removeIPProfile(ip); err != nil {
 				jeh.Append(errors.Wrapf(err, "error removing ipProfile for %s as it's not visible anymore", ip))
 			} else {
-				h.state[ip] = nil
+				delete(h.state, ip)
 				slog.Default().Info("ipProfile removed as the IP is not visible anymore", "ip", ip)
 			}
 		}
@@ -540,20 +537,33 @@ func findDefaultNetworkNetmask() (net.IPMask, string, error) {
 		}
 		defIface = iface
 	} else {
-		slog.Default().Info("Try to detect default network interface")
-		netIfaces := goutils.Filter(ifacesAll, func(element net.Interface) bool { return element.Name != "lo" && element.Name != "loopback" })
-		if len(netIfaces) == 0 {
-			return nil, "", fmt.Errorf("no non-loopback interfaces found")
-		}
-		if len(netIfaces) > 1 {
-			llog := slog.Default()
-			llog.Info(fmt.Sprintf("more then one network interfaces: %+v", netIfaces))
-			for _, iface := range netIfaces {
-				addr, err := iface.Addrs()
-				llog.Info(fmt.Sprintf("interface: %+v", iface), "addrs", addr, "err", err)
-				defIface = &iface // FIXME
+		// Prefer the interface that owns the IPv4 default route — same selection that traffic.sh uses.
+		routes, err := netlink.RouteList(nil, netlink.FAMILY_V4)
+		if err == nil {
+			for _, r := range routes {
+				if r.Dst != nil {
+					continue
+				}
+				link, err := netlink.LinkByIndex(r.LinkIndex)
+				if err != nil {
+					continue
+				}
+				iface, err := net.InterfaceByName(link.Attrs().Name)
+				if err != nil {
+					continue
+				}
+				defIface = iface
+				break
 			}
-		} else {
+		}
+		if defIface == nil {
+			netIfaces := goutils.Filter(ifacesAll, func(element net.Interface) bool { return element.Name != "lo" && element.Name != "loopback" })
+			if len(netIfaces) == 0 {
+				return nil, "", fmt.Errorf("no non-loopback interfaces found")
+			}
+			if len(netIfaces) > 1 {
+				slog.Default().Warn("no default route found and multiple non-loopback interfaces — falling back to first", "interfaces", netIfaces, "picked", netIfaces[0].Name)
+			}
 			defIface = &netIfaces[0]
 		}
 	}

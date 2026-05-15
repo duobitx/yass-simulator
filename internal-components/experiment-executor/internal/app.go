@@ -307,16 +307,25 @@ const (
 	bandwidthRefDistance = 1000.0            // km — distance at which we still get full bandwidth
 	transmitterDelayMs   = 1.0               // fixed transmitter delay in ms
 	speedOfLightKmPerMs  = 300.0             // km per millisecond
+	packageLossBase      = 0.001             // 0.1% baseline loss
+	packageLossSlope     = 0.001             // per (d/d_ref)^2 unit
+	packageLossMax       = 0.5               // 50% cap; above that link is effectively dead
 )
 
 func (t *AppType) calculateNetworkParam(fsNodeMain *geocalc.FsNodeInfo, dstName string, dst *proto.FsNodeUpdateNetworkParamEntry) {
 	_ = fsNodeMain
 	dst.Subject = dstName
 	dst.PackageDelay = transmitterDelayMs + dst.Distance/speedOfLightKmPerMs
-	dst.PackageLoss = 0.1 // 10% fixed as for now FIXME calculate
+	// Loss grows quadratically with distance to mimic worse SNR over longer hops.
+	distRatio := float64(dst.Distance) / float64(bandwidthRefDistance)
+	loss := packageLossBase + packageLossSlope*distRatio*distRatio
+	if loss > packageLossMax {
+		loss = packageLossMax
+	}
+	dst.PackageLoss = float32(loss)
 	// Bandwidth ~ (d_ref / d)^2 to mimic free-space path loss, capped at bandwidthMaxBps for d <= d_ref.
-	ratio := float64(bandwidthRefDistance) / math.Max(float64(dst.Distance), float64(bandwidthRefDistance))
-	bw := float64(bandwidthMaxBps) * ratio * ratio
+	bwRatio := float64(bandwidthRefDistance) / math.Max(float64(dst.Distance), float64(bandwidthRefDistance))
+	bw := float64(bandwidthMaxBps) * bwRatio * bwRatio
 	if bw < bandwidthMinBps {
 		bw = bandwidthMinBps
 	}
