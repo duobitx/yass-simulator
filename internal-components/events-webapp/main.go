@@ -77,6 +77,9 @@ func (t *appType) message(_ context.Context, topic string, _ bool, data []byte) 
 	if strings.HasPrefix(topic, "total-network-stats") && !strings.HasSuffix(topic, "_") {
 		cf = conv.FsNodeNetworkUsageConv
 	}
+	if strings.HasSuffix(topic, "/resources") {
+		cf = conv.FsNodeResourcesConv
+	}
 	if cf != nil {
 		apiResponse, err := cf(topic, data)
 		if err != nil {

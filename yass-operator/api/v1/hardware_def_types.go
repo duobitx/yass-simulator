@@ -43,7 +43,12 @@ type HardwareSpec struct {
 	// Number of available RAM.
 	Memory *resource.Quantity `json:"memory"`
 
-	// Available disk space. If not defined then unlimited.
+	// Hard k8s `emptyDir.sizeLimit` for the engine container's scratch volume (`/tmp`).
+	// Exceeding it causes kubelet to evict the pod (no graceful ENOSPC).
+	// Does NOT limit `/mnt/transfer` or the agent's `/tmp` — those are reported as
+	// soft signals on the `<fsNode>/resources` MQTT topic and are expected to be
+	// respected by the engine itself.
+	// If not defined then unlimited.
 	// +kubebuilder:validation:Optional
 	DiskSpace *resource.Quantity `json:"diskSpace"`
 

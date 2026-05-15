@@ -31,3 +31,8 @@ sudo apt install libjansson-dev
 - MacOS: `brew install protobuf`
 
 ### Make
+
+## MQTT topics
+
+See [TOPICS.md](./TOPICS.md) for the full table of topics, payloads,
+producers/subscribers, QoS and retain semantics across components.

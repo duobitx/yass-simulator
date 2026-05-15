@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package yass.fs;
+
+option go_package = "github.com/duobitx/yass-internal-components/go-common/proto;proto";
+
+message FsNodeResources {
+  string fs_node_name = 1;
+  int64 updated_unix_millis = 2;
+  PowerState power = 3;
+  repeated VolumeUsage volumes = 4;
+  repeated ContainerCompute engine_containers = 5;
+}
+
+message PowerState {
+  enum Mode {
+    NORMAL = 0;
+    LOW_POWER = 1;
+  }
+  Mode mode = 1;
+  float battery_wh = 2;
+  float battery_capacity_wh = 3;
+  bool in_shadow = 4;
+}
+
+message VolumeUsage {
+  string name = 1;
+  string mount_path = 2;
+  uint64 used_bytes = 3;
+  uint64 capacity_bytes = 4;
+  bool hard_limited = 5;
+}
+
+message ContainerCompute {
+  string container_name = 1;
+  float cpu_millicores = 2;
+  uint64 memory_bytes = 3;
+  float cpu_millicores_limit = 4;
+  uint64 memory_bytes_limit = 5;
+}

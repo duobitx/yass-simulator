@@ -47,6 +47,46 @@ func FsNodeUpdateConv(_ string, data []byte) (any, error) {
 	return out, nil
 }
 
+func FsNodeResourcesConv(_ string, data []byte) (any, error) {
+	in := &proto.FsNodeResources{}
+	err := json.Unmarshal(data, in)
+	if err != nil {
+		return nil, err
+	}
+	out := api.ResourceEvent{
+		BaseEvent: api.BaseEvent{
+			Source:    in.FsNodeName,
+			Timestamp: timestamp(in.UpdatedUnixMillis),
+			EventType: "ResourceEvent",
+		},
+	}
+	if p := in.Power; p != nil {
+		out.PowerMode = p.Mode.String()
+		out.BatteryWh = p.BatteryWh
+		out.BatteryCapacityWh = p.BatteryCapacityWh
+		out.InShadow = p.InShadow
+	}
+	for _, v := range in.Volumes {
+		out.Volumes = append(out.Volumes, api.VolumeUsage{
+			Name:          v.Name,
+			MountPath:     v.MountPath,
+			UsedBytes:     v.UsedBytes,
+			CapacityBytes: v.CapacityBytes,
+			HardLimited:   v.HardLimited,
+		})
+	}
+	for _, c := range in.EngineContainers {
+		out.EngineContainers = append(out.EngineContainers, api.ContainerCompute{
+			ContainerName:      c.ContainerName,
+			CPUMillicores:      c.CpuMillicores,
+			MemoryBytes:        c.MemoryBytes,
+			CPUMillicoresLimit: c.CpuMillicoresLimit,
+			MemoryBytesLimit:   c.MemoryBytesLimit,
+		})
+	}
+	return out, nil
+}
+
 func FsNodeNetworkUsageConv(topic string, data []byte) (any, error) {
 	in := make([]*proto.TrafficStats, 0)
 	err := json.Unmarshal(data, &in)

@@ -229,6 +229,7 @@ func main() {
 			return
 		}
 		app.updates.batteryStr = statusStr
+		// Deprecated topic — superseded by `<fsNode>/resources`. See ../TOPICS.md.
 		topic := fmt.Sprintf("energy/%s", app.fsNodeObjKey.Name)
 		err = facade.Publish(ctx, topic, 0, false, data)
 		if err != nil {
