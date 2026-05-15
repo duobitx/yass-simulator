@@ -249,9 +249,11 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		},
 	}
 	globalEnvs := map[string]string{
-		"FS_NODE_NAME":    fsNode.Name,
-		"FS_NODE_TYPE":    string(fsNode.Spec.NodeType),
-		"EXPERIMENT_NAME": experimentName,
+		"FS_NODE_NAME":                fsNode.Name,
+		"FS_NODE_TYPE":                string(fsNode.Spec.NodeType),
+		"EXPERIMENT_NAME":             experimentName,
+		"RESOURCE_NAME":               fsNode.Name,
+		"MESSAGING_BROKER_HOST_PORT":  r.Configuration.MessagingBrokerHostPort,
 	}
 	for propKey, propVal := range fsNode.Spec.Properties {
 		globalEnvs[strings.ToUpper(strings.ReplaceAll(propKey, "-", "_"))] = propVal
@@ -270,7 +272,7 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		ImagePullPolicy: r.Configuration.InternalComponentImagePullPolicy,
 	}
 	modMountSharedVolume(false)(pod, initContainer)
-	modEnvsAppend(map[string]string{"DST_DIR": "/mnt/shared", "RESOURCE_KIND": fsNode.Kind, "RESOURCE_NAME": fsNode.Name})(pod, initContainer)
+	modEnvsAppend(map[string]string{"DST_DIR": "/mnt/shared", "RESOURCE_KIND": fsNode.Kind})(pod, initContainer)
 	modEnvsAppend(globalEnvs)(pod, initContainer)
 	modEnvFromField("NAMESPACE", "metadata.namespace")(pod, initContainer)
 	pod.Spec.InitContainers = []v1.Container{*waitForMessaging, *initContainer}
@@ -315,7 +317,6 @@ func (r *FsNodeReconciler) getSystemContainers(fsNode *yassv1.FsNode, pod *v1.Po
 				modEnvFromField("POD_IP", "status.podIP"),
 				modEnvFromField("NAMESPACE", "metadata.namespace"),
 				modEnvsAppend(map[string]string{
-					"RESOURCE_NAME":                   fsNode.Name,
 					"DISABLE_NETWORKING_MANIPULATION": strconv.FormatBool(r.Configuration.DisableNetworkingManipulation),
 				}),
 				modMountSharedVolume(false),

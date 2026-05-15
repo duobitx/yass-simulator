@@ -16,6 +16,7 @@ type Configuration struct {
 	InternalComponentImage           string
 	InternalComponentImagePullPolicy v1.PullPolicy
 	DisableNetworkingManipulation    bool
+	MessagingBrokerHostPort          string
 }
 
 func NewConfiguration() (*Configuration, error) {
@@ -28,5 +29,6 @@ func NewConfiguration() (*Configuration, error) {
 		InternalComponentImage:           fmt.Sprintf("%s:%s", internalComponentsImage, imageVersion),
 		InternalComponentImagePullPolicy: imagePullPolicy,
 		DisableNetworkingManipulation:    goutils.Env("DISABLE_NETWORKING_MANIPULATION", false),
+		MessagingBrokerHostPort:          goutils.Env("MESSAGING_BROKER_HOST_PORT", "messaging:1883"),
 	}, nil
 }
