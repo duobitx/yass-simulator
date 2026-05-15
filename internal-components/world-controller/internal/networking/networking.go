@@ -1,6 +1,7 @@
 package networking
 
-// engine open ports 4001-9900 (included) - covers IPFS swarm (4001), tus (9090) and ipfs-cluster (9094, 9096)
+// Engine open ports: 4000-5000 and 9000-9999 — covers IPFS swarm (4001), tus (9090), ipfs-cluster (9094, 9096).
+// Excludes 8080 (control-plane: experiment-executor / events-webapp / web-ui).
 import (
 	"encoding/binary"
 	"fmt"
@@ -17,10 +18,14 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-const (
-	portsFrom = 4001
-	portsTo   = 9900
-)
+// FsNode data-plane port ranges (IPFS swarm 4001, ipfs-cluster 9094/9096, tus 9090, UDP 9098-9100).
+// Excludes control-plane 8080 used by experiment-executor / events-webapp / web-ui.
+var managedPortRanges = [...]struct {
+	from, to uint16
+}{
+	{4000, 5000},
+	{9000, 9999},
+}
 
 func NetworkParamFromFsNodeUpdateNetworkParamEntry(in *proto.FsNodeUpdateNetworkParamEntry) NetworkParam {
 	return NetworkParam{
@@ -220,8 +225,10 @@ func (h *Handler) replaceIPProfile(param *NetworkParam) error {
 	}
 
 	for _, p := range []*nl.IPProto{&protoTCP, &protoUDP} {
-		if err := netlink.FilterReplace(mkFlower(p, portsFrom, portsTo)); err != nil {
-			return errors.Wrap(err, "egress FilterReplace (tcp/udp)")
+		for _, r := range managedPortRanges {
+			if err := netlink.FilterReplace(mkFlower(p, r.from, r.to)); err != nil {
+				return errors.Wrap(err, "egress FilterReplace (tcp/udp)")
+			}
 		}
 	}
 	// ICMP
@@ -277,10 +284,12 @@ func (h *Handler) addIngressFilters(srcIP net.IP) error {
 		return fl
 	}
 
-	// Add TCP and UDP filters for port range
+	// Add TCP and UDP filters for each managed port range
 	for _, p := range []*nl.IPProto{&protoTCP, &protoUDP} {
-		if err := netlink.FilterReplace(mkIngressFlower(p, portsFrom, portsTo)); err != nil {
-			return errors.Wrap(err, "ingress FilterReplace (tcp/udp)")
+		for _, r := range managedPortRanges {
+			if err := netlink.FilterReplace(mkIngressFlower(p, r.from, r.to)); err != nil {
+				return errors.Wrap(err, "ingress FilterReplace (tcp/udp)")
+			}
 		}
 	}
 

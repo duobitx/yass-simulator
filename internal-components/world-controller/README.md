@@ -57,8 +57,9 @@
          ┌────────▼────────────┐    ┌────────▼────────┐
          │ Traffic Filtering:  │    │   getCID(ip)    │
          │                     │    │                 │
-         │ • TCP (4001-9900)   │    │  IP → ClassID   │
-         │ • UDP (4001-9900)   │    │   Conversion    │
+         │ • TCP (4000-5000,   │    │  IP → ClassID   │
+         │       9000-9999)    │    │   Conversion    │
+         │ • UDP (same ranges) │    │                 │
          │ • ICMP (all)        │    └─────────────────┘
          │                     │
          │ DestIP: Target Node │
@@ -104,7 +105,7 @@ NetworkParam Input                    State Management
 
 1. **HTB Class (1:CID)** - Hierarchical Token Bucket limiting bandwidth
 2. **NETEM Qdisc (CID:0)** - Network Emulator adding delays and packet loss
-3. **Flower Filters** - Traffic classifiers for TCP/UDP (ports 4001-9900) and ICMP
+3. **Flower Filters** - Traffic classifiers for TCP/UDP (ports 4000-5000 + 9000-9999, control-plane 8080 excluded) and ICMP
 4. **CID Generation** - IP to ClassID conversion via bitwise operations with network mask
 
 ### Controlled Parameters
@@ -112,5 +113,5 @@ NetworkParam Input                    State Management
 - **Bandwidth**: bits/s — derived from `bandwidth` field in MQTT update (proto), scales with distance via inverse-square in `experiment-executor`
 - **Delay**: ms → μs
 - **Loss**: 0-100%
-- **Port range**: 4001-9900 (covers IPFS swarm on 4001 TCP/UDP, tus on 9090, ipfs-cluster on 9094/9096)
+- **Port ranges**: 4000-5000 and 9000-9999 (covers IPFS swarm 4001 TCP/UDP, tus 9090, ipfs-cluster 9094/9096). 8080 control-plane port is intentionally outside both ranges.
 

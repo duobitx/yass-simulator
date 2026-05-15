@@ -6,7 +6,11 @@ set -euo pipefail
 ################################
 
 IFACE="$1"
-export PORT_RANGE="4001-9900"
+# Data-plane port ranges (matched by world-controller's managedPortRanges).
+# 8080 is intentionally NOT here (control-plane: experiment-executor, events-webapp, web-ui).
+PORT_RANGES=(4000-5000 9000-9999)
+# Kept for the ip_profile helper below; defaults to the first range.
+export PORT_RANGE="${PORT_RANGES[0]}"
 
 OUT_LIMIT=4mbit
 
@@ -39,13 +43,14 @@ tc class add dev "$IFACE" parent 1: classid 1:9999 htb rate 10gbit
 # DEFAULT BLOCK RULES (OUTGOING ONLY)
 ################################
 
-tc filter add dev "$IFACE" parent 1: protocol ip prio 100 flower \
-    ip_proto tcp dst_port $PORT_RANGE \
-    flowid 1:900
-
-tc filter add dev "$IFACE" parent 1: protocol ip prio 100 flower \
-    ip_proto udp dst_port $PORT_RANGE \
-    flowid 1:900
+for range in "${PORT_RANGES[@]}"; do
+    tc filter add dev "$IFACE" parent 1: protocol ip prio 100 flower \
+        ip_proto tcp dst_port "$range" \
+        flowid 1:900
+    tc filter add dev "$IFACE" parent 1: protocol ip prio 100 flower \
+        ip_proto udp dst_port "$range" \
+        flowid 1:900
+done
 
 tc filter add dev "$IFACE" parent 1: protocol ip prio 100 flower \
     ip_proto icmp \
@@ -61,7 +66,7 @@ tc filter add dev "$IFACE" parent 1: protocol ip prio 100 flower \
 # - rate: egress rate for this class (e.g., 100kbit, 10mbit)
 # - delay: netem delay (e.g., 0ms, 20ms)
 # - loss: packet loss percent (e.g., 0%, 1%)
-# - ports (optional): single port or range (e.g., 5201 or 4001-9900). Defaults to PORT_RANGE.
+# - ports (optional): single port or range (e.g., 5201 or 4000-5000). Defaults to PORT_RANGE (first managed range).
 #
 # Example to allow iperf3 default port (5201) to a specific server:
 #   ip_profile 15.235.13.240 101 100kbit 0ms 0% 5201
