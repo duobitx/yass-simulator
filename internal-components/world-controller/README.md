@@ -109,7 +109,7 @@ NetworkParam Input                    State Management
 
 ### Controlled Parameters
 
-- **Bandwidth**: bits/s (default 10 Mbps)
+- **Bandwidth**: bits/s — derived from `bandwidth` field in MQTT update (proto), scales with distance via inverse-square in `experiment-executor`
 - **Delay**: ms → μs
 - **Loss**: 0-100%
 - **Port range**: 4001-9900 (covers IPFS swarm on 4001 TCP/UDP, tus on 9090, ipfs-cluster on 9094/9096)

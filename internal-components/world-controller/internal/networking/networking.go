@@ -27,7 +27,7 @@ func NetworkParamFromFsNodeUpdateNetworkParamEntry(in *proto.FsNodeUpdateNetwork
 		ToIP:         in.Ip,
 		PackageLoss:  in.PackageLoss * 100, // proto value is 0..1, netem expects 0..100
 		PackageDelay: in.PackageDelay,
-		Bandwidth:    10 * 1024 * 1024, // As for now 10mbits, TODO limit bandwidth when we know - bandwidth=f(distance)
+		Bandwidth:    int64(in.Bandwidth),
 	}
 }
 

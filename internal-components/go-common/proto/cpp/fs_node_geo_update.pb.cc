@@ -52,6 +52,7 @@ PROTOBUF_CONSTEXPR FsNodeUpdateNetworkParamEntry::FsNodeUpdateNetworkParamEntry(
   , /*decltype(_impl_.distance_)*/0
   , /*decltype(_impl_.package_delay_)*/0
   , /*decltype(_impl_.package_loss_)*/0
+  , /*decltype(_impl_.bandwidth_)*/0
   , /*decltype(_impl_._cached_size_)*/{}} {}
 struct FsNodeUpdateNetworkParamEntryDefaultTypeInternal {
   PROTOBUF_CONSTEXPR FsNodeUpdateNetworkParamEntryDefaultTypeInternal()
@@ -97,6 +98,7 @@ const uint32_t TableStruct_fs_5fnode_5fgeo_5fupdate_2eproto::offsets[] PROTOBUF_
   PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeUpdateNetworkParamEntry, _impl_.package_delay_),
   PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeUpdateNetworkParamEntry, _impl_.package_loss_),
   PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeUpdateNetworkParamEntry, _impl_.subject_),
+  PROTOBUF_FIELD_OFFSET(::yass::fs::FsNodeUpdateNetworkParamEntry, _impl_.bandwidth_),
 };
 static const ::_pbi::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
   { 0, -1, -1, sizeof(::yass::fs::FsNodeUpdate)},
@@ -115,16 +117,17 @@ const char descriptor_table_protodef_fs_5fnode_5fgeo_5fupdate_2eproto[] PROTOBUF
   " \001(\002\022\t\n\001z\030\006 \001(\002\022\013\n\003lat\030\007 \001(\002\022\013\n\003lng\030\010 \001("
   "\002\022\013\n\003alt\030\t \001(\002\022>\n\016network_params\030\n \003(\0132&"
   ".yass.fs.FsNodeUpdateNetworkParamEntry\022\033"
-  "\n\023updated_unix_millis\030\013 \001(\003\"{\n\035FsNodeUpd"
-  "ateNetworkParamEntry\022\n\n\002ip\030\001 \001(\t\022\020\n\010dist"
-  "ance\030\002 \001(\002\022\025\n\rpackage_delay\030\003 \001(\002\022\024\n\014pac"
-  "kage_loss\030\004 \001(\002\022\017\n\007subject\030\005 \001(\tBCZAgith"
-  "ub.com/duobitx/yass-internal-components/"
-  "go-common/proto;protob\006proto3"
+  "\n\023updated_unix_millis\030\013 \001(\003\"\216\001\n\035FsNodeUp"
+  "dateNetworkParamEntry\022\n\n\002ip\030\001 \001(\t\022\020\n\010dis"
+  "tance\030\002 \001(\002\022\025\n\rpackage_delay\030\003 \001(\002\022\024\n\014pa"
+  "ckage_loss\030\004 \001(\002\022\017\n\007subject\030\005 \001(\t\022\021\n\tban"
+  "dwidth\030\006 \001(\002BCZAgithub.com/duobitx/yass-"
+  "internal-components/go-common/proto;prot"
+  "ob\006proto3"
   ;
 static ::_pbi::once_flag descriptor_table_fs_5fnode_5fgeo_5fupdate_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_fs_5fnode_5fgeo_5fupdate_2eproto = {
-    false, false, 469, descriptor_table_protodef_fs_5fnode_5fgeo_5fupdate_2eproto,
+    false, false, 489, descriptor_table_protodef_fs_5fnode_5fgeo_5fupdate_2eproto,
     "fs_node_geo_update.proto",
     &descriptor_table_fs_5fnode_5fgeo_5fupdate_2eproto_once, nullptr, 0, 2,
     schemas, file_default_instances, TableStruct_fs_5fnode_5fgeo_5fupdate_2eproto::offsets,
@@ -724,6 +727,7 @@ FsNodeUpdateNetworkParamEntry::FsNodeUpdateNetworkParamEntry(const FsNodeUpdateN
     , decltype(_impl_.distance_){}
     , decltype(_impl_.package_delay_){}
     , decltype(_impl_.package_loss_){}
+    , decltype(_impl_.bandwidth_){}
     , /*decltype(_impl_._cached_size_)*/{}};
 
   _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
@@ -744,8 +748,8 @@ FsNodeUpdateNetworkParamEntry::FsNodeUpdateNetworkParamEntry(const FsNodeUpdateN
       _this->GetArenaForAllocation());
   }
   ::memcpy(&_impl_.distance_, &from._impl_.distance_,
-    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.package_loss_) -
-    reinterpret_cast<char*>(&_impl_.distance_)) + sizeof(_impl_.package_loss_));
+    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.bandwidth_) -
+    reinterpret_cast<char*>(&_impl_.distance_)) + sizeof(_impl_.bandwidth_));
   // @@protoc_insertion_point(copy_constructor:yass.fs.FsNodeUpdateNetworkParamEntry)
 }
 
@@ -759,6 +763,7 @@ inline void FsNodeUpdateNetworkParamEntry::SharedCtor(
     , decltype(_impl_.distance_){0}
     , decltype(_impl_.package_delay_){0}
     , decltype(_impl_.package_loss_){0}
+    , decltype(_impl_.bandwidth_){0}
     , /*decltype(_impl_._cached_size_)*/{}
   };
   _impl_.ip_.InitDefault();
@@ -799,8 +804,8 @@ void FsNodeUpdateNetworkParamEntry::Clear() {
   _impl_.ip_.ClearToEmpty();
   _impl_.subject_.ClearToEmpty();
   ::memset(&_impl_.distance_, 0, static_cast<size_t>(
-      reinterpret_cast<char*>(&_impl_.package_loss_) -
-      reinterpret_cast<char*>(&_impl_.distance_)) + sizeof(_impl_.package_loss_));
+      reinterpret_cast<char*>(&_impl_.bandwidth_) -
+      reinterpret_cast<char*>(&_impl_.distance_)) + sizeof(_impl_.bandwidth_));
   _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
 }
 
@@ -851,6 +856,14 @@ const char* FsNodeUpdateNetworkParamEntry::_InternalParse(const char* ptr, ::_pb
           ptr = ::_pbi::InlineGreedyStringParser(str, ptr, ctx);
           CHK_(ptr);
           CHK_(::_pbi::VerifyUTF8(str, "yass.fs.FsNodeUpdateNetworkParamEntry.subject"));
+        } else
+          goto handle_unusual;
+        continue;
+      // float bandwidth = 6;
+      case 6:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 53)) {
+          _impl_.bandwidth_ = ::PROTOBUF_NAMESPACE_ID::internal::UnalignedLoad<float>(ptr);
+          ptr += sizeof(float);
         } else
           goto handle_unusual;
         continue;
@@ -933,6 +946,16 @@ uint8_t* FsNodeUpdateNetworkParamEntry::_InternalSerialize(
         5, this->_internal_subject(), target);
   }
 
+  // float bandwidth = 6;
+  static_assert(sizeof(uint32_t) == sizeof(float), "Code assumes uint32_t and float are the same size.");
+  float tmp_bandwidth = this->_internal_bandwidth();
+  uint32_t raw_bandwidth;
+  memcpy(&raw_bandwidth, &tmp_bandwidth, sizeof(tmp_bandwidth));
+  if (raw_bandwidth != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteFloatToArray(6, this->_internal_bandwidth(), target);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -990,6 +1013,15 @@ size_t FsNodeUpdateNetworkParamEntry::ByteSizeLong() const {
     total_size += 1 + 4;
   }
 
+  // float bandwidth = 6;
+  static_assert(sizeof(uint32_t) == sizeof(float), "Code assumes uint32_t and float are the same size.");
+  float tmp_bandwidth = this->_internal_bandwidth();
+  uint32_t raw_bandwidth;
+  memcpy(&raw_bandwidth, &tmp_bandwidth, sizeof(tmp_bandwidth));
+  if (raw_bandwidth != 0) {
+    total_size += 1 + 4;
+  }
+
   return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
 }
 
@@ -1035,6 +1067,13 @@ void FsNodeUpdateNetworkParamEntry::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& 
   if (raw_package_loss != 0) {
     _this->_internal_set_package_loss(from._internal_package_loss());
   }
+  static_assert(sizeof(uint32_t) == sizeof(float), "Code assumes uint32_t and float are the same size.");
+  float tmp_bandwidth = from._internal_bandwidth();
+  uint32_t raw_bandwidth;
+  memcpy(&raw_bandwidth, &tmp_bandwidth, sizeof(tmp_bandwidth));
+  if (raw_bandwidth != 0) {
+    _this->_internal_set_bandwidth(from._internal_bandwidth());
+  }
   _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
 }
 
@@ -1063,8 +1102,8 @@ void FsNodeUpdateNetworkParamEntry::InternalSwap(FsNodeUpdateNetworkParamEntry* 
       &other->_impl_.subject_, rhs_arena
   );
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
-      PROTOBUF_FIELD_OFFSET(FsNodeUpdateNetworkParamEntry, _impl_.package_loss_)
-      + sizeof(FsNodeUpdateNetworkParamEntry::_impl_.package_loss_)
+      PROTOBUF_FIELD_OFFSET(FsNodeUpdateNetworkParamEntry, _impl_.bandwidth_)
+      + sizeof(FsNodeUpdateNetworkParamEntry::_impl_.bandwidth_)
       - PROTOBUF_FIELD_OFFSET(FsNodeUpdateNetworkParamEntry, _impl_.distance_)>(
           reinterpret_cast<char*>(&_impl_.distance_),
           reinterpret_cast<char*>(&other->_impl_.distance_));

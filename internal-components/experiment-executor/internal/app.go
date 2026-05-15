@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"math"
 	"sync"
 	"time"
 
@@ -299,12 +300,27 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GlobalGeoCalcU
 	return jeh.AsError()
 }
 
+// Reference parameters for distance-dependent link metrics.
+const (
+	bandwidthMaxBps      = 100 * 1024 * 1024 // 100 Mbit/s at or below dRefKm
+	bandwidthMinBps      = 100 * 1024        // 100 kbit/s floor
+	bandwidthRefDistance = 1000.0            // km — distance at which we still get full bandwidth
+	transmitterDelayMs   = 1.0               // fixed transmitter delay in ms
+	speedOfLightKmPerMs  = 300.0             // km per millisecond
+)
+
 func (t *AppType) calculateNetworkParam(fsNodeMain *geocalc.FsNodeInfo, dstName string, dst *proto.FsNodeUpdateNetworkParamEntry) {
-	// TODO
 	_ = fsNodeMain
 	dst.Subject = dstName
-	dst.PackageDelay = 0.001 /* 1ms for transmitter */ + dst.Distance/300_000.00
+	dst.PackageDelay = transmitterDelayMs + dst.Distance/speedOfLightKmPerMs
 	dst.PackageLoss = 0.1 // 10% fixed as for now FIXME calculate
+	// Bandwidth ~ (d_ref / d)^2 to mimic free-space path loss, capped at bandwidthMaxBps for d <= d_ref.
+	ratio := float64(bandwidthRefDistance) / math.Max(float64(dst.Distance), float64(bandwidthRefDistance))
+	bw := float64(bandwidthMaxBps) * ratio * ratio
+	if bw < bandwidthMinBps {
+		bw = bandwidthMinBps
+	}
+	dst.Bandwidth = float32(bw)
 }
 
 func (t *AppType) updateK8sResource() error {

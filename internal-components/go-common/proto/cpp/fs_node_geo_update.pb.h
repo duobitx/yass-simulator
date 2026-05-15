@@ -466,6 +466,7 @@ class FsNodeUpdateNetworkParamEntry final :
     kDistanceFieldNumber = 2,
     kPackageDelayFieldNumber = 3,
     kPackageLossFieldNumber = 4,
+    kBandwidthFieldNumber = 6,
   };
   // string ip = 1;
   void clear_ip();
@@ -522,6 +523,15 @@ class FsNodeUpdateNetworkParamEntry final :
   void _internal_set_package_loss(float value);
   public:
 
+  // float bandwidth = 6;
+  void clear_bandwidth();
+  float bandwidth() const;
+  void set_bandwidth(float value);
+  private:
+  float _internal_bandwidth() const;
+  void _internal_set_bandwidth(float value);
+  public:
+
   // @@protoc_insertion_point(class_scope:yass.fs.FsNodeUpdateNetworkParamEntry)
  private:
   class _Internal;
@@ -535,6 +545,7 @@ class FsNodeUpdateNetworkParamEntry final :
     float distance_;
     float package_delay_;
     float package_loss_;
+    float bandwidth_;
     mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
   };
   union { Impl_ _impl_; };
@@ -1013,6 +1024,26 @@ inline void FsNodeUpdateNetworkParamEntry::set_allocated_subject(std::string* su
   }
 #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
   // @@protoc_insertion_point(field_set_allocated:yass.fs.FsNodeUpdateNetworkParamEntry.subject)
+}
+
+// float bandwidth = 6;
+inline void FsNodeUpdateNetworkParamEntry::clear_bandwidth() {
+  _impl_.bandwidth_ = 0;
+}
+inline float FsNodeUpdateNetworkParamEntry::_internal_bandwidth() const {
+  return _impl_.bandwidth_;
+}
+inline float FsNodeUpdateNetworkParamEntry::bandwidth() const {
+  // @@protoc_insertion_point(field_get:yass.fs.FsNodeUpdateNetworkParamEntry.bandwidth)
+  return _internal_bandwidth();
+}
+inline void FsNodeUpdateNetworkParamEntry::_internal_set_bandwidth(float value) {
+  
+  _impl_.bandwidth_ = value;
+}
+inline void FsNodeUpdateNetworkParamEntry::set_bandwidth(float value) {
+  _internal_set_bandwidth(value);
+  // @@protoc_insertion_point(field_set:yass.fs.FsNodeUpdateNetworkParamEntry.bandwidth)
 }
 
 #ifdef __GNUC__

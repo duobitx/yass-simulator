@@ -23,9 +23,13 @@ message FsNodeUpdate {
 message FsNodeUpdateNetworkParamEntry {
   string ip = 1;
   float distance = 2;
+  // One-way packet delay in milliseconds.
   float package_delay = 3;
+  // Packet loss as a fraction in [0, 1] (e.g. 0.1 means 10%).
   float package_loss = 4;
   string subject = 5;
+  // Link bandwidth in bits per second.
+  float bandwidth = 6;
 }
 
 
