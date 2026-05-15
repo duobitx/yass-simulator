@@ -34,6 +34,16 @@ func FsNodeUpdateConv(_ string, data []byte) (any, error) {
 		Lng: in.Lng,
 		Alt: in.Alt,
 	}
+	for _, np := range in.NetworkParams {
+		out.NetworkParams = append(out.NetworkParams, api.NetworkLink{
+			Subject:      np.Subject,
+			IP:           np.Ip,
+			Distance:     np.Distance,
+			PackageDelay: np.PackageDelay,
+			PackageLoss:  np.PackageLoss,
+			Bandwidth:    np.Bandwidth,
+		})
+	}
 	return out, nil
 }
 

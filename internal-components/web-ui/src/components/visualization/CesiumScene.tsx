@@ -15,7 +15,8 @@ import {
   ClockRange,
   ClockStep,
   ImageryLayer,
-  OpenStreetMapImageryProvider,
+  UrlTemplateImageryProvider,
+  Credit,
   Ellipsoid,
   Cartographic,
   CallbackProperty,
@@ -375,9 +376,14 @@ const CesiumScene = ({
 
     const initViewer = async () => {
       try {
-        // OpenStreetMap tiles — no Cesium Ion token, no external auth.
+        // ESRI World Imagery — satellite photos showing forests, oceans, deserts.
+        // No Cesium Ion token, no auth, free tiles. Internet required.
         const baseLayer = new ImageryLayer(
-          new OpenStreetMapImageryProvider({ url: "https://tile.openstreetmap.org/" }),
+          new UrlTemplateImageryProvider({
+            url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+            credit: new Credit("Esri, Maxar, Earthstar Geographics, and the GIS User Community"),
+            maximumLevel: 18,
+          }),
           {},
         );
 
@@ -965,6 +971,111 @@ const CesiumScene = ({
       }
     };
   }, [isInitialized, showDataTransfer, showGroundLinks, showGroundStations, maxLinkDistance, satellites, groundStationsList, liveMode, liveTracksRef]);
+
+  // MQTT-driven visibility lines (network_params from experiment-executor via SSE).
+  // Animated dashed polylines coloured by bandwidth bucket; refreshed every 500ms.
+  useEffect(() => {
+    if (!viewerRef.current || !isInitialized) return;
+    if (!liveMode || !liveTracksRef) return;
+    const viewer = viewerRef.current;
+    const visEntities: Entity[] = [];
+    let lastUpdate = 0;
+    const UPDATE_INTERVAL_MS = 500;
+
+    const bucketColor = (bwBps: number): { color: Color; width: number } => {
+      const mbit = bwBps / (1024 * 1024);
+      if (mbit >= 50) return { color: Color.fromCssColorString("#22ff88"), width: 3 };
+      if (mbit >= 10) return { color: Color.fromCssColorString("#ffd84d"), width: 2 };
+      return { color: Color.fromCssColorString("#ff5577"), width: 1.5 };
+    };
+
+    const onTick = () => {
+      const now = Date.now();
+      if (now - lastUpdate < UPDATE_INTERVAL_MS) return;
+      lastUpdate = now;
+
+      visEntities.forEach((e) => {
+        if (viewer.entities.contains(e)) viewer.entities.remove(e);
+      });
+      visEntities.length = 0;
+
+      const currentTime = viewer.clock.currentTime;
+      const seen = new Set<string>();
+      const tracks = liveTracksRef.current;
+
+      for (const sourceName of Object.keys(tracks)) {
+        const ev = tracks[sourceName];
+        if (!ev.networkParams || ev.networkParams.length === 0) continue;
+        const sourceEntity = viewer.entities.getById(sourceName);
+        if (!sourceEntity?.position) continue;
+        const sourcePos = sourceEntity.position.getValue(currentTime);
+        if (!sourcePos) continue;
+
+        for (const link of ev.networkParams) {
+          const peerName = link.subject;
+          // Deduplicate A→B and B→A by sorting endpoints.
+          const pairKey = [sourceName, peerName].sort().join("|");
+          if (seen.has(pairKey)) continue;
+          seen.add(pairKey);
+
+          const peerEntity = viewer.entities.getById(peerName);
+          if (!peerEntity?.position) continue;
+          const peerPos = peerEntity.position.getValue(currentTime);
+          if (!peerPos) continue;
+
+          const { color, width } = bucketColor(link.bandwidth);
+
+          const polyline = viewer.entities.add({
+            id: `vis-${pairKey}-${now}`,
+            polyline: {
+              positions: [sourcePos, peerPos],
+              width,
+              material: new PolylineDashMaterialProperty({
+                color: color.withAlpha(0.9),
+                gapColor: Color.TRANSPARENT,
+                dashLength: 20,
+                dashPattern: 255,
+              }),
+            },
+          });
+          visEntities.push(polyline);
+
+          // Animated packet — one dot flows source→peer in a 2 s cycle.
+          const aPos = sourcePos.clone();
+          const bPos = peerPos.clone();
+          const packet = viewer.entities.add({
+            id: `vis-pkt-${pairKey}-${now}`,
+            position: new CallbackProperty(() => {
+              const t = (Date.now() % 2000) / 2000;
+              return new Cartesian3(
+                aPos.x + (bPos.x - aPos.x) * t,
+                aPos.y + (bPos.y - aPos.y) * t,
+                aPos.z + (bPos.z - aPos.z) * t,
+              );
+            }, false),
+            point: {
+              pixelSize: 5,
+              color,
+              outlineColor: Color.WHITE.withAlpha(0.5),
+              outlineWidth: 1,
+            },
+          });
+          visEntities.push(packet);
+        }
+      }
+    };
+
+    viewer.clock.onTick.addEventListener(onTick);
+
+    return () => {
+      if (!viewer.isDestroyed()) {
+        viewer.clock.onTick.removeEventListener(onTick);
+        visEntities.forEach((e) => {
+          if (viewer.entities.contains(e)) viewer.entities.remove(e);
+        });
+      }
+    };
+  }, [isInitialized, liveMode, liveTracksRef]);
 
   return (
     <div

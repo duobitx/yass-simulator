@@ -1,3 +1,12 @@
+export interface SseNetworkLink {
+  subject: string;
+  ip: string;
+  distance: number;
+  packageDelay: number;
+  packageLoss: number;
+  bandwidth: number;
+}
+
 export interface SsePositionEvent {
   source: string;
   timestamp: string;
@@ -8,6 +17,7 @@ export interface SsePositionEvent {
   Lat: number;
   Lng: number;
   Alt: number;
+  networkParams?: SseNetworkLink[];
 }
 
 /** Ground segment positions are reported with zero altitude (km). */
