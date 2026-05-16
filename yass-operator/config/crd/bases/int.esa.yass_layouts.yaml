@@ -83,7 +83,13 @@ spec:
                       anyOf:
                       - type: integer
                       - type: string
-                      description: Available disk space. If not defined then unlimited.
+                      description: |-
+                        Hard k8s `emptyDir.sizeLimit` for the engine container's scratch volume (`/tmp`).
+                        Exceeding it causes kubelet to evict the pod (no graceful ENOSPC).
+                        Does NOT limit `/mnt/transfer` or the agent's `/tmp` — those are reported as
+                        soft signals on the `<fsNode>/resources` MQTT topic and are expected to be
+                        respected by the engine itself.
+                        If not defined then unlimited.
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
                     energyConsumption:

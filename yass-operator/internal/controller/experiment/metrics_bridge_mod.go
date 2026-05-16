@@ -1,7 +1,6 @@
 package experiment
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -19,14 +18,12 @@ const (
 	labelRunID  = "yass-run-id"
 )
 
-// modMetricsBridge injects experiment context into the metrics-bridge
-// Deployment: pod labels for Prometheus relabel rules, env vars for the
-// bridge process itself, and the inherited experiment annotation. RunID
-// is derived from the Experiment metadata so it is stable per CR.
-func modMetricsBridge(experiment *yassv1.Experiment, exDef *yassv1.ExperimentDefinition) func(client.Object) {
+// modMetricsBridge stamps experiment context (name/engine/run-id) as pod
+// labels and env vars on the metrics-bridge Deployment. The bridge reads
+// its own runtime knobs (deadline, etc.) from its container defaults.
+func modMetricsBridge(experiment *yassv1.Experiment) func(client.Object) {
 	engine := deriveEngine(experiment)
 	runID := deriveRunID(experiment)
-	targetGSJSON, deliveryDeadline := metricsConfig(exDef)
 
 	return func(object client.Object) {
 		dep, ok := object.(*appsv1.Deployment)
@@ -47,12 +44,6 @@ func modMetricsBridge(experiment *yassv1.Experiment, exDef *yassv1.ExperimentDef
 			{Name: "EXPERIMENT_NAME", Value: experiment.Name},
 			{Name: "ENGINE", Value: engine},
 			{Name: "RUN_ID", Value: runID},
-		}
-		if targetGSJSON != "" {
-			envs = append(envs, v1.EnvVar{Name: "TARGET_GS_BY_FSNODE", Value: targetGSJSON})
-		}
-		if deliveryDeadline != "" {
-			envs = append(envs, v1.EnvVar{Name: "DELIVERY_DEADLINE", Value: deliveryDeadline})
 		}
 		for i := range dep.Spec.Template.Spec.Containers {
 			c := &dep.Spec.Template.Spec.Containers[i]
@@ -77,29 +68,15 @@ func deriveEngine(experiment *yassv1.Experiment) string {
 	return "unknown"
 }
 
+// deriveRunID returns "<experiment>_<yyyyMMddTHHmmssZ>". The separator and
+// stamp use only characters valid in a Kubernetes label value
+// ([A-Za-z0-9._-]).
 func deriveRunID(experiment *yassv1.Experiment) string {
-	stamp := experiment.CreationTimestamp.UTC().Format(time.RFC3339)
-	if stamp == "" {
-		stamp = time.Now().UTC().Format(time.RFC3339)
+	t := experiment.CreationTimestamp.UTC()
+	if t.IsZero() {
+		t = time.Now().UTC()
 	}
-	return experiment.Name + "@" + stamp
-}
-
-func metricsConfig(exDef *yassv1.ExperimentDefinition) (targetGSJSON, deliveryDeadline string) {
-	if exDef == nil || exDef.Spec.MetricsConfig == nil {
-		return "", ""
-	}
-	mc := exDef.Spec.MetricsConfig
-	if len(mc.TargetGroundStations) > 0 {
-		buf, err := json.Marshal(mc.TargetGroundStations)
-		if err != nil {
-			slog.Default().Warn("modMetricsBridge: cannot marshal targetGroundStations", "error", err)
-		} else {
-			targetGSJSON = string(buf)
-		}
-	}
-	deliveryDeadline = mc.DeliveryDeadline
-	return
+	return experiment.Name + "_" + t.Format("20060102T150405Z")
 }
 
 func mergeEnvs(existing, extra []v1.EnvVar) []v1.EnvVar {

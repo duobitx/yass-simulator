@@ -26,7 +26,7 @@ spec:
       containers:
         - name: metrics-bridge
           image: "ghcr.io/duobitx/yass-internal-components:latest"
-          imagePullPolicy: "Always"
+          imagePullPolicy: "IfNotPresent"
           command:
             - "/metrics-bridge"
           ports:

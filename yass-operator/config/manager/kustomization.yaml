@@ -5,6 +5,7 @@ kind: Kustomization
 images:
 - name: controller
   newName: ghcr.io/duobitx/yass-operator
+  newTag: latest
 patches:
 - path: image-pull-policy-patch.yaml
   target:
