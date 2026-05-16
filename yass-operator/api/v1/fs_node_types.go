@@ -21,50 +21,102 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// FsNodeType is the discriminator between the two kinds of simulated nodes.
+// It governs which position kind is required ([Orbit] vs [EarthPosition]) and
+// influences how the world-controller models the node's connectivity windows.
 type FsNodeType string
 
 const (
-	FsNodeTypeSatellite     FsNodeType = "satellite"
+	// FsNodeTypeSatellite — a node propagated along a TLE. Requires `orbit` to be set.
+	FsNodeTypeSatellite FsNodeType = "satellite"
+	// FsNodeTypeGroundStation — a stationary node fixed to an Earth coordinate.
+	// Requires `earthPosition` to be set.
 	FsNodeTypeGroundStation FsNodeType = "groundStation"
 )
 
-// FsNodeSpec defines the desired state of FsNode
+// FsNodeSpec is the desired state of a single simulated node — one satellite or
+// ground station. The fs-node controller reconciles it into a Pod composed of
+// three logical pieces:
+//
+//  1. The **agent** ([SimpleContainer]) — the user-supplied workload that
+//     simulates the on-board behaviour (taking pictures, receiving files, ...).
+//  2. The **engine containers** (`corev1.Container`) — the file-system engine
+//     under test (TUS, EDFS, ...). These get raw access to ports/volumes and
+//     therefore use the full corev1 schema.
+//  3. The **world-controller** sidecar — injected automatically by the operator.
+//     It runs the orbital/visibility math, enforces simulated networking and
+//     publishes telemetry (battery, disk, position) on MQTT.
 type FsNodeSpec struct {
-	// NodeType is the type of the node. Can be either satellite or groundStation.
+	// NodeType selects whether this is a satellite or a ground station. See [FsNodeType].
 	NodeType FsNodeType `json:"nodeType"`
 
+	// Properties is an arbitrary key/value map injected as environment variables
+	// into both the agent and engine containers. The operator merges this with
+	// `Experiment.spec.fsNodeProperties` (the experiment-level map wins on conflict)
+	// and with the agent's own [SimpleContainer.Envs].
 	// +kubebuilder:validation:Optional
-	// Properties of the node. Injected as environment variables.
 	Properties map[string]string `json:"properties,omitempty"`
 
 	EmbeddedHardware `json:",inline"`
 
 	EmbeddedPosition `json:",inline"`
 
-	// Agent agent to be installed.
+	// Agent is the user-supplied workload describing what this node *does* during
+	// the experiment (the satellite payload, or the ground-station receiver). See
+	// [SimpleContainer] for the supported fields.
 	Agent SimpleContainer `json:"agent,omitempty"`
 
-	// EngineContainers what file system engine to be installed.
+	// EngineContainers is the file-system engine running on this node (TUS, EDFS,
+	// ...). At least one container is required. The operator wires the well-known
+	// `/tmp` and `/mnt/transfer` volumes and adds the world-controller sidecar
+	// around them.
 	// +kubebuilder:validation:MinItems=1
 	EngineContainers []corev1.Container `json:"engineContainers,omitempty"`
 
-	// EngineVolumes volumes to be mounted into the engine containers.
+	// EngineVolumes are extra `corev1.Volume` entries to attach to the Pod for the
+	// engine containers' use (e.g. ConfigMaps, additional emptyDirs). The hard
+	// `emptyDir.sizeLimit` from the hardware profile is applied separately by the
+	// controller and does not need to be set here.
 	// +kubebuilder:validation:Optional
 	EngineVolumes []corev1.Volume `json:"engineVolumes,omitempty"`
 }
 
-// FsNodeStatus defines the observed state of FsNode.
+// FsNodeStatus is reported by the fs-node controller and reflects the live state
+// of the underlying Pod and its simulated counterpart. The "Str" fields are
+// human-friendly summaries surfaced in `kubectl get fsn` columns; the structured
+// telemetry (battery percentage, disk usage per volume, current power mode, ...)
+// is published on the MQTT topic `<fsNode>/resources` rather than into the
+// resource status, because the resource status would not handle the update
+// frequency gracefully.
 type FsNodeStatus struct {
-	// The status of each condition is one of True, False, or Unknown.
+	// Conditions captures the standard set of Kubernetes condition entries
+	// (`Ready`, `EngineReady`, ...).
 	// +listType=map
 	// +listMapKey=type
 	// +optional
-	Conditions           []*metav1.Condition `json:"conditions,omitempty"`
-	Ready                bool                `json:"ready"`
-	PosStr               string              `json:"posStr"`
-	EnergyConsumptionStr string              `json:"batteryStr"`
+	Conditions []*metav1.Condition `json:"conditions,omitempty"`
+	// Ready is true when the Pod is running and the world-controller has finished
+	// its initial position computation.
+	Ready bool `json:"ready"`
+	// PosStr is a short human-readable summary of the node's current position
+	// (e.g. `lat=67.86, lng=20.96` for a ground station, or an over-flight summary
+	// for a satellite). Refreshed by the world-controller.
+	PosStr string `json:"posStr"`
+	// EnergyConsumptionStr is a short human-readable summary of the current
+	// battery / energy state (state-of-charge, power mode). Refreshed by the
+	// world-controller.
+	EnergyConsumptionStr string `json:"batteryStr"`
 }
 
+// FsNode represents one simulated satellite or ground station. It is the central
+// runtime resource of YASS: every other CRD ultimately exists to describe
+// *which* FsNodes should be created, *where* they sit and *what* they should do.
+//
+// In a normal experiment users do **not** author FsNodes directly — the
+// experiment-executor creates them from a [Layout] × [ExperimentDefinition] pair
+// referenced by an [Experiment]. FsNodes may, however, be applied by hand for
+// ad-hoc tests of the operator itself.
+//
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:shortName=fsn
 // +kubebuilder:resource:shortName=fsns
@@ -73,7 +125,6 @@ type FsNodeStatus struct {
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.ready`
 // +kubebuilder:printcolumn:name="Bat",type=string,JSONPath=`.status.batteryStr`
 // +kubebuilder:printcolumn:name="PosOverEarth",type=string,JSONPath=`.status.posStr`
-// FsNode is the Schema for the FsNode API
 type FsNode struct {
 	metav1.TypeMeta `json:",inline"`
 

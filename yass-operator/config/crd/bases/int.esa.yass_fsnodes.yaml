@@ -32,7 +32,15 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: FsNode is the Schema for the FsNode API
+        description: |-
+          FsNode represents one simulated satellite or ground station. It is the central
+          runtime resource of YASS: every other CRD ultimately exists to describe
+          *which* FsNodes should be created, *where* they sit and *what* they should do.
+
+          In a normal experiment users do **not** author FsNodes directly — the
+          experiment-executor creates them from a [Layout] × [ExperimentDefinition] pair
+          referenced by an [Experiment]. FsNodes may, however, be applied by hand for
+          ad-hoc tests of the operator itself.
         properties:
           apiVersion:
             description: |-
@@ -55,14 +63,25 @@ spec:
             description: spec defines the desired state of FsNode
             properties:
               agent:
-                description: Agent agent to be installed.
+                description: |-
+                  Agent is the user-supplied workload describing what this node *does* during
+                  the experiment (the satellite payload, or the ground-station receiver). See
+                  [SimpleContainer] for the supported fields.
                 properties:
                   configurationFilesFromConfigMap:
-                    description: Configuration files can be mounted from ConfigMap.
+                    description: |-
+                      ConfigurationFilesFromConfigMap optionally mounts a ConfigMap as files inside
+                      the container — useful for shipping per-experiment agent configuration without
+                      rebuilding the image.
                     properties:
                       configMapRef:
+                        description: ConfigMapRef is the name of the ConfigMap to
+                          mount.
                         type: string
                       mountPath:
+                        description: |-
+                          MountPath is the absolute path inside the container where the ConfigMap's
+                          keys will be exposed as files.
                         type: string
                     required:
                     - configMapRef
@@ -71,32 +90,46 @@ spec:
                   envsMap:
                     additionalProperties:
                       type: string
-                    description: Envs environment variables
+                    description: |-
+                      Envs is an additional set of environment variables injected into the container.
+                      The operator merges these with the FsNode's `spec.properties` and a handful
+                      of well-known YASS variables (node name, MQTT broker address, ...).
                     type: object
                   image:
-                    description: Container image
+                    description: Image is the container image reference (e.g. `ghcr.io/duobitx/yass-agent-periodic`).
                     type: string
                 required:
                 - image
                 type: object
               earthPosition:
-                description: A position of an object on the Earth.
+                description: |-
+                  EarthPosition pins the node to a fixed lat/lng/alt point on the Earth.
+                  Use this for ground stations. Mutually exclusive with Orbit.
                 properties:
                   heightOverSeaLevel:
-                    description: Height over sea level in meters.
+                    description: |-
+                      HeightOverSeaLevel is the altitude above mean sea level, in metres.
+                      Optional — defaults to 0 (sea level). Used by the visibility/line-of-sight
+                      computation when checking whether a satellite has a usable contact window.
                     type: number
                   lat:
-                    description: Latitude in numeric format.
+                    description: Lat is the geodetic latitude in decimal degrees.
+                      Positive = north, negative = south.
                     type: number
                   lng:
-                    description: Longitude in numeric format.
+                    description: Lng is the geodetic longitude in decimal degrees.
+                      Positive = east, negative = west.
                     type: number
                 required:
                 - lat
                 - lng
                 type: object
               engineContainers:
-                description: EngineContainers what file system engine to be installed.
+                description: |-
+                  EngineContainers is the file-system engine running on this node (TUS, EDFS,
+                  ...). At least one container is required. The operator wires the well-known
+                  `/tmp` and `/mnt/transfer` volumes and adds the world-controller sidecar
+                  around them.
                 items:
                   description: A single application container that you want to run
                     within a pod.
@@ -1618,7 +1651,11 @@ spec:
                 minItems: 1
                 type: array
               engineVolumes:
-                description: EngineVolumes volumes to be mounted into the engine containers.
+                description: |-
+                  EngineVolumes are extra `corev1.Volume` entries to attach to the Pod for the
+                  engine containers' use (e.g. ConfigMaps, additional emptyDirs). The hard
+                  `emptyDir.sizeLimit` from the hardware profile is applied separately by the
+                  controller and does not need to be set here.
                 items:
                   description: Volume represents a named volume in a pod that may
                     be accessed by any container in the pod.
@@ -3502,17 +3539,30 @@ spec:
                   type: object
                 type: array
               hardwareSpec:
-                description: Satellite hardware spec.
+                description: |-
+                  HardwareSpec is an inline hardware profile. When present it takes precedence
+                  over HardwareSpecRef (no field-level merge — the inline spec is used as-is).
                 properties:
                   batteryCapacityWh:
+                    description: |-
+                      BatteryCapacityWh is the total usable battery capacity in watt-hours.
+                      The simulated state-of-charge starts at this value and is decremented by
+                      the EnergyConsumption model below.
                     type: number
                   batteryChargeW:
+                    description: |-
+                      BatteryChargeW is the average charge power in watts (e.g. from solar panels
+                      during illuminated orbit). For ground stations set it large enough to keep
+                      the battery effectively full. Optional, defaults to 0 (no recharge).
                     type: number
                   cpu:
                     anyOf:
                     - type: integer
                     - type: string
-                    description: Number of available CPUs.
+                    description: |-
+                      CPU available to the node. Used as the request and limit on the FsNode Pod
+                      (Kubernetes `resource.Quantity`, e.g. `1500m` or `2`). The KinD CPU
+                      over-subscription trick documented in NOTES.md applies here.
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
                   diskSpace:
@@ -3520,36 +3570,65 @@ spec:
                     - type: integer
                     - type: string
                     description: |-
-                      Hard k8s `emptyDir.sizeLimit` for the engine container's scratch volume (`/tmp`).
-                      Exceeding it causes kubelet to evict the pod (no graceful ENOSPC).
-                      Does NOT limit `/mnt/transfer` or the agent's `/tmp` — those are reported as
-                      soft signals on the `<fsNode>/resources` MQTT topic and are expected to be
-                      respected by the engine itself.
-                      If not defined then unlimited.
+                      DiskSpace is the hard `emptyDir.sizeLimit` for the engine container's scratch
+                      volume (`/tmp`). Exceeding it causes kubelet to evict the pod (no graceful
+                      ENOSPC).
+
+                      It does NOT limit `/mnt/transfer` or the agent's `/tmp` — those are reported
+                      as soft signals on the `<fsNode>/resources` MQTT topic and are expected to
+                      be respected by the engine itself.
+
+                      If not defined the volume is unlimited.
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
                   energyConsumption:
+                    description: |-
+                      EnergyConsumption describes the per-component power draw used by the
+                      simulated battery model. Optional — fields default to 0, which is suitable
+                      for ground stations or for tests that do not exercise power management.
                     properties:
                       lowPowerBaseW:
+                        description: |-
+                          LowPowerBaseW is the baseline draw (watts) when the node is in low-power mode
+                          (state-of-charge dropped below LowPowerThresholdWh). Typically lower than
+                          NormalPowerBaseW. Optional — defaults to 0.
                         type: number
                       normalPowerBaseW:
+                        description: |-
+                          NormalPowerBaseW is the baseline draw (watts) when the node is in normal
+                          power mode — covers always-on subsystems regardless of activity.
                         type: number
                       perkByteDiskRD:
+                        description: PerkByteDiskRD is the energy cost per kilobyte
+                          read from disk, in watt-hours.
                         type: number
                       perkByteDiskWR:
+                        description: PerkByteDiskWR is the energy cost per kilobyte
+                          written to disk, in watt-hours.
                         type: number
                       perkByteTXWh:
+                        description: |-
+                          PerkByteTXWh is the energy cost per kilobyte transmitted, in watt-hours.
+                          Charged for every byte the engine sends out of the node.
                         type: number
                     required:
                     - normalPowerBaseW
                     type: object
                   lowPowerThresholdWh:
+                    description: |-
+                      LowPowerThresholdWh sets the state-of-charge at which the node transitions
+                      to low-power mode. In low-power mode the world-controller switches the base
+                      draw to `EnergyConsumption.LowPowerBaseW` and the agent is expected to back
+                      off any non-essential activity (the current power mode is published on the
+                      `<fsNode>/resources` topic).
+                      Optional — defaults to 0 (never enter low-power mode).
                     type: number
                   memory:
                     anyOf:
                     - type: integer
                     - type: string
-                    description: Number of available RAM.
+                    description: Memory available to the node. Used as the request
+                      and limit on the FsNode Pod.
                     pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                     x-kubernetes-int-or-string: true
                 required:
@@ -3558,18 +3637,26 @@ spec:
                 - memory
                 type: object
               hardwareSpecRef:
-                description: Satellite Hardware specification. Field hardwareSpec
-                  has priority over hardwareSpecRef.
+                description: |-
+                  HardwareSpecRef is the name of a cluster-scoped HardwareDefinition to use as
+                  the hardware profile for this node (e.g. `sentinel-2`, `ground-station-hwdef`).
+                  Ignored when HardwareSpec is set inline.
                 type: string
               nodeType:
-                description: NodeType is the type of the node. Can be either satellite
-                  or groundStation.
+                description: NodeType selects whether this is a satellite or a ground
+                  station. See [FsNodeType].
                 type: string
               orbit:
-                description: A position of an object as TLE.
+                description: |-
+                  Orbit places the node on an SGP4-propagated orbit defined by a TLE.
+                  Use this for satellites. Mutually exclusive with EarthPosition.
                 properties:
                   tle:
-                    description: TLE lines
+                    description: |-
+                      TLE is the canonical two-line element set. Both lines are required and must
+                      be passed verbatim — the simulator does not normalise whitespace or checksums.
+                      The optional "Line 0" object name is NOT part of this field; put it in
+                      `metadata.name` of the enclosing FsNode/LayoutSatSpec if needed.
                     items:
                       type: string
                     maxItems: 2
@@ -3581,16 +3668,27 @@ spec:
               properties:
                 additionalProperties:
                   type: string
-                description: Properties of the node. Injected as environment variables.
+                description: |-
+                  Properties is an arbitrary key/value map injected as environment variables
+                  into both the agent and engine containers. The operator merges this with
+                  `Experiment.spec.fsNodeProperties` (the experiment-level map wins on conflict)
+                  and with the agent's own [SimpleContainer.Envs].
                 type: object
               rotation:
-                description: Rotation of an object
+                description: Rotation is the body-fixed pointing/attitude of the object.
+                  Optional.
                 properties:
                   pitch:
+                    description: Pitch — rotation around the body's lateral axis,
+                      in radians. Default 0.
                     type: number
                   roll:
+                    description: Roll — rotation around the body's longitudinal axis,
+                      in radians. Default 0.
                     type: number
                   yaw:
+                    description: Yaw — rotation around the body's vertical axis, in
+                      radians. Default 0.
                     type: number
                 type: object
             required:
@@ -3607,10 +3705,15 @@ spec:
             description: status defines the observed state of FsNode
             properties:
               batteryStr:
+                description: |-
+                  EnergyConsumptionStr is a short human-readable summary of the current
+                  battery / energy state (state-of-charge, power mode). Refreshed by the
+                  world-controller.
                 type: string
               conditions:
-                description: The status of each condition is one of True, False, or
-                  Unknown.
+                description: |-
+                  Conditions captures the standard set of Kubernetes condition entries
+                  (`Ready`, `EngineReady`, ...).
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -3670,8 +3773,15 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               posStr:
+                description: |-
+                  PosStr is a short human-readable summary of the node's current position
+                  (e.g. `lat=67.86, lng=20.96` for a ground station, or an over-flight summary
+                  for a satellite). Refreshed by the world-controller.
                 type: string
               ready:
+                description: |-
+                  Ready is true when the Pod is running and the world-controller has finished
+                  its initial position computation.
                 type: boolean
             required:
             - batteryStr

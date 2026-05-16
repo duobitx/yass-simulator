@@ -21,8 +21,23 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: Layout describe how satellites and groud stations are located
-          in space or/and on the Earth.
+        description: "Layout is the *world map* of an experiment: the set of satellites
+          and ground\nstations that exist, where they are physically located, and
+          what hardware they\nrun on. A Layout is intentionally behaviour-free — it
+          does not say what the\nnodes should *do*; that is the job of an [ExperimentDefinition].\n\nThe
+          same Layout can therefore be paired with several ExperimentDefinitions\n(different
+          agent payloads over the same constellation) to run apples-to-apples\ncomparisons
+          — this is the pattern used by `spain-shot/tus` vs `spain-shot/edfs`.\n\nLifecycle:\n
+          \ - Layout is cluster-scoped and authored once by the operator/researcher.\n
+          \ - It is consumed when an [Experiment] references it via `spec.layoutDefRef`.\n
+          \ - The experiment-executor expands each entry in `spec` into a namespaced\n
+          \   [FsNode] (which is in turn reconciled into a Pod with the agent +\n
+          \   engine + world-controller containers).\n\nExample excerpt:\n\n\tapiVersion:
+          int.esa.yass/v1\n\tkind: Layout\n\tmetadata:\n\t  name: spain-shot-layout\n\tspec:\n\t
+          \ - fsNode: oneweb-0008\n\t    nodeType: satellite\n\t    orbit:\n\t      tle:
+          [\"1 44059U ...\", \"2 44059  ...\"]\n\t    hardwareSpecRef: sentinel-2\n\t
+          \ - fsNode: estrack-kiruna\n\t    nodeType: groundStation\n\t    earthPosition:
+          { lat: 67.857, lng: 20.964 }\n\t    hardwareSpecRef: ground-station-hwdef"
         properties:
           apiVersion:
             description: |-
@@ -32,7 +47,9 @@ spec:
               More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           description:
-            description: Description of the layout
+            description: |-
+              Description is a free-form human-readable description of the constellation
+              the Layout models (mission, intent, source of the TLEs, ...). Optional.
             type: string
           kind:
             description: |-
@@ -45,38 +62,78 @@ spec:
           metadata:
             type: object
           spec:
+            description: |-
+              Spec is the list of nodes the world consists of. Keyed by `fsNode` (the
+              node's logical name); duplicate names within a single Layout are rejected
+              by the API server via the listMapKey.
             items:
+              description: |-
+                LayoutSatSpec is a single entry in a [Layout] — one satellite or ground station.
+                Despite the historical "Sat" in the type name, it represents *any* FsNode
+                (the `nodeType` field distinguishes them).
+
+                At minimum each entry must specify:
+                  - a unique `fsNode` name (becomes the [FsNode] metadata.name),
+                  - a `nodeType` (satellite or groundStation),
+                  - a position (orbit for satellites, earthPosition for ground stations — see
+                    [EmbeddedPosition]),
+                  - a hardware profile (via `hardwareSpecRef` to a [HardwareDefinition] or
+                    inline — see [EmbeddedHardware]).
               properties:
                 earthPosition:
-                  description: A position of an object on the Earth.
+                  description: |-
+                    EarthPosition pins the node to a fixed lat/lng/alt point on the Earth.
+                    Use this for ground stations. Mutually exclusive with Orbit.
                   properties:
                     heightOverSeaLevel:
-                      description: Height over sea level in meters.
+                      description: |-
+                        HeightOverSeaLevel is the altitude above mean sea level, in metres.
+                        Optional — defaults to 0 (sea level). Used by the visibility/line-of-sight
+                        computation when checking whether a satellite has a usable contact window.
                       type: number
                     lat:
-                      description: Latitude in numeric format.
+                      description: Lat is the geodetic latitude in decimal degrees.
+                        Positive = north, negative = south.
                       type: number
                     lng:
-                      description: Longitude in numeric format.
+                      description: Lng is the geodetic longitude in decimal degrees.
+                        Positive = east, negative = west.
                       type: number
                   required:
                   - lat
                   - lng
                   type: object
                 fsNode:
+                  description: |-
+                    FsNodeName is the logical name of the node. Must be unique within the
+                    Layout and is reused as the resulting FsNode's `metadata.name`, so it must
+                    be a valid DNS-1123 label (lowercase alphanumerics and `-`).
                   type: string
                 hardwareSpec:
-                  description: Satellite hardware spec.
+                  description: |-
+                    HardwareSpec is an inline hardware profile. When present it takes precedence
+                    over HardwareSpecRef (no field-level merge — the inline spec is used as-is).
                   properties:
                     batteryCapacityWh:
+                      description: |-
+                        BatteryCapacityWh is the total usable battery capacity in watt-hours.
+                        The simulated state-of-charge starts at this value and is decremented by
+                        the EnergyConsumption model below.
                       type: number
                     batteryChargeW:
+                      description: |-
+                        BatteryChargeW is the average charge power in watts (e.g. from solar panels
+                        during illuminated orbit). For ground stations set it large enough to keep
+                        the battery effectively full. Optional, defaults to 0 (no recharge).
                       type: number
                     cpu:
                       anyOf:
                       - type: integer
                       - type: string
-                      description: Number of available CPUs.
+                      description: |-
+                        CPU available to the node. Used as the request and limit on the FsNode Pod
+                        (Kubernetes `resource.Quantity`, e.g. `1500m` or `2`). The KinD CPU
+                        over-subscription trick documented in NOTES.md applies here.
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
                     diskSpace:
@@ -84,36 +141,65 @@ spec:
                       - type: integer
                       - type: string
                       description: |-
-                        Hard k8s `emptyDir.sizeLimit` for the engine container's scratch volume (`/tmp`).
-                        Exceeding it causes kubelet to evict the pod (no graceful ENOSPC).
-                        Does NOT limit `/mnt/transfer` or the agent's `/tmp` — those are reported as
-                        soft signals on the `<fsNode>/resources` MQTT topic and are expected to be
-                        respected by the engine itself.
-                        If not defined then unlimited.
+                        DiskSpace is the hard `emptyDir.sizeLimit` for the engine container's scratch
+                        volume (`/tmp`). Exceeding it causes kubelet to evict the pod (no graceful
+                        ENOSPC).
+
+                        It does NOT limit `/mnt/transfer` or the agent's `/tmp` — those are reported
+                        as soft signals on the `<fsNode>/resources` MQTT topic and are expected to
+                        be respected by the engine itself.
+
+                        If not defined the volume is unlimited.
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
                     energyConsumption:
+                      description: |-
+                        EnergyConsumption describes the per-component power draw used by the
+                        simulated battery model. Optional — fields default to 0, which is suitable
+                        for ground stations or for tests that do not exercise power management.
                       properties:
                         lowPowerBaseW:
+                          description: |-
+                            LowPowerBaseW is the baseline draw (watts) when the node is in low-power mode
+                            (state-of-charge dropped below LowPowerThresholdWh). Typically lower than
+                            NormalPowerBaseW. Optional — defaults to 0.
                           type: number
                         normalPowerBaseW:
+                          description: |-
+                            NormalPowerBaseW is the baseline draw (watts) when the node is in normal
+                            power mode — covers always-on subsystems regardless of activity.
                           type: number
                         perkByteDiskRD:
+                          description: PerkByteDiskRD is the energy cost per kilobyte
+                            read from disk, in watt-hours.
                           type: number
                         perkByteDiskWR:
+                          description: PerkByteDiskWR is the energy cost per kilobyte
+                            written to disk, in watt-hours.
                           type: number
                         perkByteTXWh:
+                          description: |-
+                            PerkByteTXWh is the energy cost per kilobyte transmitted, in watt-hours.
+                            Charged for every byte the engine sends out of the node.
                           type: number
                       required:
                       - normalPowerBaseW
                       type: object
                     lowPowerThresholdWh:
+                      description: |-
+                        LowPowerThresholdWh sets the state-of-charge at which the node transitions
+                        to low-power mode. In low-power mode the world-controller switches the base
+                        draw to `EnergyConsumption.LowPowerBaseW` and the agent is expected to back
+                        off any non-essential activity (the current power mode is published on the
+                        `<fsNode>/resources` topic).
+                        Optional — defaults to 0 (never enter low-power mode).
                       type: number
                     memory:
                       anyOf:
                       - type: integer
                       - type: string
-                      description: Number of available RAM.
+                      description: Memory available to the node. Used as the request
+                        and limit on the FsNode Pod.
                       pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
                       x-kubernetes-int-or-string: true
                   required:
@@ -122,16 +208,28 @@ spec:
                   - memory
                   type: object
                 hardwareSpecRef:
-                  description: Satellite Hardware specification. Field hardwareSpec
-                    has priority over hardwareSpecRef.
+                  description: |-
+                    HardwareSpecRef is the name of a cluster-scoped HardwareDefinition to use as
+                    the hardware profile for this node (e.g. `sentinel-2`, `ground-station-hwdef`).
+                    Ignored when HardwareSpec is set inline.
                   type: string
                 nodeType:
+                  description: |-
+                    NodeType is either `satellite` or `groundStation`. Choosing `satellite`
+                    requires `orbit` to be set on the embedded position; `groundStation`
+                    requires `earthPosition`.
                   type: string
                 orbit:
-                  description: A position of an object as TLE.
+                  description: |-
+                    Orbit places the node on an SGP4-propagated orbit defined by a TLE.
+                    Use this for satellites. Mutually exclusive with EarthPosition.
                   properties:
                     tle:
-                      description: TLE lines
+                      description: |-
+                        TLE is the canonical two-line element set. Both lines are required and must
+                        be passed verbatim — the simulator does not normalise whitespace or checksums.
+                        The optional "Line 0" object name is NOT part of this field; put it in
+                        `metadata.name` of the enclosing FsNode/LayoutSatSpec if needed.
                       items:
                         type: string
                       maxItems: 2
@@ -143,16 +241,28 @@ spec:
                 properties:
                   additionalProperties:
                     type: string
-                  description: Properties of the node. Injected as environment variables.
+                  description: |-
+                    Properties is an arbitrary key/value map injected as environment variables
+                    into both the agent and engine containers of the resulting Pod. Use it for
+                    per-node tunables that are not part of the hardware profile (e.g.
+                    `IS_TARGET_GS=true`). Merged with — and overridden by — the equivalent map
+                    on the Experiment (`spec.fsNodeProperties`).
                   type: object
                 rotation:
-                  description: Rotation of an object
+                  description: Rotation is the body-fixed pointing/attitude of the
+                    object. Optional.
                   properties:
                     pitch:
+                      description: Pitch — rotation around the body's lateral axis,
+                        in radians. Default 0.
                       type: number
                     roll:
+                      description: Roll — rotation around the body's longitudinal
+                        axis, in radians. Default 0.
                       type: number
                     yaw:
+                      description: Yaw — rotation around the body's vertical axis,
+                        in radians. Default 0.
                       type: number
                   type: object
               required:
