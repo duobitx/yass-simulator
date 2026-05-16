@@ -33,7 +33,21 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: ExperimentDefinition defines behavior and events for an experiment.
+        description: "ExperimentDefinition is the *scenario* of an experiment: per-node
+          behaviour\n(which agent image runs on which FsNode, with which environment)
+          and any\nscheduled hardware events. It deliberately knows nothing about
+          the physical\nplacement of nodes — that is the job of a [Layout] — so the
+          same definition\ncan be replayed against different constellations.\n\nOne
+          ExperimentDefinition pairs with one Layout inside an [Experiment]. The\nnode
+          names in `spec.behaviours[].fsNode` must match `fsNode` entries in the\nchosen
+          Layout; the experiment-executor refuses to start otherwise.\n\nExample:\n\n\tapiVersion:
+          int.esa.yass/v1\n\tkind: ExperimentDefinition\n\tmetadata:\n\t  name: spain-shot\n\tspec:\n\t
+          \ maxDuration: 6h\n\t  behaviours:\n\t    - fsNode: oneweb-0008\n\t      agent:\n\t
+          \       image: ghcr.io/duobitx/yass-agent-periodic\n\t        envsMap:\n\t
+          \         PHOTO_TARGETS: \"spain:40.4:-3.7:500\"\n\t          FILE_SIZE:
+          \"2G\"\n\t          MAX_PHOTOS: \"1\"\n\t    - fsNode: estrack-kiruna\n\t
+          \     agent:\n\t        image: ghcr.io/duobitx/yass-agent-receive-only\n\t
+          \       envsMap:\n\t          END_ON_ANY: \"true\""
         properties:
           apiVersion:
             description: |-
@@ -43,7 +57,8 @@ spec:
               More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
             type: string
           description:
-            description: Description of the experiment
+            description: Description is a free-form human-readable summary of the
+              scenario.
             type: string
           kind:
             description: |-
@@ -56,25 +71,54 @@ spec:
           metadata:
             type: object
           spec:
-            description: ExperimentDefinitionSpec defines the desired state of an
-              ExperimentDefinition
+            description: Spec is the actual scenario body. See [ExperimentDefinitionSpec].
             properties:
               HardwareEvents:
+                description: |-
+                  HardwareEvents is a global list of scheduled hardware events that apply
+                  across all nodes (e.g. solar storms, ground-station outages). Per-node
+                  events go on the individual Behaviour. The event schema itself is still
+                  being designed — see [HardwareEvent].
                 items:
+                  description: |-
+                    HardwareEvent is a placeholder for the upcoming hardware-event schema (battery
+                    fault injection, antenna degradation, sun-blinding, ...). The shape is still
+                    being designed — for now the field exists so that experiments authored today
+                    remain forward-compatible with a future operator.
                   type: object
                 type: array
               behaviours:
+                description: |-
+                  Behaviours describes one agent payload per FsNode. The list is keyed by
+                  `fsNode`, so each node may appear at most once. A behaviour MUST exist for
+                  every FsNode in the paired Layout; a missing entry means "no agent" which
+                  is almost always a misconfiguration.
                 items:
+                  description: |-
+                    Behaviour binds an agent payload to a single named FsNode. The FsNode name is
+                    the join key against the [Layout] used in the same [Experiment].
                   properties:
                     agent:
-                      description: Agent on the satellite
+                      description: |-
+                        Agent is the user-supplied workload container for this node. See
+                        [SimpleContainer]; the agent image is expected to follow the YASS agent
+                        conventions (consumes well-known env vars, talks to the world-controller
+                        over MQTT, drops files into `/mnt/transfer`).
                       properties:
                         configurationFilesFromConfigMap:
-                          description: Configuration files can be mounted from ConfigMap.
+                          description: |-
+                            ConfigurationFilesFromConfigMap optionally mounts a ConfigMap as files inside
+                            the container — useful for shipping per-experiment agent configuration without
+                            rebuilding the image.
                           properties:
                             configMapRef:
+                              description: ConfigMapRef is the name of the ConfigMap
+                                to mount.
                               type: string
                             mountPath:
+                              description: |-
+                                MountPath is the absolute path inside the container where the ConfigMap's
+                                keys will be exposed as files.
                               type: string
                           required:
                           - configMapRef
@@ -83,20 +127,33 @@ spec:
                         envsMap:
                           additionalProperties:
                             type: string
-                          description: Envs environment variables
+                          description: |-
+                            Envs is an additional set of environment variables injected into the container.
+                            The operator merges these with the FsNode's `spec.properties` and a handful
+                            of well-known YASS variables (node name, MQTT broker address, ...).
                           type: object
                         image:
-                          description: Container image
+                          description: Image is the container image reference (e.g.
+                            `ghcr.io/duobitx/yass-agent-periodic`).
                           type: string
                       required:
                       - image
                       type: object
                     fsNode:
-                      description: Name of the satellite / ground station to be configured.
+                      description: |-
+                        FsNodeName is the name of the satellite or ground station this behaviour
+                        targets. Must match a `fsNode` entry in the Layout.
                       type: string
                     hardwareEvents:
-                      description: What hardware events to expect during the experiment.
+                      description: |-
+                        HardwareEvents is the list of hardware events scoped to this single node
+                        (in addition to the spec-level global events).
                       items:
+                        description: |-
+                          HardwareEvent is a placeholder for the upcoming hardware-event schema (battery
+                          fault injection, antenna degradation, sun-blinding, ...). The shape is still
+                          being designed — for now the field exists so that experiments authored today
+                          remain forward-compatible with a future operator.
                         type: object
                       type: array
                   required:
@@ -108,7 +165,12 @@ spec:
                 - fsNode
                 x-kubernetes-list-type: map
               maxDuration:
-                description: MaxDuration of the experiment - duration format
+                description: |-
+                  MaxDuration is the wall-clock budget for the experiment, expressed in
+                  Go-duration format (e.g. `6h`, `30m`, `90s`). When exceeded the
+                  experiment-executor moves the parent [Experiment] to `TimedOut`. Optional —
+                  omit for an open-ended run (then end-of-experiment depends on agent signals
+                  such as `END_ON_ANY`).
                 type: string
             type: object
         type: object

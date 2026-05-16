@@ -30,7 +30,25 @@ spec:
     name: v1
     schema:
       openAPIV3Schema:
-        description: Experiment main object for simulation.
+        description: |-
+          Experiment is the top-level, namespaced resource that runs a single simulated
+          scenario. It binds together:
+
+            - a cluster-scoped [Layout] (the world map — which nodes exist and where),
+            - a cluster-scoped [ExperimentDefinition] (the scenario — per-node agent
+              behaviour and timing constraints),
+            - a per-experiment engine container set (the file system under test — TUS,
+              EDFS, ...).
+
+          On creation the experiment-controller materialises:
+            - one namespaced [FsNode] per Layout entry, joined with the matching
+              Behaviour from the ExperimentDefinition,
+            - an `experiment-executor` StatefulSet + Service in the same namespace,
+              which orchestrates start/stop, watches agent signals and drives the
+              status transitions described in [ExperimentState].
+
+          Side-by-side comparisons (TUS vs EDFS) are usually expressed as two Experiment
+          objects in two namespaces sharing the same Layout and ExperimentDefinition.
         properties:
           apiVersion:
             description: |-
@@ -50,10 +68,13 @@ spec:
           metadata:
             type: object
           spec:
-            description: ExperimentSpec defines the desired state of an Experiment
+            description: ExperimentSpec is the desired state of an [Experiment].
             properties:
               engineContainers:
-                description: What file system engine to be installed
+                description: |-
+                  EngineContainers is the file-system engine under test (TUS, EDFS, ...).
+                  At least one container is required. These are propagated to every FsNode's
+                  `spec.engineContainers` unless overridden per-node.
                 items:
                   description: A single application container that you want to run
                     within a pod.
@@ -1575,6 +1596,9 @@ spec:
                 minItems: 1
                 type: array
               engineVolumes:
+                description: |-
+                  EngineVolumes are extra `corev1.Volume` entries to attach alongside the
+                  engine containers. Propagated to every FsNode.
                 items:
                   description: Volume represents a named volume in a pod that may
                     be accessed by any container in the pod.
@@ -3458,23 +3482,40 @@ spec:
                   type: object
                 type: array
               experimentDefRef:
-                description: Reference to ExperimentDefinition resource.
+                description: |-
+                  ExperimentDefRef is the name of the cluster-scoped [ExperimentDefinition]
+                  that supplies per-node agent behaviour. Required.
                 type: string
               fsNodeProperties:
                 additionalProperties:
                   type: string
-                description: FsNodeProperties is a map of properties to be set on
-                  all fsNodes in this experiment.
+                description: |-
+                  FsNodeProperties is a key/value map merged into the environment of every
+                  FsNode in this experiment (both agent and engine containers). It overrides
+                  per-node `properties` set on the Layout entry, and is in turn overridden by
+                  values set inside the agent's own [SimpleContainer.Envs].
+                  Typical use: shared engine knobs such as `GROUND_STATIONS=estrack-kiruna`.
                 type: object
               layoutDefRef:
-                description: Reference to Layout resource.
+                description: |-
+                  LayoutDefRef is the name of the cluster-scoped [Layout] that supplies the
+                  constellation topology. Required.
                 type: string
               simulationStartTime:
-                description: SimulationStartTime is a starting point of the experiment.
+                description: |-
+                  SimulationStartTime sets the "epoch" of the simulated clock — the point in
+                  real calendar time at which the SGP4 propagator should evaluate orbits when
+                  the experiment begins. Optional; defaults to "now". Setting it deterministically
+                  is useful for reproducing a run or for aligning a TLE epoch with the
+                  experiment's "t=0".
                 format: date-time
                 type: string
               start:
-                description: Start if to start the experiment as soon as it's ready.
+                description: |-
+                  Start, when true, causes the experiment-executor to begin the run as soon
+                  as all FsNodes report Ready. When false the experiment will sit in `Ready`
+                  indefinitely until an external HTTP POST /start is issued — handy for
+                  manual experiments where the operator wants to attach observers first.
                 type: boolean
             required:
             - experimentDefRef
@@ -3482,9 +3523,12 @@ spec:
             - start
             type: object
           status:
-            description: ExperimentStatus defines the desired state of an Experiment
+            description: ExperimentStatus is the observed state reported by the experiment-controller.
             properties:
               conditions:
+                description: |-
+                  Conditions captures the standard set of Kubernetes conditions
+                  (`Ready`, `Started`, `Completed`, ...).
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
@@ -3544,8 +3588,15 @@ spec:
                 - type
                 x-kubernetes-list-type: map
               experimentState:
+                description: |-
+                  ExperimentState is the current lifecycle phase. See [ExperimentState] for
+                  the state machine.
                 type: string
               experimentTime:
+                description: |-
+                  ExperimentTime is the time at which the experiment last transitioned state
+                  (typically the start time once `Ongoing`). Useful for computing wall-clock
+                  duration of a completed run.
                 format: date-time
                 type: string
             required:
