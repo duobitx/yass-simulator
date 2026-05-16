@@ -110,6 +110,27 @@ spec:
               maxDuration:
                 description: MaxDuration of the experiment - duration format
                 type: string
+              metricsConfig:
+                description: |-
+                  MetricsConfig configures the metrics-bridge that yass-operator deploys
+                  next to mosquitto. It is consumed only by the bridge process; if absent,
+                  the bridge falls back to default behaviour (any GroundStation that
+                  receives the file counts as a target, deadline = 1h).
+                properties:
+                  deliveryDeadline:
+                    description: |-
+                      DeliveryDeadline (duration format, e.g. "2h"). Files un-delivered
+                      after this become yass_file_lost_total.
+                    type: string
+                  targetGroundStations:
+                    additionalProperties:
+                      type: string
+                    description: |-
+                      TargetGroundStations maps each producing fsNode (typically a
+                      satellite) to its dedicated destination ground station. Used to
+                      label yass_file_delivery_seconds with is_target_gs=true/false.
+                    type: object
+                type: object
             type: object
         type: object
     served: true

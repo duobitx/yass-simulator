@@ -16,6 +16,9 @@ COPY events-webapp/main ./events-webapp
 
 # Experiment executor
 COPY experiment-executor/main ./experiment-executor
+
+# Metrics bridge (MQTT -> Prometheus)
+COPY metrics-bridge/main ./metrics-bridge
 COPY --from=docker.io/library/geo-calc-builder /build/geo_calc ./geo_calc
 RUN apt-get install -y libjansson4
 

@@ -191,6 +191,7 @@ func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx c
 		{"experiment-executor-service.yaml", "experiment-executor", "", &v1.Service{}, nil},
 		{"events-webapp-deployment.yaml", "events-webapp", "", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
 		{"events-webapp-service.yaml", "events-webapp", "", &v1.Service{}, nil},
+		{"metrics-bridge-deployment.yaml", "metrics-bridge", "", &appsv1.Deployment{}, modMetricsBridge(experiment, &exDef)},
 		{"web-ui-deployment.yaml", "web-ui", "", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
 		{"web-ui-service.yaml", "web-ui", "", &v1.Service{}, modAddExperimentAnnotation(experiment.Name)},
 		{"web-ui-ingress.yaml", "web-ui", experiment.Name, &netv1.Ingress{}, modAddExperimentAnnotation(experiment.Name)},

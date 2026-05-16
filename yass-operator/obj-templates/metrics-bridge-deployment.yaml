@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: metrics-bridge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: metrics-bridge
+  template:
+    metadata:
+      labels:
+        app: metrics-bridge
+        yass.observability/role: metrics-bridge
+    spec:
+      initContainers:
+        - name: wait-for-messaging
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z messaging 1883; do
+                echo "waiting for messaging"; sleep 2
+              done
+      containers:
+        - name: metrics-bridge
+          image: "ghcr.io/duobitx/yass-internal-components:latest"
+          imagePullPolicy: "Always"
+          command:
+            - "/metrics-bridge"
+          ports:
+            - name: metrics
+              containerPort: 9090
+          env:
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: MESSAGING_BROKER_HOST_PORT
+              value: "messaging:1883"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9090
+            initialDelaySeconds: 20
+            periodSeconds: 20

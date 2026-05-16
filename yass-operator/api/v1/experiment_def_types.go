@@ -44,6 +44,26 @@ type ExperimentDefinitionSpec struct {
 	Behaviours []Behaviour `json:"behaviours,omitempty"`
 
 	HardwareEvents []HardwareEvent `json:"HardwareEvents,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	MetricsConfig *MetricsConfig `json:"metricsConfig,omitempty"`
+}
+
+// MetricsConfig configures the metrics-bridge that yass-operator deploys
+// next to mosquitto. It is consumed only by the bridge process; if absent,
+// the bridge falls back to default behaviour (any GroundStation that
+// receives the file counts as a target, deadline = 1h).
+type MetricsConfig struct {
+	// +kubebuilder:validation:Optional
+	// DeliveryDeadline (duration format, e.g. "2h"). Files un-delivered
+	// after this become yass_file_lost_total.
+	DeliveryDeadline string `json:"deliveryDeadline,omitempty"`
+
+	// +kubebuilder:validation:Optional
+	// TargetGroundStations maps each producing fsNode (typically a
+	// satellite) to its dedicated destination ground station. Used to
+	// label yass_file_delivery_seconds with is_target_gs=true/false.
+	TargetGroundStations map[string]string `json:"targetGroundStations,omitempty"`
 }
 
 type Behaviour struct {
