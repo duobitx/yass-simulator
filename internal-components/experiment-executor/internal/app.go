@@ -412,17 +412,17 @@ func greatCircleDistanceKm(lat1, lng1, lat2, lng2 float32) float32 {
 }
 
 func (t *AppType) updateK8sResource() error {
-	if t.experimentTime != nil {
-		exp := &yassv1.Experiment{}
-		err := t.k8sClient.Get(t.mainCtx, client.ObjectKey{
-			Namespace: t.namespace,
-			Name:      t.ExperimentDefData.Name,
-		}, exp)
-		if err != nil {
-			return err
-		}
-		exp.Status.ExperimentTime = v1.Time{Time: *t.experimentTime}
-		return t.k8sClient.Status().Update(t.mainCtx, exp)
+	if t.experimentTime == nil {
+		return nil
 	}
-	return errors.New("experimentTime is not set")
+	exp := &yassv1.Experiment{}
+	err := t.k8sClient.Get(t.mainCtx, client.ObjectKey{
+		Namespace: t.namespace,
+		Name:      t.ExperimentDefData.Name,
+	}, exp)
+	if err != nil {
+		return err
+	}
+	exp.Status.ExperimentTime = v1.Time{Time: *t.experimentTime}
+	return t.k8sClient.Status().Update(t.mainCtx, exp)
 }
