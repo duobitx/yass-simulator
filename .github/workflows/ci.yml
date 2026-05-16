@@ -33,6 +33,7 @@ jobs:
           - resource-to-json
           - world-controller
           - events-webapp
+          - metrics-bridge
     permissions:
       contents: read
     steps:
@@ -61,8 +62,25 @@ jobs:
           version: ${{ env.GO_LINTER_VERSION }}
           working-directory: internal-components/${{ matrix.module }}
 
-      - name: Run tests in ${{ matrix.module }}
-        run: cd internal-components/${{ matrix.module }} && go test -short ./...
+      - name: Run tests with coverage in ${{ matrix.module }}
+        working-directory: internal-components/${{ matrix.module }}
+        run: |
+          go test -short -coverprofile=coverage.out -covermode=atomic ./...
+          {
+            echo "### Coverage: ${{ matrix.module }}"
+            echo
+            echo '```'
+            go tool cover -func=coverage.out | tail -1
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage artifact (${{ matrix.module }})
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.module }}
+          path: internal-components/${{ matrix.module }}/coverage.out
+          if-no-files-found: warn
 
   lint-test-yass-operator:
     name: Operator - Lint & Test
@@ -86,9 +104,25 @@ jobs:
           version: ${{ env.GO_LINTER_VERSION }}
           working-directory: yass-operator
 
-      - name: Run tests
+      - name: Run tests with coverage
         working-directory: yass-operator
-        run: go test ./...
+        run: |
+          go test -coverprofile=coverage.out -covermode=atomic ./...
+          {
+            echo "### Coverage: yass-operator"
+            echo
+            echo '```'
+            go tool cover -func=coverage.out | tail -1
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload coverage artifact (yass-operator)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-yass-operator
+          path: yass-operator/coverage.out
+          if-no-files-found: warn
 
   build-push-internal-components:
     name: IC - Build & Push
