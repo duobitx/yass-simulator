@@ -13,6 +13,7 @@ import (
 	"github.com/duobitx/yass-simulator/internal-components/go-common/startup"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/bridge"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/config"
+	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/k8sevents"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/lokipush"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/metrics"
 	"github.com/m-szalik/com-facade/mqtt"
@@ -40,7 +41,12 @@ func main() {
 	lp := lokipush.New(cfg.LokiURL, cfg.LokiTenant)
 	go lp.Run(ctx)
 
-	br := bridge.New(cfg, m, lp)
+	events, err := k8sevents.New(ctx, cfg.ExperimentName, cfg.Namespace, appName, cfg.K8sEventsSkipKinds)
+	if err != nil {
+		slog.Warn("k8s events disabled", "error", err)
+	}
+
+	br := bridge.New(cfg, m, lp, events)
 	hostname, _ := os.Hostname()
 	clientID := fmt.Sprintf("%s-%s", appName, hostname)
 	facade := mqtt.NewFacade(ctx, clientID, mqtt.WithHostPort("tcp://"+cfg.BrokerHostPort))

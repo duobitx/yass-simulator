@@ -13,6 +13,7 @@ spec:
         app: metrics-bridge
         yass.observability/role: metrics-bridge
     spec:
+      serviceAccountName: yass-experiment-sa
       initContainers:
         - name: wait-for-messaging
           image: busybox:1.36

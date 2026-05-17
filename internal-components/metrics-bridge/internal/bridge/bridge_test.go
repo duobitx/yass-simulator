@@ -26,7 +26,7 @@ func newTestBridge(t *testing.T) (*Bridge, *metrics.Metrics, *prometheus.Registr
 		PendingPutsMaxSize: 100,
 		TargetGSByFsNode:   map[string]string{"sat-1": "gs-a"},
 	}
-	return New(cfg, m, lokipush.New("", "")), m, reg
+	return New(cfg, m, lokipush.New("", ""), nil), m, reg
 }
 
 func counterValue(t *testing.T, c prometheus.Collector) float64 {

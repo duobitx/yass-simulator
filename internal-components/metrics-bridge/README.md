@@ -28,6 +28,34 @@ Prometheus instance in `yass-system` to scrape.
 | `TARGET_GS_BY_FSNODE`    | no       | `{}`             | JSON map `{satellite: ground-station}`; drives `is_target_gs`    |
 | `DELIVERY_DEADLINE`      | no       | `2h`             | files un-delivered after this become `yass_file_lost_total`      |
 | `LOG_LEVEL`              | no       | `INFO`           |                                                                  |
+| `K8S_EVENTS_SKIP_KINDS`  | no       | —                | comma-separated Loki-event kinds to skip when mirroring to k8s Events (e.g. `crud`) |
+
+## Kubernetes Events
+
+Every event the bridge sends to Loki is also mirrored as a Kubernetes
+Event on the `Experiment` CR named `$EXPERIMENT_NAME` in the bridge's
+namespace, so `kubectl describe experiment <name>` and
+`kubectl get events --field-selector involvedObject.kind=Experiment`
+both show the in-experiment activity.
+
+Severity (`Normal` / `Warning`) is derived from `(kind, eventType)`:
+
+| kind         | Warning when                                                  |
+|--------------|---------------------------------------------------------------|
+| `lifecycle`  | state ∈ {`Failure`, `Errored`, `TimedOut`}                    |
+| `online_state` | type = `offline`                                            |
+| `power`      | type = `enter_low_power`                                      |
+| `hardware`   | type contains `error`, `fail`, `fault`, `alert`               |
+| `crud`       | never                                                         |
+
+K8s `EventRecorder` aggregates within a 10-minute window by
+(reason, involvedObject, type) — so a busy `crud.PUT` stream collapses
+into a single event with an incrementing `count` instead of one event
+per file. Use `K8S_EVENTS_SKIP_KINDS=crud` to opt out entirely.
+
+The bridge needs `create events` on its namespace; it gets this from
+the operator-installed `yass-experiment-sa` ServiceAccount (set via
+`serviceAccountName` in the deployment template).
 
 The common labels `experiment`, `engine`, `run_id`, `namespace` are NOT
 attached by the bridge itself — they are stamped on every scraped series

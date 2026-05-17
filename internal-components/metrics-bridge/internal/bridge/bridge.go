@@ -11,6 +11,7 @@ import (
 
 	proto "github.com/duobitx/yass-simulator/internal-components/go-common/proto/go"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/config"
+	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/k8sevents"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/lokipush"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/metrics"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/state"
@@ -35,6 +36,7 @@ type Bridge struct {
 	tracker *state.Tracker
 	ips     *state.IPMap
 	loki    *lokipush.Pusher
+	events  k8sevents.Emitter
 
 	prevBattery sync.Map // fsNode -> float32
 
@@ -58,13 +60,17 @@ type Bridge struct {
 	lastExpTimeAtWall time.Time
 }
 
-func New(cfg *config.Config, m *metrics.Metrics, loki *lokipush.Pusher) *Bridge {
+func New(cfg *config.Config, m *metrics.Metrics, loki *lokipush.Pusher, events k8sevents.Emitter) *Bridge {
+	if events == nil {
+		events = k8sevents.Noop()
+	}
 	return &Bridge{
 		cfg:     cfg,
 		m:       m,
 		tracker: state.NewTracker(cfg.DeliveryDeadline, cfg.PendingPutsMaxSize),
 		ips:     state.NewIPMap(),
 		loki:    loki,
+		events:  events,
 	}
 }
 
@@ -85,21 +91,40 @@ func (b *Bridge) baseLabels(extra map[string]string) map[string]string {
 	return out
 }
 
-func (b *Bridge) pushEvent(kind, fsNode, eventType string, wallTs time.Time, payload any) {
-	if b.loki == nil || !b.loki.Enabled() {
-		return
-	}
+func (b *Bridge) pushEvent(kind, fsNode, eventType string, wallTs time.Time, payload map[string]any) {
 	if wallTs.IsZero() {
 		wallTs = time.Now()
 	}
 	expTs := b.experimentTime(wallTs)
+	b.dispatch(kind, fsNode, eventType, expTs, wallTs, payload)
+}
+
+// dispatch is the single fan-out point for an event: it stamps the
+// experiment + wall clocks onto the payload, then sends it to Loki and to
+// the Kubernetes EventRecorder on the Experiment CR. Either sink may be a
+// no-op (Loki URL unset, or in-cluster config missing) without affecting
+// the other.
+func (b *Bridge) dispatch(kind, fsNode, eventType string, expTs, wallTs time.Time, payload map[string]any) {
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	if _, ok := payload["fsNode"]; !ok && fsNode != "" {
+		payload["fsNode"] = fsNode
+	}
+	payload["experimentTime"] = expTs.UTC().Format(time.RFC3339Nano)
+	payload["wallTime"] = wallTs.UTC().Format(time.RFC3339Nano)
+
+	b.events.Emit(kind, eventType, payload)
 
 	// Loki's storage assumes timestamps live near wall-clock — old samples
 	// (simulation start far in the past) are silently dropped even with
 	// reject_old_samples=false. So we index by wallTs and surface the
 	// experiment clock in the body; Grafana / .ods read experimentTime
 	// from the JSON to display the in-scenario clock.
-	body, err := injectTimes(payload, expTs, wallTs)
+	if b.loki == nil || !b.loki.Enabled() {
+		return
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		slog.Warn("metrics-bridge: marshal loki body", "kind", kind, "error", err)
 		return
@@ -109,30 +134,7 @@ func (b *Bridge) pushEvent(kind, fsNode, eventType string, wallTs time.Time, pay
 		"fsNode": fsNode,
 		"type":   eventType,
 		"run_id": b.cfg.RunID,
-	}), wallTs, body)
-}
-
-func injectTimes(payload any, expTs, wallTs time.Time) (string, error) {
-	m, ok := payload.(map[string]any)
-	if !ok {
-		// Round-trip through JSON to normalise to map[string]any.
-		raw, err := json.Marshal(payload)
-		if err != nil {
-			return "", err
-		}
-		m = map[string]any{}
-		if err := json.Unmarshal(raw, &m); err != nil {
-			// Not an object: wrap it.
-			m = map[string]any{"payload": json.RawMessage(raw)}
-		}
-	}
-	m["experimentTime"] = expTs.UTC().Format(time.RFC3339Nano)
-	m["wallTime"] = wallTs.UTC().Format(time.RFC3339Nano)
-	out, err := json.Marshal(m)
-	if err != nil {
-		return "", err
-	}
-	return string(out), nil
+	}), wallTs, string(body))
 }
 
 // Handle is the central MQTT dispatch.
@@ -408,24 +410,11 @@ func (b *Bridge) onLifecycle(data []byte) {
 // It skips the bridge's wall→exp interpolation and writes the provided
 // expTs into the body; Loki itself is still indexed by wall time (see
 // pushEvent for the reason).
-func (b *Bridge) pushEventAtExp(kind, fsNode, eventType string, expTs, wallTs time.Time, payload any) {
-	if b.loki == nil || !b.loki.Enabled() {
-		return
-	}
+func (b *Bridge) pushEventAtExp(kind, fsNode, eventType string, expTs, wallTs time.Time, payload map[string]any) {
 	if wallTs.IsZero() {
 		wallTs = time.Now()
 	}
-	body, err := injectTimes(payload, expTs, wallTs)
-	if err != nil {
-		slog.Warn("metrics-bridge: marshal loki body", "kind", kind, "error", err)
-		return
-	}
-	b.loki.Push(b.baseLabels(map[string]string{
-		"kind":   kind,
-		"fsNode": fsNode,
-		"type":   eventType,
-		"run_id": b.cfg.RunID,
-	}), wallTs, body)
+	b.dispatch(kind, fsNode, eventType, expTs, wallTs, payload)
 }
 
 // runExportAfterGrace waits a few seconds for the in-flight loki pushes to

@@ -3,6 +3,7 @@ package config
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/m-szalik/goutils"
@@ -25,6 +26,10 @@ type Config struct {
 	ExportDir            string
 	ExportGrace          time.Duration
 	ExportLookback       time.Duration
+	// K8sEventsSkipKinds lists Loki-event kinds that should NOT be mirrored
+	// as Kubernetes Events on the Experiment CR. Comma-separated env
+	// K8S_EVENTS_SKIP_KINDS; empty (default) mirrors every kind.
+	K8sEventsSkipKinds []string
 }
 
 func FromEnv() (*Config, error) {
@@ -74,6 +79,13 @@ func FromEnv() (*Config, error) {
 		return nil, fmt.Errorf("invalid DELIVERY_DEADLINE: %w", err)
 	}
 	c.DeliveryDeadline = d
+	if raw := goutils.Env("K8S_EVENTS_SKIP_KINDS", ""); raw != "" {
+		for _, k := range strings.Split(raw, ",") {
+			if k = strings.TrimSpace(k); k != "" {
+				c.K8sEventsSkipKinds = append(c.K8sEventsSkipKinds, k)
+			}
+		}
+	}
 	return c, nil
 }
 
