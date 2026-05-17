@@ -8,6 +8,7 @@ import (
 
 	"github.com/duobitx/yass-simulator/internal-components/go-common/proto/go"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/config"
+	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/lokipush"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/metrics"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -25,7 +26,7 @@ func newTestBridge(t *testing.T) (*Bridge, *metrics.Metrics, *prometheus.Registr
 		PendingPutsMaxSize: 100,
 		TargetGSByFsNode:   map[string]string{"sat-1": "gs-a"},
 	}
-	return New(cfg, m), m, reg
+	return New(cfg, m, lokipush.New("", "")), m, reg
 }
 
 func counterValue(t *testing.T, c prometheus.Collector) float64 {

@@ -26,7 +26,8 @@ import (
 )
 
 const (
-	experimentEndTopic = "experiment/end-request"
+	experimentEndTopic       = "experiment/end-request"
+	experimentLifecycleTopic = "experiment-lifecycle"
 )
 
 type AppType struct {
@@ -194,6 +195,18 @@ func (t *AppType) Start(ctxParent context.Context) error {
 				if err := t.sendTimeUpdate(lastTime, false); err != nil {
 					slog.Default().Error("cannot send time update after experimentCtx canceled", "error", err)
 				}
+				reason := "context-cancelled"
+				comment := ""
+				if cause := context.Cause(experimentCtx); cause != nil {
+					var endErr *ExperimentEndError
+					if errors.As(cause, &endErr) {
+						reason = endErr.String()
+						comment = endErr.comment
+					} else {
+						comment = cause.Error()
+					}
+				}
+				t.publishLifecycle("ended", reason, comment)
 				return
 			}
 		}
@@ -223,7 +236,42 @@ func (t *AppType) Start(ctxParent context.Context) error {
 	}()
 	slog.Default().Info("starting experiment", "startTime", startAt, "maxDuration", t.ExperimentDefData.MaxDuration)
 	t.experimentStartedAt = &startAt
+	t.publishLifecycle("started", "", "")
 	return nil
+}
+
+// publishLifecycle emits a single event onto the experiment-lifecycle MQTT
+// topic. The metrics-bridge subscribes and pushes it to Loki — this is how
+// experiment start/end transitions show up in the events table and the .ods
+// export.
+//
+// Both clocks are sent: `expTime` is the simulated/experiment clock and is
+// the canonical timestamp (the bridge uses it as the Loki sample time);
+// `when` is wall-clock and is only a fallback if expTime is zero (e.g.
+// "started" fires before geocalc has produced its first tick).
+//
+// reason / comment are free-form; for end-events reason is one of
+// "scenario-success", "scenario-failure", "scenario-timeout",
+// "unexpected-error".
+func (t *AppType) publishLifecycle(state, reason, comment string) {
+	body := map[string]any{
+		"state": state,
+		"when":  time.Now().UTC(),
+	}
+	if t.experimentTime != nil {
+		body["expTime"] = t.experimentTime.UTC()
+	} else if t.experimentStartedAt != nil {
+		body["expTime"] = t.experimentStartedAt.UTC()
+	}
+	if reason != "" {
+		body["reason"] = reason
+	}
+	if comment != "" {
+		body["comment"] = comment
+	}
+	if err := t.facade.Publish(t.mainCtx, experimentLifecycleTopic, 0, false, body); err != nil {
+		slog.Default().Warn("cannot publish lifecycle event", "state", state, "error", err)
+	}
 }
 
 func (t *AppType) sendTimeUpdate(now time.Time, ongoing bool) error {

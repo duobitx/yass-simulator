@@ -4,14 +4,16 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
 
+	proto "github.com/duobitx/yass-simulator/internal-components/go-common/proto/go"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/config"
+	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/lokipush"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/metrics"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/state"
-	proto "github.com/duobitx/yass-simulator/internal-components/go-common/proto/go"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -32,6 +34,7 @@ type Bridge struct {
 	m       *metrics.Metrics
 	tracker *state.Tracker
 	ips     *state.IPMap
+	loki    *lokipush.Pusher
 
 	prevBattery sync.Map // fsNode -> float32
 
@@ -39,15 +42,95 @@ type Bridge struct {
 	// them as monotonic Prometheus counters by remembering the previous
 	// value per labelset and emitting Add(delta).
 	prevNet sync.Map // counterID -> float64
+
+	// Previous shadow/low-power state per fsNode, used to synthesise
+	// power-transition events into Loki.
+	prevShadow   sync.Map // fsNode -> bool
+	prevLowPower sync.Map // fsNode -> bool
+	prevOnline   sync.Map // fsNode -> bool
+
+	// Experiment-clock tracking. We sample updates/_time_ from the
+	// experiment-executor and convert every event's wall-clock timestamp into
+	// simulated experiment time so Loki, Grafana and the .ods export all show
+	// the in-scenario clock.
+	timeMu              sync.RWMutex
+	lastExpTime         time.Time
+	lastExpTimeAtWall   time.Time
 }
 
-func New(cfg *config.Config, m *metrics.Metrics) *Bridge {
+func New(cfg *config.Config, m *metrics.Metrics, loki *lokipush.Pusher) *Bridge {
 	return &Bridge{
 		cfg:     cfg,
 		m:       m,
 		tracker: state.NewTracker(cfg.DeliveryDeadline, cfg.PendingPutsMaxSize),
 		ips:     state.NewIPMap(),
+		loki:    loki,
 	}
+}
+
+// baseLabels are the run-identifying labels attached to every Loki entry.
+// Kept low-cardinality on purpose — anything per-event goes in the body.
+func (b *Bridge) baseLabels(extra map[string]string) map[string]string {
+	out := map[string]string{
+		"experiment": b.cfg.ExperimentName,
+		"engine":     b.cfg.Engine,
+		"namespace":  b.cfg.Namespace,
+	}
+	for k, v := range extra {
+		if v == "" {
+			continue
+		}
+		out[k] = v
+	}
+	return out
+}
+
+func (b *Bridge) pushEvent(kind, fsNode, eventType string, wallTs time.Time, payload any) {
+	if b.loki == nil || !b.loki.Enabled() {
+		return
+	}
+	if wallTs.IsZero() {
+		wallTs = time.Now()
+	}
+	expTs := b.experimentTime(wallTs)
+
+	// Inject experimentTime + wallTime into the body so downstream tools
+	// (Grafana table, .ods export) can render both even if they only see
+	// the JSON body.
+	body, err := injectTimes(payload, expTs, wallTs)
+	if err != nil {
+		slog.Warn("metrics-bridge: marshal loki body", "kind", kind, "error", err)
+		return
+	}
+	b.loki.Push(b.baseLabels(map[string]string{
+		"kind":   kind,
+		"fsNode": fsNode,
+		"type":   eventType,
+		"run_id": b.cfg.RunID,
+	}), expTs, body)
+}
+
+func injectTimes(payload any, expTs, wallTs time.Time) (string, error) {
+	m, ok := payload.(map[string]any)
+	if !ok {
+		// Round-trip through JSON to normalise to map[string]any.
+		raw, err := json.Marshal(payload)
+		if err != nil {
+			return "", err
+		}
+		m = map[string]any{}
+		if err := json.Unmarshal(raw, &m); err != nil {
+			// Not an object: wrap it.
+			m = map[string]any{"payload": json.RawMessage(raw)}
+		}
+	}
+	m["experimentTime"] = expTs.UTC().Format(time.RFC3339Nano)
+	m["wallTime"] = wallTs.UTC().Format(time.RFC3339Nano)
+	out, err := json.Marshal(m)
+	if err != nil {
+		return "", err
+	}
+	return string(out), nil
 }
 
 // Handle is the central MQTT dispatch.
@@ -61,7 +144,43 @@ func (b *Bridge) Handle(_ context.Context, topic string, _ bool, data []byte) {
 		b.onNetworkStats(topic, data)
 	case strings.HasPrefix(topic, "online-states/") && !strings.HasSuffix(topic, "_"):
 		b.onOnlineState(data)
+	case topic == "experiment-lifecycle":
+		b.onLifecycle(data)
+	case strings.HasPrefix(topic, "hardware-events/") && !strings.HasSuffix(topic, "_"):
+		b.onHardwareEvent(topic, data)
+	case topic == "updates/_time_":
+		b.onTimeUpdate(data)
 	}
+}
+
+// onTimeUpdate records the latest experiment-clock reading from the
+// experiment-executor. The clock is interpolated forward by wall-clock delta
+// inside experimentTime() — so a 5-second-tick reference is plenty accurate
+// for per-event timestamps.
+func (b *Bridge) onTimeUpdate(data []byte) {
+	upd := &proto.TimeUpdate{}
+	if err := json.Unmarshal(data, upd); err != nil {
+		slog.Warn("metrics-bridge: cannot decode time update", "error", err)
+		return
+	}
+	b.timeMu.Lock()
+	b.lastExpTime = time.UnixMilli(upd.Now)
+	b.lastExpTimeAtWall = time.Now()
+	b.timeMu.Unlock()
+}
+
+// experimentTime converts a wall-clock instant into experiment time, using
+// the most recent updates/_time_ tick as the reference point. If no tick has
+// been seen yet (events before the experiment starts, or the executor is
+// down) it returns the wall-clock instant unchanged — better an entry with
+// a slightly wrong timestamp than a dropped event.
+func (b *Bridge) experimentTime(wall time.Time) time.Time {
+	b.timeMu.RLock()
+	defer b.timeMu.RUnlock()
+	if b.lastExpTimeAtWall.IsZero() {
+		return wall
+	}
+	return b.lastExpTime.Add(wall.Sub(b.lastExpTimeAtWall))
 }
 
 func (b *Bridge) onCrudEvent(data []byte) {
@@ -74,6 +193,8 @@ func (b *Bridge) onCrudEvent(data []byte) {
 	if when.IsZero() {
 		when = time.Now()
 	}
+	source := ""
+	deliverySeconds := -1.0
 	switch e.Type {
 	case "PUT":
 		b.m.FileProducedTotal.WithLabelValues(e.FsNodeName).Inc()
@@ -81,9 +202,9 @@ func (b *Bridge) onCrudEvent(data []byte) {
 		b.tracker.RecordPut(e.Md5Sum, e.FsNodeName, e.ContentSizeBytes, when)
 	case "RECEIVED":
 		put := b.tracker.MatchReceive(e.Md5Sum)
-		source := ""
 		if put != nil {
 			source = put.Source
+			deliverySeconds = when.Sub(put.When).Seconds()
 		}
 		b.m.FileReceivedTotal.WithLabelValues(e.FsNodeName, source).Inc()
 		b.m.FileReceivedBytesTotal.WithLabelValues(e.FsNodeName, source).Add(float64(e.ContentSizeBytes))
@@ -92,11 +213,27 @@ func (b *Bridge) onCrudEvent(data []byte) {
 			if b.cfg.TargetGSFor(put.Source) == e.FsNodeName {
 				isTarget = "true"
 			}
-			b.m.FileDeliverySeconds.WithLabelValues(put.Source, e.FsNodeName, isTarget).Observe(when.Sub(put.When).Seconds())
+			b.m.FileDeliverySeconds.WithLabelValues(put.Source, e.FsNodeName, isTarget).Observe(deliverySeconds)
 		}
 	case "DELETE":
 		b.m.FileDeletedTotal.WithLabelValues(e.FsNodeName).Inc()
 	}
+
+	payload := map[string]any{
+		"fsNode":      e.FsNodeName,
+		"type":        e.Type,
+		"name":        e.Name,
+		"size":        e.ContentSizeBytes,
+		"md5":         e.Md5Sum,
+		"attributes":  e.Attributes,
+	}
+	if source != "" {
+		payload["source"] = source
+	}
+	if deliverySeconds >= 0 {
+		payload["deliverySeconds"] = deliverySeconds
+	}
+	b.pushEvent("crud", e.FsNodeName, e.Type, when, payload)
 }
 
 func (b *Bridge) onResources(data []byte) {
@@ -111,7 +248,9 @@ func (b *Bridge) onResources(data []byte) {
 		b.m.BatteryCapacityWh.WithLabelValues(r.FsNodeName, nodeType).Set(float64(r.Power.BatteryCapacityWh))
 		b.updateConsumed(r.FsNodeName, nodeType, r.Power.BatteryWh)
 		setBool(b.m.InShadow, []string{r.FsNodeName, nodeType}, r.Power.InShadow)
-		setBool(b.m.LowPower, []string{r.FsNodeName, nodeType}, r.Power.Mode == proto.PowerState_LOW_POWER)
+		lowPower := r.Power.Mode == proto.PowerState_LOW_POWER
+		setBool(b.m.LowPower, []string{r.FsNodeName, nodeType}, lowPower)
+		b.detectPowerTransition(r.FsNodeName, nodeType, r.Power.InShadow, lowPower, r.Power.BatteryWh)
 	}
 	for _, v := range r.Volumes {
 		b.m.VolumeUsedBytes.WithLabelValues(r.FsNodeName, nodeType, v.Name).Set(float64(v.UsedBytes))
@@ -164,6 +303,175 @@ func (b *Bridge) onOnlineState(data []byte) {
 		return
 	}
 	b.ips.Set(s.Ip, s.FsNodeId.Name, s.NodeType)
+
+	if prev, ok := b.prevOnline.Load(s.FsNodeId.Name); ok && prev.(bool) == s.Online {
+		return // no-op transitions are not events
+	}
+	b.prevOnline.Store(s.FsNodeId.Name, s.Online)
+
+	eventType := "offline"
+	if s.Online {
+		eventType = "online"
+	}
+	b.pushEvent("online_state", s.FsNodeId.Name, eventType, time.Now(), map[string]any{
+		"fsNode":   s.FsNodeId.Name,
+		"nodeType": s.NodeType,
+		"ip":       s.Ip,
+		"online":   s.Online,
+	})
+}
+
+func (b *Bridge) detectPowerTransition(fsNode, nodeType string, inShadow, lowPower bool, batteryWh float32) {
+	if prev, ok := b.prevShadow.Load(fsNode); !ok || prev.(bool) != inShadow {
+		b.prevShadow.Store(fsNode, inShadow)
+		if ok {
+			eventType := "exit_shadow"
+			if inShadow {
+				eventType = "enter_shadow"
+			}
+			b.pushEvent("power", fsNode, eventType, time.Now(), map[string]any{
+				"fsNode":    fsNode,
+				"nodeType":  nodeType,
+				"inShadow":  inShadow,
+				"batteryWh": batteryWh,
+			})
+		}
+	}
+	if prev, ok := b.prevLowPower.Load(fsNode); !ok || prev.(bool) != lowPower {
+		b.prevLowPower.Store(fsNode, lowPower)
+		if ok {
+			eventType := "exit_low_power"
+			if lowPower {
+				eventType = "enter_low_power"
+			}
+			b.pushEvent("power", fsNode, eventType, time.Now(), map[string]any{
+				"fsNode":    fsNode,
+				"nodeType":  nodeType,
+				"lowPower":  lowPower,
+				"batteryWh": batteryWh,
+			})
+		}
+	}
+}
+
+// lifecycleEvent mirrors what the experiment-executor publishes on
+// the experiment-lifecycle topic. ExpTime is the executor's own
+// experiment-clock stamp and takes precedence over the wall-clock
+// "when" field when present.
+type lifecycleEvent struct {
+	State   string         `json:"state"`
+	Reason  string         `json:"reason,omitempty"`
+	Comment string         `json:"comment,omitempty"`
+	When    time.Time      `json:"when,omitempty"`
+	ExpTime time.Time      `json:"expTime,omitempty"`
+	Extra   map[string]any `json:"extra,omitempty"`
+}
+
+func (b *Bridge) onLifecycle(data []byte) {
+	var e lifecycleEvent
+	if err := json.Unmarshal(data, &e); err != nil {
+		slog.Warn("metrics-bridge: cannot decode lifecycle", "error", err)
+		return
+	}
+	wallTime := e.When
+	if wallTime.IsZero() {
+		wallTime = time.Now()
+	}
+	payload := map[string]any{"state": e.State}
+	if e.Reason != "" {
+		payload["reason"] = e.Reason
+	}
+	if e.Comment != "" {
+		payload["comment"] = e.Comment
+	}
+	for k, v := range e.Extra {
+		payload[k] = v
+	}
+
+	// Lifecycle events come pre-stamped with the executor's experiment
+	// clock; bypass the bridge's interpolation when ExpTime is present.
+	if !e.ExpTime.IsZero() {
+		b.pushEventAtExp("lifecycle", "", e.State, e.ExpTime, wallTime, payload)
+	} else {
+		b.pushEvent("lifecycle", "", e.State, wallTime, payload)
+	}
+
+	if e.State == "ended" {
+		go b.runExportAfterGrace()
+	}
+}
+
+// pushEventAtExp is a variant of pushEvent for callers that already know
+// the experiment-clock timestamp (lifecycle events from the executor).
+// It skips the bridge's wall→exp interpolation and writes the provided
+// expTs directly as the Loki sample time.
+func (b *Bridge) pushEventAtExp(kind, fsNode, eventType string, expTs, wallTs time.Time, payload any) {
+	if b.loki == nil || !b.loki.Enabled() {
+		return
+	}
+	if wallTs.IsZero() {
+		wallTs = time.Now()
+	}
+	body, err := injectTimes(payload, expTs, wallTs)
+	if err != nil {
+		slog.Warn("metrics-bridge: marshal loki body", "kind", kind, "error", err)
+		return
+	}
+	b.loki.Push(b.baseLabels(map[string]string{
+		"kind":   kind,
+		"fsNode": fsNode,
+		"type":   eventType,
+		"run_id": b.cfg.RunID,
+	}), expTs, body)
+}
+
+// runExportAfterGrace waits a few seconds for the in-flight loki pushes to
+// drain, then invokes the events-exporter binary (shipped in the same
+// container image) to drop an .ods at the configured path.
+func (b *Bridge) runExportAfterGrace() {
+	if b.cfg.ExporterBin == "" {
+		slog.Info("export skipped: EXPORTER_BIN not set")
+		return
+	}
+	time.Sleep(b.cfg.ExportGrace)
+	if err := b.loki.Flush(context.Background()); err != nil {
+		slog.Warn("loki flush before export failed", "error", err)
+	}
+	args := []string{
+		"--loki", b.cfg.LokiURL,
+		"--experiment", b.cfg.ExperimentName,
+		"--engine", b.cfg.Engine,
+		"--run-id", b.cfg.RunID,
+		"--since", b.cfg.ExportLookback.String(),
+	}
+	if b.cfg.LokiTenant != "" {
+		args = append(args, "--tenant", b.cfg.LokiTenant)
+	}
+	if b.cfg.ExportDir != "" {
+		args = append(args, "--out", strings.TrimRight(b.cfg.ExportDir, "/")+"/"+b.cfg.ExperimentName+"-"+b.cfg.RunID+".ods")
+	}
+	slog.Info("running events-exporter", "bin", b.cfg.ExporterBin, "args", args)
+	cmd := exec.Command(b.cfg.ExporterBin, args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		slog.Error("events-exporter failed", "error", err, "output", string(out))
+		return
+	}
+	slog.Info("events-exporter ok", "output", string(out))
+}
+
+func (b *Bridge) onHardwareEvent(topic string, data []byte) {
+	parts := strings.Split(topic, "/")
+	fsNode := ""
+	if len(parts) >= 2 {
+		fsNode = parts[1]
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(data, &payload); err != nil {
+		payload = map[string]any{"raw": string(data)}
+	}
+	eventType, _ := payload["type"].(string)
+	b.pushEvent("hardware", fsNode, eventType, time.Now(), payload)
 }
 
 // Sweep evicts expired pending PUTs and bumps yass_file_lost_total.

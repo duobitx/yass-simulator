@@ -13,6 +13,7 @@ import (
 	"github.com/duobitx/yass-simulator/internal-components/go-common/startup"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/bridge"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/config"
+	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/lokipush"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/metrics"
 	"github.com/m-szalik/com-facade/mqtt"
 	"github.com/m-szalik/goutils"
@@ -36,7 +37,10 @@ func main() {
 	reg.MustRegister(prometheus.NewGoCollector(), prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
 	m := metrics.New(reg)
 
-	br := bridge.New(cfg, m)
+	lp := lokipush.New(cfg.LokiURL, cfg.LokiTenant)
+	go lp.Run(ctx)
+
+	br := bridge.New(cfg, m, lp)
 	hostname, _ := os.Hostname()
 	clientID := fmt.Sprintf("%s-%s", appName, hostname)
 	facade := mqtt.NewFacade(ctx, clientID, mqtt.WithHostPort("tcp://"+cfg.BrokerHostPort))
@@ -45,7 +49,7 @@ func main() {
 
 	// One subscription per topic-prefix the bridge cares about. Wildcards
 	// keep MQTT routing cheap on the broker side.
-	for _, topic := range []string{"crud-events", "+/resources", "total-network-stats/+", "online-states/+"} {
+	for _, topic := range []string{"crud-events", "+/resources", "total-network-stats/+", "online-states/+", "experiment-lifecycle", "hardware-events/+", "updates/_time_"} {
 		if err := facade.Subscribe(topic, br.Handle); err != nil {
 			goutils.ExitOnError(fmt.Errorf("subscribe %s: %w", topic, err), 4)
 		}

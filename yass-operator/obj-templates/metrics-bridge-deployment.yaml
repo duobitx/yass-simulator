@@ -39,6 +39,9 @@ spec:
                   fieldPath: metadata.namespace
             - name: MESSAGING_BROKER_HOST_PORT
               value: "messaging:1883"
+          volumeMounts:
+            - name: exports
+              mountPath: /var/yass-observability/exports
           resources:
             requests:
               cpu: "50m"
@@ -58,3 +61,8 @@ spec:
               port: 9090
             initialDelaySeconds: 20
             periodSeconds: 20
+      volumes:
+        - name: exports
+          hostPath:
+            path: /var/yass-observability/exports
+            type: DirectoryOrCreate

@@ -1,0 +1,32 @@
+version: '3'
+
+vars:
+  TARGETARCH: 'amd64'
+  TARGETOS:   'linux'
+
+silent: true
+
+tasks:
+  build:
+    desc: Build the events-exporter binary
+    env:
+      CGO_ENABLED: '0'
+      GOOS:   '{{.TARGETOS}}'
+      GOARCH: '{{.TARGETARCH}}'
+    sources:
+      - '**/*.go'
+      - go.mod
+      - exclude: '**/*_test.go'
+    cmds:
+      - go build -o main -a main.go
+
+  test:
+    deps:
+      - build
+    desc: Run tests
+    cmds:
+      - go test ./...
+
+  default:
+    cmds:
+      - task: build

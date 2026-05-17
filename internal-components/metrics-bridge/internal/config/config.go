@@ -19,6 +19,12 @@ type Config struct {
 	DeliveryDeadline     time.Duration
 	PendingPutsMaxSize   int
 	BridgeClientIDPrefix string
+	LokiURL              string
+	LokiTenant           string
+	ExporterBin          string
+	ExportDir            string
+	ExportGrace          time.Duration
+	ExportLookback       time.Duration
 }
 
 func FromEnv() (*Config, error) {
@@ -31,6 +37,22 @@ func FromEnv() (*Config, error) {
 		ListenAddr:           goutils.Env("LISTEN_ADDR", ":9090"),
 		BridgeClientIDPrefix: goutils.Env("BRIDGE_CLIENT_ID_PREFIX", "metrics-bridge"),
 		PendingPutsMaxSize:   100000,
+		LokiURL:              goutils.Env("LOKI_URL", "http://loki.yass-system.svc.cluster.local:3100"),
+		LokiTenant:           goutils.Env("LOKI_TENANT", ""),
+		ExporterBin:          goutils.Env("EXPORTER_BIN", "/events-exporter"),
+		ExportDir:            goutils.Env("EXPORT_DIR", "/var/yass-observability/exports"),
+	}
+	graceStr := goutils.Env("EXPORT_GRACE", "10s")
+	if g, err := time.ParseDuration(graceStr); err == nil {
+		c.ExportGrace = g
+	} else {
+		c.ExportGrace = 10 * time.Second
+	}
+	lookbackStr := goutils.Env("EXPORT_LOOKBACK", "24h")
+	if l, err := time.ParseDuration(lookbackStr); err == nil {
+		c.ExportLookback = l
+	} else {
+		c.ExportLookback = 24 * time.Hour
 	}
 	if c.ExperimentName == "" {
 		return nil, fmt.Errorf("EXPERIMENT_NAME is required")

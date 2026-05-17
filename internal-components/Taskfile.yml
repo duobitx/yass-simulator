@@ -25,6 +25,7 @@ tasks:
       - task -d events-webapp default
       - task -d experiment-executor default
       - task -d metrics-bridge default
+      - task -d events-exporter default
       - task -d geo-calculator build
 
   docker-build:
