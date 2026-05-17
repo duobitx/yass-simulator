@@ -53,9 +53,9 @@ type Bridge struct {
 	// experiment-executor and convert every event's wall-clock timestamp into
 	// simulated experiment time so Loki, Grafana and the .ods export all show
 	// the in-scenario clock.
-	timeMu              sync.RWMutex
-	lastExpTime         time.Time
-	lastExpTimeAtWall   time.Time
+	timeMu            sync.RWMutex
+	lastExpTime       time.Time
+	lastExpTimeAtWall time.Time
 }
 
 func New(cfg *config.Config, m *metrics.Metrics, loki *lokipush.Pusher) *Bridge {
@@ -94,9 +94,11 @@ func (b *Bridge) pushEvent(kind, fsNode, eventType string, wallTs time.Time, pay
 	}
 	expTs := b.experimentTime(wallTs)
 
-	// Inject experimentTime + wallTime into the body so downstream tools
-	// (Grafana table, .ods export) can render both even if they only see
-	// the JSON body.
+	// Loki's storage assumes timestamps live near wall-clock — old samples
+	// (simulation start far in the past) are silently dropped even with
+	// reject_old_samples=false. So we index by wallTs and surface the
+	// experiment clock in the body; Grafana / .ods read experimentTime
+	// from the JSON to display the in-scenario clock.
 	body, err := injectTimes(payload, expTs, wallTs)
 	if err != nil {
 		slog.Warn("metrics-bridge: marshal loki body", "kind", kind, "error", err)
@@ -107,7 +109,7 @@ func (b *Bridge) pushEvent(kind, fsNode, eventType string, wallTs time.Time, pay
 		"fsNode": fsNode,
 		"type":   eventType,
 		"run_id": b.cfg.RunID,
-	}), expTs, body)
+	}), wallTs, body)
 }
 
 func injectTimes(payload any, expTs, wallTs time.Time) (string, error) {
@@ -220,12 +222,12 @@ func (b *Bridge) onCrudEvent(data []byte) {
 	}
 
 	payload := map[string]any{
-		"fsNode":      e.FsNodeName,
-		"type":        e.Type,
-		"name":        e.Name,
-		"size":        e.ContentSizeBytes,
-		"md5":         e.Md5Sum,
-		"attributes":  e.Attributes,
+		"fsNode":     e.FsNodeName,
+		"type":       e.Type,
+		"name":       e.Name,
+		"size":       e.ContentSizeBytes,
+		"md5":        e.Md5Sum,
+		"attributes": e.Attributes,
 	}
 	if source != "" {
 		payload["source"] = source
@@ -404,7 +406,8 @@ func (b *Bridge) onLifecycle(data []byte) {
 // pushEventAtExp is a variant of pushEvent for callers that already know
 // the experiment-clock timestamp (lifecycle events from the executor).
 // It skips the bridge's wall→exp interpolation and writes the provided
-// expTs directly as the Loki sample time.
+// expTs into the body; Loki itself is still indexed by wall time (see
+// pushEvent for the reason).
 func (b *Bridge) pushEventAtExp(kind, fsNode, eventType string, expTs, wallTs time.Time, payload any) {
 	if b.loki == nil || !b.loki.Enabled() {
 		return
@@ -422,7 +425,7 @@ func (b *Bridge) pushEventAtExp(kind, fsNode, eventType string, expTs, wallTs ti
 		"fsNode": fsNode,
 		"type":   eventType,
 		"run_id": b.cfg.RunID,
-	}), expTs, body)
+	}), wallTs, body)
 }
 
 // runExportAfterGrace waits a few seconds for the in-flight loki pushes to
