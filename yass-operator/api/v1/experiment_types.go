@@ -64,6 +64,7 @@ const (
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="experimentTime",type=string,JSONPath=`.status.experimentTime`
 // +kubebuilder:printcolumn:name="state",type=string,JSONPath=`.status.experimentState`
+// +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 type Experiment struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
