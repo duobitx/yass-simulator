@@ -126,7 +126,8 @@ func NewApp(ctx context.Context, facade com.Facade) (*AppType, error) {
 
 func (t *AppType) Start(ctxParent context.Context) error {
 	if t.experimentStartedAt != nil {
-		return errors.New("experiment already started")
+		slog.Default().Info("Start() called but experiment already started; treating as no-op")
+		return nil
 	}
 	experimentCtx, cancel := context.WithCancelCause(ctxParent)
 	// do not call cancel by default, we want that to continue.

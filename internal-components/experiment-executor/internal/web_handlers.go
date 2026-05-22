@@ -50,10 +50,15 @@ func (t *AppType) handleGetFsNodeData(w http.ResponseWriter, r *http.Request) {
 }
 
 func (t *AppType) handleGetFsNodesList(w http.ResponseWriter, r *http.Request) {
-	list := make([]string, 0, len(t.nodes))
-	for nodeName := range t.nodes {
-		list = append(list, nodeName)
+	typeFilter := r.URL.Query().Get("type")
+	t.nodesLock.Lock()
+	list := make([]string, 0, len(t.nodeTypes))
+	for nodeName, nodeType := range t.nodeTypes {
+		if typeFilter == "" || string(nodeType) == typeFilter {
+			list = append(list, nodeName)
+		}
 	}
+	t.nodesLock.Unlock()
 	output(w, list)
 }
 
