@@ -213,9 +213,9 @@ func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx c
 	joinErrHelper = &goutils.JoinErrorHelper{}
 	if layoutDef.Spec != nil {
 		for _, satItem := range layoutDef.Spec {
-			err = r.createFsNodeResource(ctx, req.Namespace, experiment, &exDef, &satItem)
+			fsNode, err := r.createFsNodeResource(ctx, req.Namespace, experiment, &exDef, &satItem)
 			name := fmt.Sprintf("fsNode-%s", satItem.FsNodeName)
-			r.updateStatusConditionForExperimentObject(recon, experiment, name, name, nil, err)
+			r.updateStatusConditionForExperimentObject(recon, experiment, name, name, fsNode, err)
 			joinErrHelper.Append(err)
 		}
 	}
@@ -436,48 +436,53 @@ func (r *Reconciler) updateStatusConditionForExperimentObject(recon *reconciliat
 	}
 }
 
-func (r *Reconciler) createFsNodeResource(ctx context.Context, namespace string, experiment *yassv1.Experiment, expDef *yassv1.ExperimentDefinition, layoutItem *yassv1.LayoutSatSpec) (exitErr error) {
+func (r *Reconciler) createFsNodeResource(ctx context.Context, namespace string, experiment *yassv1.Experiment, expDef *yassv1.ExperimentDefinition, layoutItem *yassv1.LayoutSatSpec) (*yassv1.FsNode, error) {
 	fsNode := &yassv1.FsNode{}
 	err := r.Get(ctx, types.NamespacedName{Namespace: namespace, Name: layoutItem.FsNodeName}, fsNode)
-	if apierrors.IsNotFound(err) {
-		var behaviour *yassv1.Behaviour
-		for _, sb := range expDef.Spec.Behaviours {
-			if sb.FsNodeName == layoutItem.FsNodeName {
-				behaviour = &sb
-				break
-			}
-		}
-		if behaviour == nil {
-			return fmt.Errorf("cannot find fsNode item in experimentDefinition for '%s'", layoutItem.FsNodeName)
-		}
-		props := make(map[string]string)
-		props = goutils.MapMergeOverride(props, experiment.Spec.FsNodeProperties, layoutItem.Properties)
-
-		fsNode = &yassv1.FsNode{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      layoutItem.FsNodeName,
-				Namespace: namespace,
-				Labels: map[string]string{
-					controller.LabelExperiment: experiment.Name,
-				},
-				OwnerReferences: []metav1.OwnerReference{
-					*metav1.NewControllerRef(experiment, v1.SchemeGroupVersion.WithKind(experimentKind)),
-				},
-			},
-			Spec: yassv1.FsNodeSpec{
-				NodeType:         layoutItem.NodeType,
-				EmbeddedHardware: layoutItem.EmbeddedHardware,
-				EmbeddedPosition: layoutItem.EmbeddedPosition,
-				EngineContainers: experiment.Spec.EngineContainers,
-				EngineVolumes:    experiment.Spec.EngineVolumes,
-				Agent:            behaviour.Agent,
-				Properties:       props,
-			},
-		}
-		err = r.Create(ctx, fsNode)
-		return err
+	if err == nil {
+		return fsNode, nil
 	}
-	return nil
+	if !apierrors.IsNotFound(err) {
+		return nil, err
+	}
+	var behaviour *yassv1.Behaviour
+	for _, sb := range expDef.Spec.Behaviours {
+		if sb.FsNodeName == layoutItem.FsNodeName {
+			behaviour = &sb
+			break
+		}
+	}
+	if behaviour == nil {
+		return nil, fmt.Errorf("cannot find fsNode item in experimentDefinition for '%s'", layoutItem.FsNodeName)
+	}
+	props := make(map[string]string)
+	props = goutils.MapMergeOverride(props, experiment.Spec.FsNodeProperties, layoutItem.Properties)
+
+	fsNode = &yassv1.FsNode{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      layoutItem.FsNodeName,
+			Namespace: namespace,
+			Labels: map[string]string{
+				controller.LabelExperiment: experiment.Name,
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				*metav1.NewControllerRef(experiment, v1.SchemeGroupVersion.WithKind(experimentKind)),
+			},
+		},
+		Spec: yassv1.FsNodeSpec{
+			NodeType:         layoutItem.NodeType,
+			EmbeddedHardware: layoutItem.EmbeddedHardware,
+			EmbeddedPosition: layoutItem.EmbeddedPosition,
+			EngineContainers: experiment.Spec.EngineContainers,
+			EngineVolumes:    experiment.Spec.EngineVolumes,
+			Agent:            behaviour.Agent,
+			Properties:       props,
+		},
+	}
+	if err := r.Create(ctx, fsNode); err != nil {
+		return nil, err
+	}
+	return fsNode, nil
 }
 
 func (r *Reconciler) httpExperimentExecutor(recon *reconciliationStatus, endpoint string, body []byte, experiment *yassv1.Experiment) error {
