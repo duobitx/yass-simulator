@@ -529,7 +529,10 @@ func (r *Reconciler) evaluateAgentExitCodes(recon *reconciliationStatus, ctx con
 				break
 			}
 		}
-		if agent == nil || agent.State.Terminated == nil {
+		if agent == nil {
+			continue
+		}
+		if agent.State.Terminated == nil {
 			return nil
 		}
 		if agent.State.Terminated.ExitCode != 0 {
