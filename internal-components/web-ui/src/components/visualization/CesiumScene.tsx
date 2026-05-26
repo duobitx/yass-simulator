@@ -55,6 +55,8 @@ interface CesiumSceneProps {
   showOrbits: boolean;
   showDataTransfer?: boolean;
   showGroundLinks?: boolean;
+  showVisibilityLines?: boolean;
+  showPackets?: boolean;
   showTrails?: boolean;
   simulationSpeed?: number;
   isPaused?: boolean;
@@ -349,6 +351,8 @@ const CesiumScene = ({
   showOrbits,
   showDataTransfer = false,
   showGroundLinks = false,
+  showVisibilityLines = true,
+  showPackets = false,
   showTrails = false,
   simulationSpeed = 1,
   isPaused = false,
@@ -366,6 +370,10 @@ const CesiumScene = ({
   const [isInitialized, setIsInitialized] = useState(false);
   const orbitLayerVisRef = useRef(orbitLayerVisibility);
   orbitLayerVisRef.current = orbitLayerVisibility;
+  const showVisLinesRef = useRef(showVisibilityLines);
+  showVisLinesRef.current = showVisibilityLines;
+  const showPacketsRef = useRef(showPackets);
+  showPacketsRef.current = showPackets;
 
   const satellites = satellitesProp || defaultSatellites;
   const groundStationsList = groundStationsProp || defaultGroundStations;
@@ -973,20 +981,97 @@ const CesiumScene = ({
   }, [isInitialized, showDataTransfer, showGroundLinks, showGroundStations, maxLinkDistance, satellites, groundStationsList, liveMode, liveTracksRef]);
 
   // MQTT-driven visibility lines (network_params from experiment-executor via SSE).
-  // Animated dashed polylines coloured by bandwidth bucket; refreshed every 500ms.
+  // Stable polyline+packet entity per node pair; bucket changes recreate just that pair.
   useEffect(() => {
     if (!viewerRef.current || !isInitialized) return;
     if (!liveMode || !liveTracksRef) return;
     const viewer = viewerRef.current;
-    const visEntities: Entity[] = [];
+
+    type PairEntities = { polyline: Entity; packet: Entity; bucketIdx: number };
+    const pairs = new Map<string, PairEntities>();
     let lastUpdate = 0;
     const UPDATE_INTERVAL_MS = 500;
 
-    const bucketColor = (bwBps: number): { color: Color; width: number } => {
-      const mbit = bwBps / (1024 * 1024);
-      if (mbit >= 50) return { color: Color.fromCssColorString("#22ff88"), width: 3 };
-      if (mbit >= 10) return { color: Color.fromCssColorString("#ffd84d"), width: 2 };
-      return { color: Color.fromCssColorString("#ff5577"), width: 1.5 };
+    const BUCKETS = [
+      { minBps: 1_000_000_000, color: "#00ff66", width: 2 },
+      { minBps: 50_000_000,    color: "#22cc66", width: 1.75 },
+      { minBps: 5_000_000,     color: "#ffd84d", width: 1.5 },
+      { minBps: 500_000,       color: "#ff9933", width: 1.25 },
+      { minBps: 0,             color: "#ff3355", width: 1 },
+    ];
+
+    const bucketIndex = (bwBps: number): number => {
+      for (let i = 0; i < BUCKETS.length; i++) if (bwBps >= BUCKETS[i].minBps) return i;
+      return BUCKETS.length - 1;
+    };
+
+    const gsIds = new Set((groundStationsProp ?? []).map((g) => g.id));
+
+    const addPair = (pairKey: string, sourceName: string, peerName: string, bucketIdx: number): PairEntities => {
+      const { color: hex, width } = BUCKETS[bucketIdx];
+      const color = Color.fromCssColorString(hex);
+      const ZERO = new Cartesian3(0, 0, 0);
+
+      const endpoints = (result?: [Cartesian3, Cartesian3]): Cartesian3[] | undefined => {
+        const a = viewer.entities.getById(sourceName);
+        const b = viewer.entities.getById(peerName);
+        if (!a?.position || !b?.position) return undefined;
+        const t = viewer.clock.currentTime;
+        const ap = a.position.getValue(t);
+        const bp = b.position.getValue(t);
+        if (!ap || !bp) return undefined;
+        if (result) {
+          Cartesian3.clone(ap, result[0]);
+          Cartesian3.clone(bp, result[1]);
+          return result;
+        }
+        return [ap, bp];
+      };
+
+      const endpointBuf: [Cartesian3, Cartesian3] = [new Cartesian3(), new Cartesian3()];
+
+      const polyline = viewer.entities.add({
+        id: `vis-${pairKey}`,
+        show: new CallbackProperty(() => showVisLinesRef.current, false),
+        polyline: {
+          positions: new CallbackProperty(() => endpoints(endpointBuf) ?? [ZERO, ZERO], false),
+          width,
+          material: new PolylineDashMaterialProperty({
+            color: color.withAlpha(0.9),
+            gapColor: Color.TRANSPARENT,
+            dashLength: 20,
+            dashPattern: 255,
+          }),
+        },
+      });
+
+      const packet = viewer.entities.add({
+        id: `vis-pkt-${pairKey}`,
+        show: new CallbackProperty(() => showPacketsRef.current, false),
+        position: new CallbackProperty((_time, result) => {
+          const ep = endpoints();
+          if (!ep) return undefined;
+          const tt = (Date.now() % 2000) / 2000;
+          const out = (result as Cartesian3) ?? new Cartesian3();
+          out.x = ep[0].x + (ep[1].x - ep[0].x) * tt;
+          out.y = ep[0].y + (ep[1].y - ep[0].y) * tt;
+          out.z = ep[0].z + (ep[1].z - ep[0].z) * tt;
+          return out;
+        }, false),
+        point: {
+          pixelSize: 3,
+          color,
+          outlineColor: Color.WHITE.withAlpha(0.5),
+          outlineWidth: 1,
+        },
+      });
+
+      return { polyline, packet, bucketIdx };
+    };
+
+    const removePair = (p: PairEntities) => {
+      if (viewer.entities.contains(p.polyline)) viewer.entities.remove(p.polyline);
+      if (viewer.entities.contains(p.packet)) viewer.entities.remove(p.packet);
     };
 
     const onTick = () => {
@@ -994,73 +1079,37 @@ const CesiumScene = ({
       if (now - lastUpdate < UPDATE_INTERVAL_MS) return;
       lastUpdate = now;
 
-      visEntities.forEach((e) => {
-        if (viewer.entities.contains(e)) viewer.entities.remove(e);
-      });
-      visEntities.length = 0;
-
-      const currentTime = viewer.clock.currentTime;
-      const seen = new Set<string>();
+      const present = new Set<string>();
       const tracks = liveTracksRef.current;
 
       for (const sourceName of Object.keys(tracks)) {
         const ev = tracks[sourceName];
         if (!ev.networkParams || ev.networkParams.length === 0) continue;
-        const sourceEntity = viewer.entities.getById(sourceName);
-        if (!sourceEntity?.position) continue;
-        const sourcePos = sourceEntity.position.getValue(currentTime);
-        if (!sourcePos) continue;
 
         for (const link of ev.networkParams) {
           const peerName = link.subject;
-          // Deduplicate A→B and B→A by sorting endpoints.
+          // Skip GS-GS pairs.
+          if (gsIds.has(sourceName) && gsIds.has(peerName)) continue;
+
           const pairKey = [sourceName, peerName].sort().join("|");
-          if (seen.has(pairKey)) continue;
-          seen.add(pairKey);
+          if (present.has(pairKey)) continue;
+          present.add(pairKey);
 
-          const peerEntity = viewer.entities.getById(peerName);
-          if (!peerEntity?.position) continue;
-          const peerPos = peerEntity.position.getValue(currentTime);
-          if (!peerPos) continue;
+          const bucketIdx = bucketIndex(link.bandwidth);
+          const existing = pairs.get(pairKey);
+          if (!existing) {
+            pairs.set(pairKey, addPair(pairKey, sourceName, peerName, bucketIdx));
+          } else if (existing.bucketIdx !== bucketIdx) {
+            removePair(existing);
+            pairs.set(pairKey, addPair(pairKey, sourceName, peerName, bucketIdx));
+          }
+        }
+      }
 
-          const { color, width } = bucketColor(link.bandwidth);
-
-          const polyline = viewer.entities.add({
-            id: `vis-${pairKey}-${now}`,
-            polyline: {
-              positions: [sourcePos, peerPos],
-              width,
-              material: new PolylineDashMaterialProperty({
-                color: color.withAlpha(0.9),
-                gapColor: Color.TRANSPARENT,
-                dashLength: 20,
-                dashPattern: 255,
-              }),
-            },
-          });
-          visEntities.push(polyline);
-
-          // Animated packet — one dot flows source→peer in a 2 s cycle.
-          const aPos = sourcePos.clone();
-          const bPos = peerPos.clone();
-          const packet = viewer.entities.add({
-            id: `vis-pkt-${pairKey}-${now}`,
-            position: new CallbackProperty(() => {
-              const t = (Date.now() % 2000) / 2000;
-              return new Cartesian3(
-                aPos.x + (bPos.x - aPos.x) * t,
-                aPos.y + (bPos.y - aPos.y) * t,
-                aPos.z + (bPos.z - aPos.z) * t,
-              );
-            }, false),
-            point: {
-              pixelSize: 5,
-              color,
-              outlineColor: Color.WHITE.withAlpha(0.5),
-              outlineWidth: 1,
-            },
-          });
-          visEntities.push(packet);
+      for (const [key, p] of pairs) {
+        if (!present.has(key)) {
+          removePair(p);
+          pairs.delete(key);
         }
       }
     };
@@ -1070,12 +1119,11 @@ const CesiumScene = ({
     return () => {
       if (!viewer.isDestroyed()) {
         viewer.clock.onTick.removeEventListener(onTick);
-        visEntities.forEach((e) => {
-          if (viewer.entities.contains(e)) viewer.entities.remove(e);
-        });
+        for (const p of pairs.values()) removePair(p);
       }
+      pairs.clear();
     };
-  }, [isInitialized, liveMode, liveTracksRef]);
+  }, [isInitialized, liveMode, liveTracksRef, groundStationsProp]);
 
   return (
     <div
