@@ -58,7 +58,6 @@ interface CesiumSceneProps {
   showOrbits: boolean;
   showDataTransfer?: boolean;
   showGroundLinks?: boolean;
-  showVisibilityLines?: boolean;
   showTrails?: boolean;
   simulationSpeed?: number;
   isPaused?: boolean;
@@ -355,7 +354,6 @@ const CesiumScene = ({
   showOrbits,
   showDataTransfer = false,
   showGroundLinks = false,
-  showVisibilityLines = true,
   showTrails = false,
   simulationSpeed = 1,
   isPaused = false,
@@ -375,9 +373,6 @@ const CesiumScene = ({
   const [isInitialized, setIsInitialized] = useState(false);
   const orbitLayerVisRef = useRef(orbitLayerVisibility);
   orbitLayerVisRef.current = orbitLayerVisibility;
-  const showVisLinesRef = useRef(showVisibilityLines);
-  showVisLinesRef.current = showVisibilityLines;
-
   const satellites = satellitesProp || defaultSatellites;
   const groundStationsList = groundStationsProp || defaultGroundStations;
 
@@ -980,7 +975,7 @@ const CesiumScene = ({
         // Only render the line when an actual transfer is in progress.
         // LOS visibility alone is not enough — it would suggest active flow
         // on every reachable peer, which is misleading for sequential engines.
-        show: new CallbackProperty(() => showVisLinesRef.current && transferState.has(pairKey), false),
+        show: new CallbackProperty(() => transferState.has(pairKey), false),
         polyline: {
           positions: new CallbackProperty(() => endpoints(endpointBuf) ?? [ZERO, ZERO], false),
           width: new CallbackProperty(() => {

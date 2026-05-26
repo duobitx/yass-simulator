@@ -10,7 +10,6 @@ import {
   Minimize,
   Circle,
   Loader2,
-  Network,
 } from "lucide-react";
 import SatelliteInfoPopup, { SatelliteInfo } from "@/components/visualization/SatelliteInfoPopup";
 import GroundStationInfoPopup, { GroundStationInfo } from "@/components/visualization/GroundStationInfoPopup";
@@ -60,7 +59,6 @@ const Visualization = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showGroundStations, setShowGroundStations] = useState(true);
   const [showOrbits, setShowOrbits] = useState(false);
-  const [showVisibilityLines, setShowVisibilityLines] = useState(true);
   const [selectedSatellite, setSelectedSatellite] = useState<SatelliteInfo | null>(null);
   const [selectedStation, setSelectedStation] = useState<GroundStationInfo | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -207,19 +205,6 @@ const Visualization = () => {
               </div>
               <Switch checked={showOrbits} onCheckedChange={setShowOrbits} />
             </div>
-
-            <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
-              <div className="flex items-center gap-3">
-                <Network className="h-4 w-4 text-accent" />
-                <div>
-                  <p className="text-sm font-medium">Visibility Lines</p>
-                  <p className="text-xs text-muted-foreground">
-                    Dashed links from network_params (bandwidth coloured)
-                  </p>
-                </div>
-              </div>
-              <Switch checked={showVisibilityLines} onCheckedChange={setShowVisibilityLines} />
-            </div>
           </div>
 
           {/* Legend */}
@@ -298,7 +283,6 @@ const Visualization = () => {
                   orbitLayerVisibility={ALL_LAYERS_VISIBLE}
                   showGroundStations={showGroundStations}
                   showOrbits={showOrbits}
-                  showVisibilityLines={showVisibilityLines}
                   satellites={sceneSatellites}
                   groundStationsList={sceneGroundStations}
                   liveMode={liveMode}
