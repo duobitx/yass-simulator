@@ -411,6 +411,8 @@ const CesiumScene = ({
           baseLayer,
         });
 
+        viewer.scene.globe.depthTestAgainstTerrain = true;
+
         viewer.scene.renderError.addEventListener((_scene, err) => {
           console.error("Cesium render error:", err);
           try {
@@ -553,6 +555,7 @@ const CesiumScene = ({
             image: createGroundStationIcon(36),
             width: 28,
             height: 28,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
           label: {
             text: station.name,
@@ -565,6 +568,7 @@ const CesiumScene = ({
             showBackground: true,
             backgroundColor: Color.BLACK.withAlpha(0.6),
             scale: 0.85,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
           description: `<div style="padding: 8px;"><h3>${station.name}</h3><p>ESA Ground Station</p><p>Lat: ${station.lat.toFixed(3)}°</p><p>Lon: ${station.lon.toFixed(3)}°</p></div>`,
         });
