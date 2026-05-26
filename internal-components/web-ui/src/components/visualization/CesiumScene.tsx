@@ -553,7 +553,6 @@ const CesiumScene = ({
             image: createGroundStationIcon(36),
             width: 28,
             height: 28,
-            heightReference: 1,
           },
           label: {
             text: station.name,
@@ -563,7 +562,6 @@ const CesiumScene = ({
             outlineWidth: 2,
             style: 2,
             pixelOffset: new Cartesian2(0, -22),
-            heightReference: 1,
             showBackground: true,
             backgroundColor: Color.BLACK.withAlpha(0.6),
             scale: 0.85,
