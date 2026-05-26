@@ -211,7 +211,7 @@ const Visualization = () => {
           <div className="space-y-2">
             <h3 className="text-sm font-semibold">Legend</h3>
             <div className="p-3 rounded-lg bg-secondary/50 space-y-2">
-              <p className="text-xs text-muted-foreground">Visibility line bandwidth</p>
+              <p className="text-xs text-muted-foreground">Active transfer (link bandwidth)</p>
               {[
                 { c: "#00ff66", l: "≥ 1 Gbit/s" },
                 { c: "#22cc66", l: "≥ 50 Mbit/s" },
@@ -226,12 +226,6 @@ const Visualization = () => {
                   <span className="text-xs">{l}</span>
                 </div>
               ))}
-              <div className="flex items-center gap-2 pt-1 border-t border-border/40">
-                <svg width="36" height="8" viewBox="0 0 36 8" aria-hidden>
-                  <circle cx="18" cy="4" r="3" fill="#22cc66" stroke="#ffffff80" />
-                </svg>
-                <span className="text-xs">packet flow</span>
-              </div>
             </div>
           </div>
 

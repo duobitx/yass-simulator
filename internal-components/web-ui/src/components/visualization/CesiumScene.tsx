@@ -1021,8 +1021,14 @@ const CesiumScene = ({
         return;
       }
       const now = Date.now();
-      const next = new Map<string, { bps: number; dirSign: number }>();
 
+      // World-controller's egress (sent) counter is reported as the AGGREGATE
+      // root HTB byte count, so every peer entry has the same value — useless
+      // for per-pair detection. The ingress (recv) counter is per source-IP
+      // and reliable. We key everything off recv only.
+      //
+      // Phase 1: compute per-(source, peer) recv-delta bytes/sec.
+      const recvBps = new Map<string, Map<string, number>>(); // source → peer → bytes/sec
       for (const source of Object.keys(usage)) {
         const ev = usage[source];
         if (!ev.peers || ev.peers.length === 0) continue;
@@ -1031,32 +1037,47 @@ const CesiumScene = ({
           peerMap = new Map();
           prevSamples.set(source, peerMap);
         }
+        let perPeer = recvBps.get(source);
+        if (!perPeer) {
+          perPeer = new Map();
+          recvBps.set(source, perPeer);
+        }
         for (const p of ev.peers) {
           const peerName = p.peerFsNode;
           if (!peerName) continue;
-          if (gsIds.has(source) && gsIds.has(peerName)) continue;
-
           const prev = peerMap.get(peerName);
           peerMap.set(peerName, { sent: p.totalBytesSent, recv: p.totalBytesReceived, ts: now });
           if (!prev) continue;
           const dt = (now - prev.ts) / 1000;
           if (dt <= 0) continue;
-          // Reset detected (counters dropped to 0 after LOS loss).
-          const sent = p.totalBytesSent >= prev.sent ? p.totalBytesSent - prev.sent : 0;
+          // Counter reset (LOS loss → removeIPProfile) yields current < prev.
           const recv = p.totalBytesReceived >= prev.recv ? p.totalBytesReceived - prev.recv : 0;
-          const bps = ((sent + recv) * 8) / dt;
-          if (bps < MIN_BPS) continue;
-
-          // The bulk sender is whoever transmits more on this leg.
-          const senderFsNode = sent >= recv ? source : peerName;
-          const pairKey = [source, peerName].sort().join("|");
-          const existing = next.get(pairKey);
-          if (!existing || existing.bps < bps) {
-            next.set(pairKey, { bps, senderFsNode });
-          }
+          perPeer.set(peerName, recv / dt);
         }
       }
-      // Replace state atomically.
+
+      // Phase 2: per pair, take max(recv@A, recv@B). The side with the LARGER
+      // recv is the receiver of bulk data; the other side is the sender.
+      const next = new Map<string, { bps: number; senderFsNode: string }>();
+      const visited = new Set<string>();
+      for (const [source, perPeer] of recvBps) {
+        for (const [peer, recvAtSource] of perPeer) {
+          if (gsIds.has(source) && gsIds.has(peer)) continue;
+          const pairKey = [source, peer].sort().join("|");
+          if (visited.has(pairKey)) continue;
+          visited.add(pairKey);
+
+          const recvAtPeer = recvBps.get(peer)?.get(source) ?? 0;
+          const maxRecv = Math.max(recvAtSource, recvAtPeer);
+          const bps = maxRecv * 8;
+          if (bps < MIN_BPS) continue;
+
+          // Receiver = side with larger recv. Sender = the other one.
+          const senderFsNode = recvAtSource > recvAtPeer ? peer : source;
+          next.set(pairKey, { bps, senderFsNode });
+        }
+      }
+
       transferState.clear();
       for (const [k, v] of next) transferState.set(k, v);
     };
