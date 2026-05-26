@@ -85,6 +85,25 @@ func (a *appType) publishOnlineState(online bool) error {
 	})
 }
 
+func (a *appType) fillPeerFsNode(stats []*proto.TrafficStats) {
+	if len(stats) == 0 {
+		return
+	}
+	a.nodesLock.Lock()
+	defer a.nodesLock.Unlock()
+	for _, s := range stats {
+		if s == nil || s.Ip == "" {
+			continue
+		}
+		for name, info := range a.nodes {
+			if info.IP == s.Ip {
+				s.PeerFsNode = name
+				break
+			}
+		}
+	}
+}
+
 func (a *appType) updateListOfExperimentNodes(_ context.Context, data []byte) error {
 	msg := &proto.FsNodeOnlineState{}
 	err := json.Unmarshal(data, msg)
@@ -206,6 +225,7 @@ func main() {
 			slog.Error("cannot get networks stats", "error", err)
 			return
 		}
+		app.fillPeerFsNode(stats)
 		buff, err := json.Marshal(stats)
 		if err != nil {
 			slog.Error("cannot get marshal stats", "error", err)

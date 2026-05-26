@@ -28,12 +28,22 @@ type PositionEvent struct {
 	NetworkParams []NetworkLink `json:"networkParams,omitempty"`
 }
 
+type PeerUsage struct {
+	IP                   string `json:"ip"`
+	PeerFsNode           string `json:"peerFsNode,omitempty"`
+	TotalBytesSent       uint64 `json:"totalBytesSent"`
+	TotalBytesReceived   uint64 `json:"totalBytesReceived"`
+	TotalPacketsSent     uint64 `json:"totalPacketsSent"`
+	TotalPacketsReceived uint64 `json:"totalPacketsReceived"`
+}
+
 type NetworkUsageEvent struct {
 	BaseEvent
 	TotalBytesSent       uint64
 	TotalBytesReceived   uint64
 	TotalPacketsSent     uint64
 	TotalPacketsReceived uint64
+	Peers                []PeerUsage `json:"peers,omitempty"`
 }
 
 type VolumeUsage struct {
@@ -50,6 +60,16 @@ type ContainerCompute struct {
 	MemoryBytes        uint64  `json:"memoryBytes"`
 	CPUMillicoresLimit float32 `json:"cpuMillicoresLimit,omitempty"`
 	MemoryBytesLimit   uint64  `json:"memoryBytesLimit,omitempty"`
+}
+
+// AgentFileEvent is a single file lifecycle event emitted by an fs-engine
+// (via fs_engine_wrapper's facadeNotifier) on the `crud-events` MQTT topic.
+type AgentFileEvent struct {
+	BaseEvent
+	Action           string `json:"action"` // PUT | RECEIVED | DELETE
+	FileName         string `json:"fileName"`
+	ContentSizeBytes int64  `json:"contentSizeBytes,omitempty"`
+	Md5              string `json:"md5,omitempty"`
 }
 
 type ResourceEvent struct {

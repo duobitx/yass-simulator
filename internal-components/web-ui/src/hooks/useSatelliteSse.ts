@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { SsePositionEvent } from "@/lib/sse-types";
+import type { SseAgentFileEvent, SseNetworkUsageEvent, SsePositionEvent } from "@/lib/sse-types";
+
+const EVENTS_HISTORY_PER_FSNODE = 50;
 
 const FLUSH_MS = 150;
 
@@ -20,6 +22,8 @@ export type SseConnectionStatus = "idle" | "connecting" | "live" | "error" | "cl
 
 export function useSatelliteSse(url: string, enabled: boolean) {
   const tracksRef = useRef<Record<string, SsePositionEvent>>({});
+  const usageRef = useRef<Record<string, SseNetworkUsageEvent>>({});
+  const eventsRef = useRef<Record<string, SseAgentFileEvent[]>>({});
   const [tracks, setTracks] = useState<Record<string, SsePositionEvent>>({});
   const [sourceSignature, setSourceSignature] = useState("");
   const [status, setStatus] = useState<SseConnectionStatus>("idle");
@@ -31,6 +35,8 @@ export function useSatelliteSse(url: string, enabled: boolean) {
       if (flushTimerRef.current) clearTimeout(flushTimerRef.current);
       flushTimerRef.current = null;
       tracksRef.current = {};
+      usageRef.current = {};
+      eventsRef.current = {};
       sigRef.current = "";
       setTracks({});
       setSourceSignature("");
@@ -53,6 +59,8 @@ export function useSatelliteSse(url: string, enabled: boolean) {
 
     const run = async () => {
       tracksRef.current = {};
+      usageRef.current = {};
+      eventsRef.current = {};
       sigRef.current = "";
       setSourceSignature("");
       setTracks({});
@@ -77,16 +85,32 @@ export function useSatelliteSse(url: string, enabled: boolean) {
           for (const raw of lines) {
             const row = parseSsePayloadLine(raw);
             if (!row || typeof row !== "object") continue;
-            const ev = row as Partial<SsePositionEvent>;
-            if (ev.eventType !== "PositionEvent" || typeof ev.source !== "string") continue;
-            const full = ev as SsePositionEvent;
-            tracksRef.current = { ...tracksRef.current, [full.source]: full };
-            const sig = Object.keys(tracksRef.current).sort().join(",");
-            if (sig !== sigRef.current) {
-              sigRef.current = sig;
-              setSourceSignature(sig);
+            const ev = row as { eventType?: string; source?: string };
+            if (typeof ev.source !== "string") continue;
+            if (ev.eventType === "PositionEvent") {
+              const full = row as SsePositionEvent;
+              tracksRef.current = { ...tracksRef.current, [full.source]: full };
+              const sig = Object.keys(tracksRef.current).sort().join(",");
+              if (sig !== sigRef.current) {
+                sigRef.current = sig;
+                setSourceSignature(sig);
+              }
+              scheduleFlush();
+            } else if (ev.eventType === "NetworkUsageEvent") {
+              const full = row as SseNetworkUsageEvent;
+              usageRef.current = { ...usageRef.current, [full.source]: full };
+              // No state flush: usageRef is consumed by per-tick callbacks.
+            } else if (ev.eventType === "AgentFileEvent") {
+              const full = row as SseAgentFileEvent;
+              const prev = eventsRef.current[full.source] ?? [];
+              const key = `${full.timestamp}|${full.fileName}|${full.action}`;
+              if (prev.some((e) => `${e.timestamp}|${e.fileName}|${e.action}` === key)) {
+                continue;
+              }
+              const next = [full, ...prev].slice(0, EVENTS_HISTORY_PER_FSNODE);
+              eventsRef.current = { ...eventsRef.current, [full.source]: next };
+              // No state flush: read on demand by popups.
             }
-            scheduleFlush();
           }
         }
         if (!cancelled) setStatus("closed");
@@ -108,5 +132,5 @@ export function useSatelliteSse(url: string, enabled: boolean) {
     };
   }, [url, enabled]);
 
-  return { tracks, tracksRef, sourceSignature, status };
+  return { tracks, tracksRef, usageRef, eventsRef, sourceSignature, status };
 }

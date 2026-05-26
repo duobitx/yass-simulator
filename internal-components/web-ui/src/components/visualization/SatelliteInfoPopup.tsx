@@ -1,5 +1,8 @@
-import { X, Satellite, MapPin, Clock, Gauge, Radio, Link2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import type { MutableRefObject } from "react";
+import { X, Satellite, MapPin, Clock, Gauge, Radio, Link2, FileUp, FileDown, FileX } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { SseAgentFileEvent } from "@/lib/sse-types";
 
 export interface SatelliteInfo {
   id: string;
@@ -14,15 +17,34 @@ export interface SatelliteInfo {
   period?: number;
   connectedSatellites?: string[];
   connectedStations?: string[];
+  agentEvents?: SseAgentFileEvent[];
+}
+
+function formatBytes(n?: number): string {
+  if (n == null) return "";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KiB`;
+  if (n < 1024 * 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MiB`;
+  return `${(n / 1024 / 1024 / 1024).toFixed(2)} GiB`;
+}
+
+function formatTime(ts: string): string {
+  try {
+    const d = new Date(ts);
+    return d.toLocaleTimeString();
+  } catch {
+    return ts;
+  }
 }
 
 interface SatelliteInfoPopupProps {
   satellite: SatelliteInfo | null;
   onClose: () => void;
   position?: { x: number; y: number };
+  eventsRef?: MutableRefObject<Record<string, SseAgentFileEvent[]>>;
 }
 
-const SatelliteInfoPopup = ({ satellite, onClose, position }: SatelliteInfoPopupProps) => {
+const SatelliteInfoPopup = ({ satellite, onClose, position, eventsRef }: SatelliteInfoPopupProps) => {
   if (!satellite) return null;
 
   const getOrbitalPeriod = (altitude: number) => {
@@ -137,6 +159,74 @@ const SatelliteInfoPopup = ({ satellite, onClose, position }: SatelliteInfoPopup
             No active links
           </div>
         )}
+
+        <AgentEventsList fsNodeId={satellite.id} fallback={satellite.agentEvents} eventsRef={eventsRef} />
+      </div>
+    </div>
+  );
+};
+
+interface AgentEventsListProps {
+  fsNodeId: string;
+  fallback?: SseAgentFileEvent[];
+  eventsRef?: MutableRefObject<Record<string, SseAgentFileEvent[]>>;
+}
+
+const POLL_MS = 1000;
+
+export const AgentEventsList = ({ fsNodeId, fallback, eventsRef }: AgentEventsListProps) => {
+  const [events, setEvents] = useState<SseAgentFileEvent[]>(
+    () => eventsRef?.current[fsNodeId] ?? fallback ?? []
+  );
+  useEffect(() => {
+    if (!eventsRef) return;
+    setEvents(eventsRef.current[fsNodeId] ?? []);
+    const t = setInterval(() => {
+      setEvents(eventsRef.current[fsNodeId] ?? []);
+    }, POLL_MS);
+    return () => clearInterval(t);
+  }, [eventsRef, fsNodeId]);
+
+  if (!events || events.length === 0) {
+    return (
+      <div className="pt-2 border-t border-border/50">
+        <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Agent events</p>
+        <p className="text-xs text-muted-foreground italic p-2 rounded bg-secondary/50">
+          No file events yet
+        </p>
+      </div>
+    );
+  }
+  return (
+    <div className="pt-2 border-t border-border/50">
+      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">
+        Agent events ({events.length})
+      </p>
+      <div className="max-h-40 overflow-y-auto space-y-1">
+        {events.map((e, i) => {
+          const Icon = e.action === "PUT" ? FileUp : e.action === "RECEIVED" ? FileDown : FileX;
+          const color =
+            e.action === "PUT"
+              ? "text-amber-400"
+              : e.action === "RECEIVED"
+              ? "text-emerald-400"
+              : "text-rose-400";
+          return (
+            <div key={`${e.timestamp}-${i}`} className="flex items-start gap-2 text-xs p-1.5 rounded bg-secondary/40">
+              <Icon className={`h-3 w-3 mt-0.5 ${color}`} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className={`font-mono font-medium ${color}`}>{e.action}</span>
+                  <span className="text-muted-foreground">{formatTime(e.timestamp)}</span>
+                  {e.contentSizeBytes ? (
+                    <span className="ml-auto font-mono text-muted-foreground">{formatBytes(e.contentSizeBytes)}</span>
+                  ) : null}
+                </div>
+                <p className="font-mono truncate text-foreground/80">{e.fileName}</p>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

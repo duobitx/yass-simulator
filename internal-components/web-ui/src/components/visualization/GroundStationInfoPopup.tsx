@@ -1,5 +1,8 @@
 import { X, Radio, MapPin, Satellite } from "lucide-react";
+import type { MutableRefObject } from "react";
 import { Button } from "@/components/ui/button";
+import type { SseAgentFileEvent } from "@/lib/sse-types";
+import { AgentEventsList } from "./SatelliteInfoPopup";
 
 export interface GroundStationInfo {
   id: string;
@@ -7,14 +10,16 @@ export interface GroundStationInfo {
   lat: number;
   lon: number;
   connectedSatellite?: string;
+  agentEvents?: SseAgentFileEvent[];
 }
 
 interface GroundStationInfoPopupProps {
   station: GroundStationInfo | null;
   onClose: () => void;
+  eventsRef?: MutableRefObject<Record<string, SseAgentFileEvent[]>>;
 }
 
-const GroundStationInfoPopup = ({ station, onClose }: GroundStationInfoPopupProps) => {
+const GroundStationInfoPopup = ({ station, onClose, eventsRef }: GroundStationInfoPopupProps) => {
   if (!station) return null;
 
   return (
@@ -65,6 +70,8 @@ const GroundStationInfoPopup = ({ station, onClose }: GroundStationInfoPopupProp
             No satellite in view
           </div>
         )}
+
+        <AgentEventsList fsNodeId={station.id} fallback={station.agentEvents} eventsRef={eventsRef} />
       </div>
     </div>
   );

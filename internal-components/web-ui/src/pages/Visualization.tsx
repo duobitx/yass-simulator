@@ -11,7 +11,6 @@ import {
   Circle,
   Loader2,
   Network,
-  Dot,
 } from "lucide-react";
 import SatelliteInfoPopup, { SatelliteInfo } from "@/components/visualization/SatelliteInfoPopup";
 import GroundStationInfoPopup, { GroundStationInfo } from "@/components/visualization/GroundStationInfoPopup";
@@ -62,7 +61,6 @@ const Visualization = () => {
   const [showGroundStations, setShowGroundStations] = useState(true);
   const [showOrbits, setShowOrbits] = useState(false);
   const [showVisibilityLines, setShowVisibilityLines] = useState(true);
-  const [showPackets, setShowPackets] = useState(false);
   const [selectedSatellite, setSelectedSatellite] = useState<SatelliteInfo | null>(null);
   const [selectedStation, setSelectedStation] = useState<GroundStationInfo | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -222,19 +220,6 @@ const Visualization = () => {
               </div>
               <Switch checked={showVisibilityLines} onCheckedChange={setShowVisibilityLines} />
             </div>
-
-            <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
-              <div className="flex items-center gap-3">
-                <Dot className="h-4 w-4 text-accent" />
-                <div>
-                  <p className="text-sm font-medium">Packets</p>
-                  <p className="text-xs text-muted-foreground">
-                    Animated dots flowing along visibility lines
-                  </p>
-                </div>
-              </div>
-              <Switch checked={showPackets} onCheckedChange={setShowPackets} />
-            </div>
           </div>
 
           {/* Legend */}
@@ -314,11 +299,12 @@ const Visualization = () => {
                   showGroundStations={showGroundStations}
                   showOrbits={showOrbits}
                   showVisibilityLines={showVisibilityLines}
-                  showPackets={showPackets}
                   satellites={sceneSatellites}
                   groundStationsList={sceneGroundStations}
                   liveMode={liveMode}
                   liveTracksRef={sse.tracksRef}
+                  liveUsageRef={sse.usageRef}
+                  liveEventsRef={sse.eventsRef}
                   onSatelliteClick={handleSatelliteClick}
                   onGroundStationClick={handleGroundStationClick}
                 />
@@ -328,12 +314,12 @@ const Visualization = () => {
           {/* Info popups */}
           {selectedSatellite && (
             <div className="absolute top-4 right-4 z-10">
-              <SatelliteInfoPopup satellite={selectedSatellite} onClose={handleClosePopup} />
+              <SatelliteInfoPopup satellite={selectedSatellite} onClose={handleClosePopup} eventsRef={sse.eventsRef} />
             </div>
           )}
           {selectedStation && (
             <div className="absolute top-4 right-4 z-10">
-              <GroundStationInfoPopup station={selectedStation} onClose={handleClosePopup} />
+              <GroundStationInfoPopup station={selectedStation} onClose={handleClosePopup} eventsRef={sse.eventsRef} />
             </div>
           )}
 

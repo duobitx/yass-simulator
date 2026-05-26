@@ -10,6 +10,9 @@ message TrafficStats {
   uint64 total_bytes_received = 3;
   uint64 total_packets_sent = 4;
   uint64 total_packets_received = 5;
+  // Optional fsNode name resolved by the producer (world-controller) from the
+  // IP. May be empty if the producer cannot resolve the peer at publish time.
+  string peer_fs_node = 6;
 }
 
 message TrafficStatsList {

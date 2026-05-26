@@ -20,6 +20,36 @@ export interface SsePositionEvent {
   networkParams?: SseNetworkLink[];
 }
 
+export interface SsePeerUsage {
+  ip: string;
+  peerFsNode?: string;
+  totalBytesSent: number;
+  totalBytesReceived: number;
+  totalPacketsSent: number;
+  totalPacketsReceived: number;
+}
+
+export interface SseAgentFileEvent {
+  source: string;
+  timestamp: string;
+  eventType: "AgentFileEvent";
+  action: "PUT" | "RECEIVED" | "DELETE" | string;
+  fileName: string;
+  contentSizeBytes?: number;
+  md5?: string;
+}
+
+export interface SseNetworkUsageEvent {
+  source: string;
+  timestamp: string;
+  eventType: "NetworkUsageEvent";
+  TotalBytesSent: number;
+  TotalBytesReceived: number;
+  TotalPacketsSent: number;
+  TotalPacketsReceived: number;
+  peers?: SsePeerUsage[];
+}
+
 /** Ground segment positions are reported with zero altitude (km). */
 export function isGroundStationEvent(ev: SsePositionEvent): boolean {
   return ev.Alt === 0;

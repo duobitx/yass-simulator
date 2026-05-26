@@ -87,6 +87,42 @@ func FsNodeResourcesConv(_ string, data []byte) (any, error) {
 	return out, nil
 }
 
+// crudNotifyEvent matches the JSON shape published by
+// fs_engine_wrapper/pkg/notifier.NotifyEvent on the `crud-events` topic.
+type crudNotifyEvent struct {
+	Name             string    `json:"Name"`
+	ContentSizeBytes int64     `json:"ContentSizeBytes"`
+	FsNodeName       string    `json:"FsNodeName"`
+	When             time.Time `json:"When"`
+	Type             string    `json:"Type"`
+	Md5Sum           string    `json:"Md5Sum"`
+}
+
+func AgentFileEventConv(_ string, data []byte) (any, error) {
+	in := &crudNotifyEvent{}
+	if err := json.Unmarshal(data, in); err != nil {
+		return nil, err
+	}
+	if in.FsNodeName == "" || in.Type == "" {
+		return nil, nil
+	}
+	ts := in.When
+	if ts.IsZero() {
+		ts = time.Now()
+	}
+	return api.AgentFileEvent{
+		BaseEvent: api.BaseEvent{
+			Source:    in.FsNodeName,
+			Timestamp: ts,
+			EventType: "AgentFileEvent",
+		},
+		Action:           in.Type,
+		FileName:         in.Name,
+		ContentSizeBytes: in.ContentSizeBytes,
+		Md5:              in.Md5Sum,
+	}, nil
+}
+
 func FsNodeNetworkUsageConv(topic string, data []byte) (any, error) {
 	in := make([]*proto.TrafficStats, 0)
 	err := json.Unmarshal(data, &in)
@@ -108,6 +144,14 @@ func FsNodeNetworkUsageConv(topic string, data []byte) (any, error) {
 		out.TotalPacketsReceived += stat.TotalPacketsReceived
 		out.TotalBytesReceived += stat.TotalBytesReceived
 		out.TotalBytesSent += stat.TotalBytesSent
+		out.Peers = append(out.Peers, api.PeerUsage{
+			IP:                   stat.Ip,
+			PeerFsNode:           stat.PeerFsNode,
+			TotalBytesSent:       stat.TotalBytesSent,
+			TotalBytesReceived:   stat.TotalBytesReceived,
+			TotalPacketsSent:     stat.TotalPacketsSent,
+			TotalPacketsReceived: stat.TotalPacketsReceived,
+		})
 	}
 	return out, nil
 }

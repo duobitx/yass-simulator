@@ -8,10 +8,12 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/duobitx/yass-simulator/internal-components/events-webapp/internal/conv"
+	"github.com/duobitx/yass-simulator/internal-components/events-webapp/pkg/api"
 	"github.com/duobitx/yass-simulator/internal-components/go-common/startup"
 	com "github.com/m-szalik/com-facade"
 	"github.com/m-szalik/com-facade/mqtt"
@@ -21,12 +23,37 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 )
 
+const agentEventsHistoryPerNode = 50
+
 type appType struct {
-	mainCtx        context.Context
-	facade         com.Facade
-	ps             pubsub.PubSub[any]
-	psProducer     chan<- any
-	eventsFilePath string
+	mainCtx           context.Context
+	facade            com.Facade
+	ps                pubsub.PubSub[any]
+	psProducer        chan<- any
+	eventsFilePath    string
+	agentEventsMu     sync.Mutex
+	agentEventsByNode map[string][]api.AgentFileEvent
+}
+
+func (t *appType) rememberAgentEvent(e api.AgentFileEvent) {
+	t.agentEventsMu.Lock()
+	defer t.agentEventsMu.Unlock()
+	list := t.agentEventsByNode[e.Source]
+	list = append(list, e)
+	if len(list) > agentEventsHistoryPerNode {
+		list = list[len(list)-agentEventsHistoryPerNode:]
+	}
+	t.agentEventsByNode[e.Source] = list
+}
+
+func (t *appType) snapshotAgentEvents() []api.AgentFileEvent {
+	t.agentEventsMu.Lock()
+	defer t.agentEventsMu.Unlock()
+	out := make([]api.AgentFileEvent, 0)
+	for _, list := range t.agentEventsByNode {
+		out = append(out, list...)
+	}
+	return out
 }
 
 func (t *appType) eventsSSE(w http.ResponseWriter, request *http.Request) {
@@ -43,7 +70,22 @@ func (t *appType) eventsSSE(w http.ResponseWriter, request *http.Request) {
 	}
 	clientID := fmt.Sprintf("httpCl-%s", request.RemoteAddr)
 	slog.Info("Incoming connection", "clientID", clientID)
+	// Subscribe FIRST so concurrent live events aren't lost between replay and live.
 	ch := t.ps.NewSubscriber(request.Context())
+	// Replay agent-event history so new clients see PUT/RECEIVED/DELETE that
+	// landed before they connected. crud-events MQTT is retained but only the
+	// last message per topic, so the broker alone doesn't cover this.
+	for _, e := range t.snapshotAgentEvents() {
+		buff, err := json.Marshal(e)
+		if err != nil {
+			continue
+		}
+		if _, err = fmt.Fprintln(w, string(buff)); err != nil {
+			slog.Info("Client disconnected during replay", "clientID", clientID, "error", err)
+			return
+		}
+	}
+	flusher.Flush()
 	for {
 		select {
 		case evt := <-ch:
@@ -80,12 +122,18 @@ func (t *appType) message(_ context.Context, topic string, _ bool, data []byte) 
 	if strings.HasSuffix(topic, "/resources") {
 		cf = conv.FsNodeResourcesConv
 	}
+	if topic == "crud-events" {
+		cf = conv.AgentFileEventConv
+	}
 	if cf != nil {
 		apiResponse, err := cf(topic, data)
 		if err != nil {
 			slog.Error("error unmarshalling message", "error", err)
 		}
 		if apiResponse != nil {
+			if af, ok := apiResponse.(api.AgentFileEvent); ok {
+				t.rememberAgentEvent(af)
+			}
 			t.psProducer <- apiResponse
 		}
 	}
@@ -147,11 +195,12 @@ func main() {
 
 	ps := pubsub.NewPubSub[any](ctx)
 	app := &appType{
-		mainCtx:        ctx,
-		facade:         facade,
-		ps:             ps,
-		psProducer:     ps.NewPublisher(),
-		eventsFilePath: getEnv("EVENTS_FILE_PATH", "events.log"),
+		mainCtx:           ctx,
+		facade:            facade,
+		ps:                ps,
+		psProducer:        ps.NewPublisher(),
+		eventsFilePath:    getEnv("EVENTS_FILE_PATH", "events.log"),
+		agentEventsByNode: make(map[string][]api.AgentFileEvent),
 	}
 
 	err := facade.Connect()

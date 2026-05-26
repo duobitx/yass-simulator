@@ -25,10 +25,11 @@ import {
   Matrix4,
   Event as CesiumEvent,
   Entity,
+  HeightReference,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
-import type { SsePositionEvent } from "@/lib/sse-types";
+import type { SseAgentFileEvent, SseNetworkUsageEvent, SsePositionEvent } from "@/lib/sse-types";
 
 interface SatelliteClickInfo {
   id: string;
@@ -39,6 +40,7 @@ interface SatelliteClickInfo {
   color: string;
   connectedSatellites?: string[];
   connectedStations?: string[];
+  agentEvents?: SseAgentFileEvent[];
 }
 
 interface GroundStationClickInfo {
@@ -47,6 +49,7 @@ interface GroundStationClickInfo {
   lat: number;
   lon: number;
   connectedSatellite?: string;
+  agentEvents?: SseAgentFileEvent[];
 }
 
 interface CesiumSceneProps {
@@ -56,7 +59,6 @@ interface CesiumSceneProps {
   showDataTransfer?: boolean;
   showGroundLinks?: boolean;
   showVisibilityLines?: boolean;
-  showPackets?: boolean;
   showTrails?: boolean;
   simulationSpeed?: number;
   isPaused?: boolean;
@@ -65,6 +67,8 @@ interface CesiumSceneProps {
   groundStationsList?: GroundStationData[];
   liveMode?: boolean;
   liveTracksRef?: MutableRefObject<Record<string, SsePositionEvent>>;
+  liveUsageRef?: MutableRefObject<Record<string, SseNetworkUsageEvent>>;
+  liveEventsRef?: MutableRefObject<Record<string, SseAgentFileEvent[]>>;
   onSatelliteClick?: (satellite: SatelliteClickInfo) => void;
   onGroundStationClick?: (station: GroundStationClickInfo) => void;
 }
@@ -352,7 +356,6 @@ const CesiumScene = ({
   showDataTransfer = false,
   showGroundLinks = false,
   showVisibilityLines = true,
-  showPackets = false,
   showTrails = false,
   simulationSpeed = 1,
   isPaused = false,
@@ -361,6 +364,8 @@ const CesiumScene = ({
   groundStationsList: groundStationsProp,
   liveMode = false,
   liveTracksRef,
+  liveUsageRef,
+  liveEventsRef,
   onSatelliteClick,
   onGroundStationClick,
 }: CesiumSceneProps) => {
@@ -372,8 +377,6 @@ const CesiumScene = ({
   orbitLayerVisRef.current = orbitLayerVisibility;
   const showVisLinesRef = useRef(showVisibilityLines);
   showVisLinesRef.current = showVisibilityLines;
-  const showPacketsRef = useRef(showPackets);
-  showPacketsRef.current = showPackets;
 
   const satellites = satellitesProp || defaultSatellites;
   const groundStationsList = groundStationsProp || defaultGroundStations;
@@ -479,6 +482,7 @@ const CesiumScene = ({
             lat: gs.lat,
             lon: gs.lon,
             connectedSatellite: conn.stationToSat[gs.id],
+            agentEvents: liveEventsRef?.current[gs.id] ?? [],
           });
           return;
         }
@@ -502,6 +506,7 @@ const CesiumScene = ({
             color: colorMap[sat.orbitType] || "#4ade80",
             connectedSatellites: connectedSatNames,
             connectedStations: connectedStationNames,
+            agentEvents: liveEventsRef?.current[sat.id] ?? [],
           });
           return;
         }
@@ -530,9 +535,9 @@ const CesiumScene = ({
     const isFiniteLatLon = (lat: number, lon: number, alt: number) =>
       Number.isFinite(lat) && Number.isFinite(lon) && Number.isFinite(alt);
 
-    // Add ground stations. Lift slightly above the ellipsoid so billboards do not
-    // z-fight with the globe surface when depthTestAgainstTerrain is enabled.
-    const GS_LIFT_M = 2000;
+    // Ground stations are clamped to the globe surface. CLAMP_TO_GROUND ignores
+    // altitude in the position, drops the icon on the ellipsoid, and makes
+    // depth-testing against the globe work (far-side billboards are occluded).
     if (showGroundStations) {
       groundStationsList.forEach((station) => {
         const stationPosition =
@@ -541,13 +546,12 @@ const CesiumScene = ({
                 const t = liveTracksRef.current[station.id];
                 const lng = t ? t.Lng : station.lon;
                 const lat = t ? t.Lat : station.lat;
-                const altKm = t ? (t.Alt ?? 0) : 0;
-                if (!isFiniteLatLon(lat, lng, altKm)) {
-                  return Cartesian3.fromDegrees(station.lon, station.lat, GS_LIFT_M, Ellipsoid.WGS84, result);
+                if (!isFiniteLatLon(lat, lng, 0)) {
+                  return Cartesian3.fromDegrees(station.lon, station.lat, 0, Ellipsoid.WGS84, result);
                 }
-                return Cartesian3.fromDegrees(lng, lat, altKm * 1000 + GS_LIFT_M, Ellipsoid.WGS84, result);
+                return Cartesian3.fromDegrees(lng, lat, 0, Ellipsoid.WGS84, result);
               }, false)
-            : Cartesian3.fromDegrees(station.lon, station.lat, GS_LIFT_M);
+            : Cartesian3.fromDegrees(station.lon, station.lat, 0);
 
         viewer.entities.add({
           id: station.id,
@@ -557,6 +561,7 @@ const CesiumScene = ({
             image: createGroundStationIcon(36),
             width: 28,
             height: 28,
+            heightReference: HeightReference.CLAMP_TO_GROUND,
           },
           label: {
             text: station.name,
@@ -569,6 +574,7 @@ const CesiumScene = ({
             showBackground: true,
             backgroundColor: Color.BLACK.withAlpha(0.6),
             scale: 0.85,
+            heightReference: HeightReference.CLAMP_TO_GROUND,
           },
           description: `<div style="padding: 8px;"><h3>${station.name}</h3><p>ESA Ground Station</p><p>Lat: ${station.lat.toFixed(3)}°</p><p>Lon: ${station.lon.toFixed(3)}°</p></div>`,
         });
@@ -812,48 +818,6 @@ const CesiumScene = ({
             },
           });
           linkEntities.push(entity);
-
-          // Data packet traveling along the ISL
-          const islPacketA = a.position.clone();
-          const islPacketB = b.position.clone();
-          const packetEntity = viewer.entities.add({
-            id: `pkt-isl-${a.sat.id}-${b.sat.id}-${now}`,
-            position: new CallbackProperty(() => {
-              const t = (Date.now() % 2000) / 2000; // 2-second cycle
-              return new Cartesian3(
-                islPacketA.x + (islPacketB.x - islPacketA.x) * t,
-                islPacketA.y + (islPacketB.y - islPacketA.y) * t,
-                islPacketA.z + (islPacketB.z - islPacketA.z) * t,
-              );
-            }, false),
-            point: {
-              pixelSize: 5,
-              color: Color.fromCssColorString("#ff88ff"),
-              outlineColor: Color.fromCssColorString("#ff44ff"),
-              outlineWidth: 2,
-            },
-          });
-          linkEntities.push(packetEntity);
-
-          // Second packet going the other direction (offset by half cycle)
-          const packetEntity2 = viewer.entities.add({
-            id: `pkt-isl2-${a.sat.id}-${b.sat.id}-${now}`,
-            position: new CallbackProperty(() => {
-              const t = ((Date.now() + 1000) % 2000) / 2000;
-              return new Cartesian3(
-                islPacketB.x + (islPacketA.x - islPacketB.x) * t,
-                islPacketB.y + (islPacketA.y - islPacketB.y) * t,
-                islPacketB.z + (islPacketA.z - islPacketB.z) * t,
-              );
-            }, false),
-            point: {
-              pixelSize: 4,
-              color: Color.fromCssColorString("#ff88ff").withAlpha(0.7),
-              outlineColor: Color.fromCssColorString("#ff44ff").withAlpha(0.5),
-              outlineWidth: 1,
-            },
-          });
-          linkEntities.push(packetEntity2);
         });
       }
 
@@ -920,47 +884,6 @@ const CesiumScene = ({
               },
             });
             linkEntities.push(entity);
-
-            // Data packet traveling from ground station up to satellite
-            const gsPos = gsPosition.clone();
-            const satPos = bestSat.position.clone();
-            const gslPacket = viewer.entities.add({
-              id: `pkt-gsl-${gs.id}-${bestSat.sat.id}-${now}`,
-              position: new CallbackProperty(() => {
-                const t = (Date.now() % 3000) / 3000; // 3-second cycle
-                return new Cartesian3(
-                  gsPos.x + (satPos.x - gsPos.x) * t,
-                  gsPos.y + (satPos.y - gsPos.y) * t,
-                  gsPos.z + (satPos.z - gsPos.z) * t,
-                );
-              }, false),
-              point: {
-                pixelSize: 4,
-                color: Color.CYAN,
-                outlineColor: Color.WHITE.withAlpha(0.5),
-                outlineWidth: 1,
-              },
-            });
-            linkEntities.push(gslPacket);
-
-            // Downlink packet (satellite to ground)
-            const gslPacket2 = viewer.entities.add({
-              id: `pkt-gsl2-${gs.id}-${bestSat.sat.id}-${now}`,
-              position: new CallbackProperty(() => {
-                const t = ((Date.now() + 1500) % 3000) / 3000;
-                return new Cartesian3(
-                  satPos.x + (gsPos.x - satPos.x) * t,
-                  satPos.y + (gsPos.y - satPos.y) * t,
-                  satPos.z + (gsPos.z - satPos.z) * t,
-                );
-              }, false),
-              point: {
-                pixelSize: 3,
-                color: Color.CYAN.withAlpha(0.7),
-                outlineWidth: 0,
-              },
-            });
-            linkEntities.push(gslPacket2);
           }
         });
 
@@ -983,16 +906,29 @@ const CesiumScene = ({
   }, [isInitialized, showDataTransfer, showGroundLinks, showGroundStations, maxLinkDistance, satellites, groundStationsList, liveMode, liveTracksRef]);
 
   // MQTT-driven visibility lines (network_params from experiment-executor via SSE).
-  // Stable polyline+packet entity per node pair; bucket changes recreate just that pair.
+  // One polyline per node pair. When real transfer is observed (total-network-stats
+  // SSE → liveUsageRef), the dash pattern rotates over time, with direction and
+  // speed encoding net flow — replacing the old animated "packet" dot.
   useEffect(() => {
     if (!viewerRef.current || !isInitialized) return;
     if (!liveMode || !liveTracksRef) return;
     const viewer = viewerRef.current;
 
-    type PairEntities = { polyline: Entity; packet: Entity; bucketIdx: number };
+    type PairEntities = { polyline: Entity; bucketIdx: number };
     const pairs = new Map<string, PairEntities>();
+    // pairKey → bps + fsNode name of the bulk sender (so callbacks can resolve
+    // direction relative to the polyline's actual positions[0]/positions[1]).
+    const transferState = new Map<string, { bps: number; senderFsNode: string }>();
+    // source → peer → last counter sample for delta computation.
+    type Sample = { sent: number; recv: number; ts: number };
+    const prevSamples = new Map<string, Map<string, Sample>>();
     let lastUpdate = 0;
     const UPDATE_INTERVAL_MS = 500;
+    // Engines generate connection-setup chatter (TCP handshakes, TUS POST/HEAD
+    // probes once per second per destination) which is tens of kbps even when
+    // no real transfer is in progress. Real bulk uploads are tens of Mbps. Set
+    // threshold high enough to ignore probe overhead.
+    const MIN_BPS = 500_000; // 500 kb/s
 
     const BUCKETS = [
       { minBps: 1_000_000_000, color: "#00ff66", width: 1.25 },
@@ -1010,9 +946,15 @@ const CesiumScene = ({
 
     const gsIds = new Set((groundStationsProp ?? []).map((g) => g.id));
 
+    const rotLeft16 = (v: number, n: number): number => {
+      const s = n & 15;
+      return ((v << s) | (v >>> (16 - s))) & 0xffff;
+    };
+
     const addPair = (pairKey: string, sourceName: string, peerName: string, bucketIdx: number): PairEntities => {
-      const { color: hex, width } = BUCKETS[bucketIdx];
-      const color = Color.fromCssColorString(hex);
+      const { color: hex, width: baseWidth } = BUCKETS[bucketIdx];
+      const idleColor = Color.fromCssColorString(hex).withAlpha(LINE_ALPHA);
+      const activeColor = Color.fromCssColorString(hex).withAlpha(0.95);
       const ZERO = new Cartesian3(0, 0, 0);
 
       const endpoints = (result?: [Cartesian3, Cartesian3]): Cartesian3[] | undefined => {
@@ -1035,52 +977,101 @@ const CesiumScene = ({
 
       const polyline = viewer.entities.add({
         id: `vis-${pairKey}`,
-        show: new CallbackProperty(() => showVisLinesRef.current, false),
+        // Only render the line when an actual transfer is in progress.
+        // LOS visibility alone is not enough — it would suggest active flow
+        // on every reachable peer, which is misleading for sequential engines.
+        show: new CallbackProperty(() => showVisLinesRef.current && transferState.has(pairKey), false),
         polyline: {
           positions: new CallbackProperty(() => endpoints(endpointBuf) ?? [ZERO, ZERO], false),
-          width,
+          width: new CallbackProperty(() => {
+            const t = transferState.get(pairKey);
+            return t ? baseWidth + 2 : baseWidth;
+          }, false),
           material: new PolylineDashMaterialProperty({
-            color: color.withAlpha(LINE_ALPHA),
+            color: new CallbackProperty(() => {
+              return transferState.get(pairKey) ? activeColor : idleColor;
+            }, false),
             gapColor: Color.TRANSPARENT,
             dashLength: 20,
-            dashPattern: 255,
+            dashPattern: new CallbackProperty(() => {
+              const t = transferState.get(pairKey);
+              if (!t) return 255;
+              // Speed (steps/sec) ~ log2 of kb/s, capped so very large transfers
+              // don't strobe.
+              const stepsPerSec = Math.min(30, Math.log2(1 + t.bps / 1024) * 2);
+              const phase = Math.floor((Date.now() / 1000) * stepsPerSec);
+              // Polyline positions: [sourceName, peerName]. We want dashes to
+              // move toward the receiver, so the visible flow matches data flow.
+              // - sender == sourceName → flow goes positions[0] → positions[1]
+              // - sender == peerName   → flow goes positions[1] → positions[0]
+              const forward = t.senderFsNode === sourceName;
+              const shift = ((forward ? phase : -phase) % 16 + 16) % 16;
+              return rotLeft16(255, shift);
+            }, false),
           }),
         },
       });
 
-      const packet = viewer.entities.add({
-        id: `vis-pkt-${pairKey}`,
-        show: new CallbackProperty(() => showPacketsRef.current, false),
-        position: new CallbackProperty((_time, result) => {
-          const ep = endpoints();
-          if (!ep) return undefined;
-          const tt = (Date.now() % 2000) / 2000;
-          const out = (result as Cartesian3) ?? new Cartesian3();
-          out.x = ep[0].x + (ep[1].x - ep[0].x) * tt;
-          out.y = ep[0].y + (ep[1].y - ep[0].y) * tt;
-          out.z = ep[0].z + (ep[1].z - ep[0].z) * tt;
-          return out;
-        }, false),
-        point: {
-          pixelSize: 3,
-          color,
-          outlineColor: Color.WHITE.withAlpha(0.5),
-          outlineWidth: 1,
-        },
-      });
-
-      return { polyline, packet, bucketIdx };
+      return { polyline, bucketIdx };
     };
 
     const removePair = (p: PairEntities) => {
       if (viewer.entities.contains(p.polyline)) viewer.entities.remove(p.polyline);
-      if (viewer.entities.contains(p.packet)) viewer.entities.remove(p.packet);
+    };
+
+    const updateTransferState = () => {
+      const usage = liveUsageRef?.current;
+      if (!usage) {
+        transferState.clear();
+        return;
+      }
+      const now = Date.now();
+      const next = new Map<string, { bps: number; dirSign: number }>();
+
+      for (const source of Object.keys(usage)) {
+        const ev = usage[source];
+        if (!ev.peers || ev.peers.length === 0) continue;
+        let peerMap = prevSamples.get(source);
+        if (!peerMap) {
+          peerMap = new Map();
+          prevSamples.set(source, peerMap);
+        }
+        for (const p of ev.peers) {
+          const peerName = p.peerFsNode;
+          if (!peerName) continue;
+          if (gsIds.has(source) && gsIds.has(peerName)) continue;
+
+          const prev = peerMap.get(peerName);
+          peerMap.set(peerName, { sent: p.totalBytesSent, recv: p.totalBytesReceived, ts: now });
+          if (!prev) continue;
+          const dt = (now - prev.ts) / 1000;
+          if (dt <= 0) continue;
+          // Reset detected (counters dropped to 0 after LOS loss).
+          const sent = p.totalBytesSent >= prev.sent ? p.totalBytesSent - prev.sent : 0;
+          const recv = p.totalBytesReceived >= prev.recv ? p.totalBytesReceived - prev.recv : 0;
+          const bps = ((sent + recv) * 8) / dt;
+          if (bps < MIN_BPS) continue;
+
+          // The bulk sender is whoever transmits more on this leg.
+          const senderFsNode = sent >= recv ? source : peerName;
+          const pairKey = [source, peerName].sort().join("|");
+          const existing = next.get(pairKey);
+          if (!existing || existing.bps < bps) {
+            next.set(pairKey, { bps, senderFsNode });
+          }
+        }
+      }
+      // Replace state atomically.
+      transferState.clear();
+      for (const [k, v] of next) transferState.set(k, v);
     };
 
     const onTick = () => {
       const now = Date.now();
       if (now - lastUpdate < UPDATE_INTERVAL_MS) return;
       lastUpdate = now;
+
+      updateTransferState();
 
       const present = new Set<string>();
       const tracks = liveTracksRef.current;
@@ -1115,6 +1106,32 @@ const CesiumScene = ({
           pairs.delete(key);
         }
       }
+
+      // Reflect ACTIVE transfers (not LOS) in connectionsRef so popups show
+      // who is currently linked. Stay quiet when nothing is being uploaded.
+      const newSatLinks: Record<string, string[]> = {};
+      const newGsLinks: Record<string, string[]> = {};
+      const newStationToSat: Record<string, string> = {};
+      for (const pairKey of transferState.keys()) {
+        const [a, b] = pairKey.split("|");
+        const aIsGs = gsIds.has(a);
+        const bIsGs = gsIds.has(b);
+        if (aIsGs && bIsGs) continue;
+        if (!aIsGs && !bIsGs) {
+          (newSatLinks[a] ??= []).push(b);
+          (newSatLinks[b] ??= []).push(a);
+        } else {
+          const sat = aIsGs ? b : a;
+          const gs = aIsGs ? a : b;
+          (newGsLinks[sat] ??= []).push(gs);
+          newStationToSat[gs] = sat;
+        }
+      }
+      connectionsRef.current = {
+        satLinks: newSatLinks,
+        gsLinks: newGsLinks,
+        stationToSat: newStationToSat,
+      };
     };
 
     viewer.clock.onTick.addEventListener(onTick);
@@ -1125,8 +1142,10 @@ const CesiumScene = ({
         for (const p of pairs.values()) removePair(p);
       }
       pairs.clear();
+      transferState.clear();
+      prevSamples.clear();
     };
-  }, [isInitialized, liveMode, liveTracksRef, groundStationsProp]);
+  }, [isInitialized, liveMode, liveTracksRef, liveUsageRef, groundStationsProp]);
 
   return (
     <div
