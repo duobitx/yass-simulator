@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-ip route # TODO debug remove
-
 if [ -v POD_IP ]; then
   echo "POD IP: ${POD_IP}"
 fi

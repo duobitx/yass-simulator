@@ -22,17 +22,6 @@ func cmd(cmd ...string) modFunc {
 	}
 }
 
-// FIXME: unused
-// func rootFSReadOnly() modFunc {
-// 	return func(_ *v1.Pod, container *v1.Container) {
-// 		bvTrue := true
-// 		if container.SecurityContext == nil {
-// 			container.SecurityContext = &v1.SecurityContext{}
-// 		}
-// 		container.SecurityContext.ReadOnlyRootFilesystem = &bvTrue
-// 	}
-// }
-
 func modMountSharedVolume(ro bool) modFunc {
 	montPath := "/mnt/shared"
 	return modComposite(
@@ -57,30 +46,6 @@ func modVolumeMount(volumeName, mountPoint string, ro bool) modFunc {
 		}
 	}
 }
-
-// FIXME: unused
-// func modFileProbes() modFunc {
-// 	const filename = "/tmp/probe.txt"
-// 	commands := []string{"/bin/ls", "-c", filename} // see internal-components->docker_tools
-// 	fileProbe := &v1.Probe{
-// 		ProbeHandler: v1.ProbeHandler{
-// 			Exec: &v1.ExecAction{Command: commands},
-// 		},
-// 		InitialDelaySeconds: 8,
-// 		TimeoutSeconds:      1,
-// 		PeriodSeconds:       3,
-// 		SuccessThreshold:    1,
-// 		FailureThreshold:    2,
-// 	}
-
-// 	return modComposite(
-// 		modEnvs(map[string]string{"PROBE_FILE": filename}),
-// 		func(pod *v1.Pod, container *v1.Container) {
-// 			container.ReadinessProbe = fileProbe.DeepCopy()
-// 			container.LivenessProbe = fileProbe.DeepCopy()
-// 		},
-// 	)
-// }
 
 func modHttpProbes(port int) modFunc {
 	const portName = "http-probe"
