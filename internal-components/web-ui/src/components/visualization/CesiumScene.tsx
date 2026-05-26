@@ -995,12 +995,13 @@ const CesiumScene = ({
     const UPDATE_INTERVAL_MS = 500;
 
     const BUCKETS = [
-      { minBps: 1_000_000_000, color: "#00ff66", width: 2 },
-      { minBps: 50_000_000,    color: "#22cc66", width: 1.75 },
-      { minBps: 5_000_000,     color: "#ffd84d", width: 1.5 },
-      { minBps: 500_000,       color: "#ff9933", width: 1.25 },
+      { minBps: 1_000_000_000, color: "#00ff66", width: 1.25 },
+      { minBps: 50_000_000,    color: "#22cc66", width: 1 },
+      { minBps: 5_000_000,     color: "#ffd84d", width: 1 },
+      { minBps: 500_000,       color: "#ff9933", width: 1 },
       { minBps: 0,             color: "#ff3355", width: 1 },
     ];
+    const LINE_ALPHA = 0.5;
 
     const bucketIndex = (bwBps: number): number => {
       for (let i = 0; i < BUCKETS.length; i++) if (bwBps >= BUCKETS[i].minBps) return i;
@@ -1039,7 +1040,7 @@ const CesiumScene = ({
           positions: new CallbackProperty(() => endpoints(endpointBuf) ?? [ZERO, ZERO], false),
           width,
           material: new PolylineDashMaterialProperty({
-            color: color.withAlpha(0.9),
+            color: color.withAlpha(LINE_ALPHA),
             gapColor: Color.TRANSPARENT,
             dashLength: 20,
             dashPattern: 255,
