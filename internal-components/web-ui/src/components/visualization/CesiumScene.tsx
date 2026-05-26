@@ -530,7 +530,9 @@ const CesiumScene = ({
     const isFiniteLatLon = (lat: number, lon: number, alt: number) =>
       Number.isFinite(lat) && Number.isFinite(lon) && Number.isFinite(alt);
 
-    // Add ground stations
+    // Add ground stations. Lift slightly above the ellipsoid so billboards do not
+    // z-fight with the globe surface when depthTestAgainstTerrain is enabled.
+    const GS_LIFT_M = 2000;
     if (showGroundStations) {
       groundStationsList.forEach((station) => {
         const stationPosition =
@@ -541,11 +543,11 @@ const CesiumScene = ({
                 const lat = t ? t.Lat : station.lat;
                 const altKm = t ? (t.Alt ?? 0) : 0;
                 if (!isFiniteLatLon(lat, lng, altKm)) {
-                  return Cartesian3.fromDegrees(station.lon, station.lat, 0, Ellipsoid.WGS84, result);
+                  return Cartesian3.fromDegrees(station.lon, station.lat, GS_LIFT_M, Ellipsoid.WGS84, result);
                 }
-                return Cartesian3.fromDegrees(lng, lat, altKm * 1000, Ellipsoid.WGS84, result);
+                return Cartesian3.fromDegrees(lng, lat, altKm * 1000 + GS_LIFT_M, Ellipsoid.WGS84, result);
               }, false)
-            : Cartesian3.fromDegrees(station.lon, station.lat, 0);
+            : Cartesian3.fromDegrees(station.lon, station.lat, GS_LIFT_M);
 
         viewer.entities.add({
           id: station.id,
@@ -555,7 +557,6 @@ const CesiumScene = ({
             image: createGroundStationIcon(36),
             width: 28,
             height: 28,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
           label: {
             text: station.name,
@@ -568,7 +569,6 @@ const CesiumScene = ({
             showBackground: true,
             backgroundColor: Color.BLACK.withAlpha(0.6),
             scale: 0.85,
-            disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
           description: `<div style="padding: 8px;"><h3>${station.name}</h3><p>ESA Ground Station</p><p>Lat: ${station.lat.toFixed(3)}°</p><p>Lon: ${station.lon.toFixed(3)}°</p></div>`,
         });
