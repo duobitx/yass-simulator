@@ -3,6 +3,7 @@ import type { MutableRefObject } from "react";
 import { X, Satellite, MapPin, Clock, Gauge, Radio, Link2, FileUp, FileDown, FileX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { SseAgentFileEvent } from "@/lib/sse-types";
+import { wallMsToExperimentMs, type ExperimentClockAnchor } from "@/hooks/useSatelliteSse";
 
 export interface SatelliteInfo {
   id: string;
@@ -28,10 +29,12 @@ function formatBytes(n?: number): string {
   return `${(n / 1024 / 1024 / 1024).toFixed(2)} GiB`;
 }
 
-function formatTime(ts: string): string {
+function formatExperimentTime(ts: string, expClock: ExperimentClockAnchor | null): string {
   try {
-    const d = new Date(ts);
-    return d.toLocaleTimeString();
+    const wallMs = Date.parse(ts);
+    if (Number.isNaN(wallMs)) return ts;
+    const expMs = wallMsToExperimentMs(wallMs, expClock);
+    return new Date(expMs).toISOString().replace("T", " ").slice(0, 19) + " (exp)";
   } catch {
     return ts;
   }
@@ -42,9 +45,10 @@ interface SatelliteInfoPopupProps {
   onClose: () => void;
   position?: { x: number; y: number };
   eventsRef?: MutableRefObject<Record<string, SseAgentFileEvent[]>>;
+  expClockRef?: MutableRefObject<ExperimentClockAnchor | null>;
 }
 
-const SatelliteInfoPopup = ({ satellite, onClose, position, eventsRef }: SatelliteInfoPopupProps) => {
+const SatelliteInfoPopup = ({ satellite, onClose, position, eventsRef, expClockRef }: SatelliteInfoPopupProps) => {
   if (!satellite) return null;
 
   const getOrbitalPeriod = (altitude: number) => {
@@ -160,7 +164,7 @@ const SatelliteInfoPopup = ({ satellite, onClose, position, eventsRef }: Satelli
           </div>
         )}
 
-        <AgentEventsList fsNodeId={satellite.id} fallback={satellite.agentEvents} eventsRef={eventsRef} />
+        <AgentEventsList fsNodeId={satellite.id} fallback={satellite.agentEvents} eventsRef={eventsRef} expClockRef={expClockRef} />
       </div>
     </div>
   );
@@ -170,11 +174,12 @@ interface AgentEventsListProps {
   fsNodeId: string;
   fallback?: SseAgentFileEvent[];
   eventsRef?: MutableRefObject<Record<string, SseAgentFileEvent[]>>;
+  expClockRef?: MutableRefObject<ExperimentClockAnchor | null>;
 }
 
 const POLL_MS = 1000;
 
-export const AgentEventsList = ({ fsNodeId, fallback, eventsRef }: AgentEventsListProps) => {
+export const AgentEventsList = ({ fsNodeId, fallback, eventsRef, expClockRef }: AgentEventsListProps) => {
   const [events, setEvents] = useState<SseAgentFileEvent[]>(
     () => eventsRef?.current[fsNodeId] ?? fallback ?? []
   );
@@ -217,7 +222,7 @@ export const AgentEventsList = ({ fsNodeId, fallback, eventsRef }: AgentEventsLi
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className={`font-mono font-medium ${color}`}>{e.action}</span>
-                  <span className="text-muted-foreground">{formatTime(e.timestamp)}</span>
+                  <span className="text-muted-foreground">{formatExperimentTime(e.timestamp, expClockRef?.current ?? null)}</span>
                   {e.contentSizeBytes ? (
                     <span className="ml-auto font-mono text-muted-foreground">{formatBytes(e.contentSizeBytes)}</span>
                   ) : null}

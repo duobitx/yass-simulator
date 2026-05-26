@@ -20,10 +20,24 @@ function parseSsePayloadLine(line: string): unknown {
 
 export type SseConnectionStatus = "idle" | "connecting" | "live" | "error" | "closed";
 
+// Anchor pairing experiment time with wall time. Wall→experiment conversion
+// elsewhere uses: expMs(wall) = wallMs - wallAnchorMs + expAnchorMs (assuming
+// the experiment clock runs at ~1× wall rate, which matches the simulator).
+export interface ExperimentClockAnchor {
+  expAnchorMs: number;
+  wallAnchorMs: number;
+}
+
+export function wallMsToExperimentMs(wallMs: number, anchor: ExperimentClockAnchor | null): number {
+  if (!anchor) return wallMs;
+  return wallMs - anchor.wallAnchorMs + anchor.expAnchorMs;
+}
+
 export function useSatelliteSse(url: string, enabled: boolean) {
   const tracksRef = useRef<Record<string, SsePositionEvent>>({});
   const usageRef = useRef<Record<string, SseNetworkUsageEvent>>({});
   const eventsRef = useRef<Record<string, SseAgentFileEvent[]>>({});
+  const expClockRef = useRef<ExperimentClockAnchor | null>(null);
   const [tracks, setTracks] = useState<Record<string, SsePositionEvent>>({});
   const [sourceSignature, setSourceSignature] = useState("");
   const [status, setStatus] = useState<SseConnectionStatus>("idle");
@@ -37,6 +51,7 @@ export function useSatelliteSse(url: string, enabled: boolean) {
       tracksRef.current = {};
       usageRef.current = {};
       eventsRef.current = {};
+      expClockRef.current = null;
       sigRef.current = "";
       setTracks({});
       setSourceSignature("");
@@ -61,6 +76,7 @@ export function useSatelliteSse(url: string, enabled: boolean) {
       tracksRef.current = {};
       usageRef.current = {};
       eventsRef.current = {};
+      expClockRef.current = null;
       sigRef.current = "";
       setSourceSignature("");
       setTracks({});
@@ -90,6 +106,14 @@ export function useSatelliteSse(url: string, enabled: boolean) {
             if (ev.eventType === "PositionEvent") {
               const full = row as SsePositionEvent;
               tracksRef.current = { ...tracksRef.current, [full.source]: full };
+              // PositionEvent timestamps are stamped with the experiment clock
+              // by experiment-executor; pair the latest with wall time so we
+              // can convert wall-stamped events (agent crud-events) into
+              // experiment time later.
+              const expMs = Date.parse(full.timestamp);
+              if (!Number.isNaN(expMs)) {
+                expClockRef.current = { expAnchorMs: expMs, wallAnchorMs: Date.now() };
+              }
               const sig = Object.keys(tracksRef.current).sort().join(",");
               if (sig !== sigRef.current) {
                 sigRef.current = sig;
@@ -132,5 +156,5 @@ export function useSatelliteSse(url: string, enabled: boolean) {
     };
   }, [url, enabled]);
 
-  return { tracks, tracksRef, usageRef, eventsRef, sourceSignature, status };
+  return { tracks, tracksRef, usageRef, eventsRef, expClockRef, sourceSignature, status };
 }

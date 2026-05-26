@@ -2,6 +2,7 @@ import { X, Radio, MapPin, Satellite } from "lucide-react";
 import type { MutableRefObject } from "react";
 import { Button } from "@/components/ui/button";
 import type { SseAgentFileEvent } from "@/lib/sse-types";
+import type { ExperimentClockAnchor } from "@/hooks/useSatelliteSse";
 import { AgentEventsList } from "./SatelliteInfoPopup";
 
 export interface GroundStationInfo {
@@ -17,9 +18,10 @@ interface GroundStationInfoPopupProps {
   station: GroundStationInfo | null;
   onClose: () => void;
   eventsRef?: MutableRefObject<Record<string, SseAgentFileEvent[]>>;
+  expClockRef?: MutableRefObject<ExperimentClockAnchor | null>;
 }
 
-const GroundStationInfoPopup = ({ station, onClose, eventsRef }: GroundStationInfoPopupProps) => {
+const GroundStationInfoPopup = ({ station, onClose, eventsRef, expClockRef }: GroundStationInfoPopupProps) => {
   if (!station) return null;
 
   return (
@@ -71,7 +73,7 @@ const GroundStationInfoPopup = ({ station, onClose, eventsRef }: GroundStationIn
           </div>
         )}
 
-        <AgentEventsList fsNodeId={station.id} fallback={station.agentEvents} eventsRef={eventsRef} />
+        <AgentEventsList fsNodeId={station.id} fallback={station.agentEvents} eventsRef={eventsRef} expClockRef={expClockRef} />
       </div>
     </div>
   );

@@ -15,12 +15,34 @@ import SatelliteInfoPopup, { SatelliteInfo } from "@/components/visualization/Sa
 import GroundStationInfoPopup, { GroundStationInfo } from "@/components/visualization/GroundStationInfoPopup";
 import SatelliteSearch, { type SatelliteSearchItem } from "@/components/visualization/SatelliteSearch";
 import esaLogo from "@/assets/esa-logo.svg";
-import { useSatelliteSse } from "@/hooks/useSatelliteSse";
+import { useSatelliteSse, wallMsToExperimentMs, type ExperimentClockAnchor } from "@/hooks/useSatelliteSse";
 import { sseEventsUrl } from "@/lib/sse-types";
 import { listsFromSseTracks } from "@/lib/sse-track-utils";
 import { approxGeodeticLatFromCircularOrbit } from "@/lib/orbit-layers";
 
 const ALL_LAYERS_VISIBLE: Record<string, boolean> = {};
+
+import type { MutableRefObject } from "react";
+
+const ExperimentTimeBox = ({ expClockRef }: { expClockRef: MutableRefObject<ExperimentClockAnchor | null> }) => {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const anchor = expClockRef.current;
+  const expStr = anchor
+    ? new Date(wallMsToExperimentMs(now, anchor)).toISOString().replace("T", " ").slice(0, 19) + " UTC"
+    : "—";
+  return (
+    <div className="space-y-2">
+      <h3 className="text-sm font-semibold">Experiment Time</h3>
+      <div className="p-3 rounded-lg bg-secondary/50 font-mono text-xs">
+        {expStr}
+      </div>
+    </div>
+  );
+};
 
 function useExperimentName(): string | null {
   const [name, setName] = useState<string | null>(null);
@@ -245,6 +267,8 @@ const Visualization = () => {
           </div>
 
           <div className="mt-auto space-y-4">
+            <ExperimentTimeBox expClockRef={sse.expClockRef} />
+
             {/* Keyboard Shortcuts */}
             <div className="space-y-2">
               <h3 className="text-sm font-semibold">Keyboard Shortcuts</h3>
@@ -292,12 +316,12 @@ const Visualization = () => {
           {/* Info popups */}
           {selectedSatellite && (
             <div className="absolute top-4 right-4 z-10">
-              <SatelliteInfoPopup satellite={selectedSatellite} onClose={handleClosePopup} eventsRef={sse.eventsRef} />
+              <SatelliteInfoPopup satellite={selectedSatellite} onClose={handleClosePopup} eventsRef={sse.eventsRef} expClockRef={sse.expClockRef} />
             </div>
           )}
           {selectedStation && (
             <div className="absolute top-4 right-4 z-10">
-              <GroundStationInfoPopup station={selectedStation} onClose={handleClosePopup} eventsRef={sse.eventsRef} />
+              <GroundStationInfoPopup station={selectedStation} onClose={handleClosePopup} eventsRef={sse.eventsRef} expClockRef={sse.expClockRef} />
             </div>
           )}
 
