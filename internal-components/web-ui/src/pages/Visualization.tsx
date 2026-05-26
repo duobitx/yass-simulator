@@ -60,7 +60,7 @@ const Visualization = () => {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [showGroundStations, setShowGroundStations] = useState(true);
-  const [showOrbits, setShowOrbits] = useState(true);
+  const [showOrbits, setShowOrbits] = useState(false);
   const [showVisibilityLines, setShowVisibilityLines] = useState(true);
   const [showPackets, setShowPackets] = useState(false);
   const [selectedSatellite, setSelectedSatellite] = useState<SatelliteInfo | null>(null);
