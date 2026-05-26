@@ -18,3 +18,14 @@ message TrafficStats {
 message TrafficStatsList {
   repeated TrafficStats stats = 1;
 }
+
+// Interface-wide cumulative counters (everything that crossed the FsNode pod's
+// default network interface since its creation, regardless of port/peer). Read
+// from /sys/class/net/<iface>/statistics/{rx_bytes,tx_bytes,rx_packets,tx_packets}.
+message InterfaceStats {
+  string iface = 1;
+  uint64 total_bytes_sent = 2;
+  uint64 total_bytes_received = 3;
+  uint64 total_packets_sent = 4;
+  uint64 total_packets_received = 5;
+}

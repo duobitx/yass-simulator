@@ -239,6 +239,26 @@ func main() {
 		}
 	})
 
+	internal.BackgroundPeriodicTask(ctx, 1*time.Second, func() {
+		ifaceStats, err := networkingHandler.GetInterfaceTotals()
+		if err != nil {
+			slog.Error("cannot get interface totals", "error", err)
+			return
+		}
+		if ifaceStats == nil {
+			return
+		}
+		buff, err := json.Marshal(ifaceStats)
+		if err != nil {
+			slog.Error("cannot marshal interface totals", "error", err)
+			return
+		}
+		topic := fmt.Sprintf("interface-stats/%s", app.fsNodeObjKey.Name)
+		if err := facade.Publish(ctx, topic, 0, false, buff); err != nil {
+			slog.Error("cannot publish to topic", "error", err, "topic", topic)
+		}
+	})
+
 	internal.BackgroundPeriodicTask(ctx, 10*time.Second, func() {
 		networkStats, err := networkingHandler.GetTrafficStats()
 		if err != nil {

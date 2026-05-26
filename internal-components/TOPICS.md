@@ -13,6 +13,7 @@ binary proto wire format.
 | `updates/_time_` | experiment-executor | — (events-webapp explicitly filters out `*_`) | `proto.TimeUpdate` (JSON) | 0 | true |
 | `experiment/end-request` | experiment-executor (init publish), agents | experiment-executor | `proto.AgentExperimentEndRequest` (JSON) or empty | 0 | true |
 | `total-network-stats/<fsNode>` | world-controller | events-webapp | `[]proto.TrafficStats` (JSON) | 0 | false |
+| `interface-stats/<fsNode>` | world-controller (1 Hz) | — | `proto.InterfaceStats` (JSON) — cumulative tx/rx bytes+packets on the FsNode pod's default interface since pod start, regardless of port/peer. | 0 | false |
 | `energy/<fsNode>` ⚠️ **deprecated** | world-controller | — | JSON of internal `NodeHwState` (battery, in-shadow, etc.) | 0 | false |
 | `<fsNode>/resources` | world-controller (1 Hz) | events-webapp | `proto.FsNodeResources` (JSON) — power mode, per-volume disk usage, per-engine-container CPU/RAM | 0 | false |
 | `crud-events` | fs-engines via `fs_engine_wrapper`'s `facadeNotifier` | — (retained for later retrieval) | `notifier.NotifyEvent` (JSON) — file `PUT` / `DELETE` / `RECEIVED` with size, md5, attributes | 0 | true |

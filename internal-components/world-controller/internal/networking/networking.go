@@ -8,6 +8,10 @@ import (
 	"log/slog"
 	"math"
 	"net"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 
 	proto "github.com/duobitx/yass-simulator/internal-components/go-common/proto/go"
@@ -507,6 +511,42 @@ func (h *Handler) getIngressStats(ip string) (uint64, uint64) {
 	}
 
 	return totalBytes, totalPackets
+}
+
+// GetInterfaceTotals reads cumulative counters of the FsNode pod's default
+// network interface (everything that crossed it since pod start, regardless
+// of port range or peer). Source: /sys/class/net/<iface>/statistics/*.
+func (h *Handler) GetInterfaceTotals() (*proto.InterfaceStats, error) {
+	if h.disabled {
+		return nil, nil
+	}
+	iface := h.defEthLink.Attrs().Name
+	read := func(name string) (uint64, error) {
+		b, err := os.ReadFile(filepath.Join("/sys/class/net", iface, "statistics", name))
+		if err != nil {
+			return 0, err
+		}
+		return strconv.ParseUint(strings.TrimSpace(string(b)), 10, 64)
+	}
+	jeh := goutils.JoinErrorHelper{}
+	tx, err := read("tx_bytes")
+	jeh.Append(err)
+	rx, err := read("rx_bytes")
+	jeh.Append(err)
+	txp, err := read("tx_packets")
+	jeh.Append(err)
+	rxp, err := read("rx_packets")
+	jeh.Append(err)
+	if err := jeh.AsError(); err != nil {
+		return nil, errors.Wrapf(err, "reading /sys/class/net/%s/statistics", iface)
+	}
+	return &proto.InterfaceStats{
+		Iface:                iface,
+		TotalBytesSent:       tx,
+		TotalBytesReceived:   rx,
+		TotalPacketsSent:     txp,
+		TotalPacketsReceived: rxp,
+	}, nil
 }
 
 func (h *Handler) setupIngressQdisc() error {
