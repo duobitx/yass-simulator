@@ -39,6 +39,12 @@ import (
 
 const (
 	experimentKind = "Experiment"
+
+	// MaxFsNodes is the maximum total FsNode count an Experiment Layout may
+	// reference. Must stay in sync with the MAXSAT compile-time constant in
+	// internal-components/geo-calculator/V6/geo_calc.cc — exceeding it makes
+	// geo_calc exit immediately and the experiment cannot run.
+	MaxFsNodes = 200
 )
 
 // Reconciler reconciles an Experiment object
@@ -176,6 +182,16 @@ func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx c
 	} else {
 		err := r.Get(ctx, types.NamespacedName{Name: experiment.Spec.LayoutDefRef}, &layoutDef)
 		r.updateStatusConditionForExperimentObject(recon, experiment, "layout", "Layout", &layoutDef, err)
+	}
+
+	if n := len(layoutDef.Spec); n > MaxFsNodes {
+		msg := fmt.Sprintf("layout %s references %d FsNodes; maximum supported is %d (geo-calculator MAXSAT). Reduce the layout to start the experiment.", experiment.Spec.LayoutDefRef, n, MaxFsNodes)
+		r.updateStatusConditionForExperimentObject(recon, experiment, "layout-size", "LayoutSize", &layoutDef, errors.New(msg))
+		if experiment.Status.ExperimentState != yassv1.ExperimentStateErrored {
+			r.updateExperimentState(recon, experiment, yassv1.ExperimentStateErrored)
+			r.recorder.Eventf(experiment, v1.EventTypeWarning, "LayoutTooLarge", msg)
+		}
+		return nil
 	}
 
 	componentDefinitions := []struct {
