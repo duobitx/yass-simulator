@@ -46,6 +46,9 @@ struct TableStruct_traffic_5fstats_2eproto {
 extern const ::PROTOBUF_NAMESPACE_ID::internal::DescriptorTable descriptor_table_traffic_5fstats_2eproto;
 namespace yass {
 namespace fs {
+class InterfaceStats;
+struct InterfaceStatsDefaultTypeInternal;
+extern InterfaceStatsDefaultTypeInternal _InterfaceStats_default_instance_;
 class TrafficStats;
 struct TrafficStatsDefaultTypeInternal;
 extern TrafficStatsDefaultTypeInternal _TrafficStats_default_instance_;
@@ -55,6 +58,7 @@ extern TrafficStatsListDefaultTypeInternal _TrafficStatsList_default_instance_;
 }  // namespace fs
 }  // namespace yass
 PROTOBUF_NAMESPACE_OPEN
+template<> ::yass::fs::InterfaceStats* Arena::CreateMaybeMessage<::yass::fs::InterfaceStats>(Arena*);
 template<> ::yass::fs::TrafficStats* Arena::CreateMaybeMessage<::yass::fs::TrafficStats>(Arena*);
 template<> ::yass::fs::TrafficStatsList* Arena::CreateMaybeMessage<::yass::fs::TrafficStatsList>(Arena*);
 PROTOBUF_NAMESPACE_CLOSE
@@ -185,6 +189,7 @@ class TrafficStats final :
 
   enum : int {
     kIpFieldNumber = 1,
+    kPeerFsNodeFieldNumber = 6,
     kTotalBytesSentFieldNumber = 2,
     kTotalBytesReceivedFieldNumber = 3,
     kTotalPacketsSentFieldNumber = 4,
@@ -202,6 +207,20 @@ class TrafficStats final :
   const std::string& _internal_ip() const;
   inline PROTOBUF_ALWAYS_INLINE void _internal_set_ip(const std::string& value);
   std::string* _internal_mutable_ip();
+  public:
+
+  // string peer_fs_node = 6;
+  void clear_peer_fs_node();
+  const std::string& peer_fs_node() const;
+  template <typename ArgT0 = const std::string&, typename... ArgT>
+  void set_peer_fs_node(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_peer_fs_node();
+  PROTOBUF_NODISCARD std::string* release_peer_fs_node();
+  void set_allocated_peer_fs_node(std::string* peer_fs_node);
+  private:
+  const std::string& _internal_peer_fs_node() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_peer_fs_node(const std::string& value);
+  std::string* _internal_mutable_peer_fs_node();
   public:
 
   // uint64 total_bytes_sent = 2;
@@ -249,6 +268,7 @@ class TrafficStats final :
   typedef void DestructorSkippable_;
   struct Impl_ {
     ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr ip_;
+    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr peer_fs_node_;
     uint64_t total_bytes_sent_;
     uint64_t total_bytes_received_;
     uint64_t total_packets_sent_;
@@ -415,6 +435,203 @@ class TrafficStatsList final :
   union { Impl_ _impl_; };
   friend struct ::TableStruct_traffic_5fstats_2eproto;
 };
+// -------------------------------------------------------------------
+
+class InterfaceStats final :
+    public ::PROTOBUF_NAMESPACE_ID::Message /* @@protoc_insertion_point(class_definition:yass.fs.InterfaceStats) */ {
+ public:
+  inline InterfaceStats() : InterfaceStats(nullptr) {}
+  ~InterfaceStats() override;
+  explicit PROTOBUF_CONSTEXPR InterfaceStats(::PROTOBUF_NAMESPACE_ID::internal::ConstantInitialized);
+
+  InterfaceStats(const InterfaceStats& from);
+  InterfaceStats(InterfaceStats&& from) noexcept
+    : InterfaceStats() {
+    *this = ::std::move(from);
+  }
+
+  inline InterfaceStats& operator=(const InterfaceStats& from) {
+    CopyFrom(from);
+    return *this;
+  }
+  inline InterfaceStats& operator=(InterfaceStats&& from) noexcept {
+    if (this == &from) return *this;
+    if (GetOwningArena() == from.GetOwningArena()
+  #ifdef PROTOBUF_FORCE_COPY_IN_MOVE
+        && GetOwningArena() != nullptr
+  #endif  // !PROTOBUF_FORCE_COPY_IN_MOVE
+    ) {
+      InternalSwap(&from);
+    } else {
+      CopyFrom(from);
+    }
+    return *this;
+  }
+
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* descriptor() {
+    return GetDescriptor();
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Descriptor* GetDescriptor() {
+    return default_instance().GetMetadata().descriptor;
+  }
+  static const ::PROTOBUF_NAMESPACE_ID::Reflection* GetReflection() {
+    return default_instance().GetMetadata().reflection;
+  }
+  static const InterfaceStats& default_instance() {
+    return *internal_default_instance();
+  }
+  static inline const InterfaceStats* internal_default_instance() {
+    return reinterpret_cast<const InterfaceStats*>(
+               &_InterfaceStats_default_instance_);
+  }
+  static constexpr int kIndexInFileMessages =
+    2;
+
+  friend void swap(InterfaceStats& a, InterfaceStats& b) {
+    a.Swap(&b);
+  }
+  inline void Swap(InterfaceStats* other) {
+    if (other == this) return;
+  #ifdef PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() != nullptr &&
+        GetOwningArena() == other->GetOwningArena()) {
+   #else  // PROTOBUF_FORCE_COPY_IN_SWAP
+    if (GetOwningArena() == other->GetOwningArena()) {
+  #endif  // !PROTOBUF_FORCE_COPY_IN_SWAP
+      InternalSwap(other);
+    } else {
+      ::PROTOBUF_NAMESPACE_ID::internal::GenericSwap(this, other);
+    }
+  }
+  void UnsafeArenaSwap(InterfaceStats* other) {
+    if (other == this) return;
+    GOOGLE_DCHECK(GetOwningArena() == other->GetOwningArena());
+    InternalSwap(other);
+  }
+
+  // implements Message ----------------------------------------------
+
+  InterfaceStats* New(::PROTOBUF_NAMESPACE_ID::Arena* arena = nullptr) const final {
+    return CreateMaybeMessage<InterfaceStats>(arena);
+  }
+  using ::PROTOBUF_NAMESPACE_ID::Message::CopyFrom;
+  void CopyFrom(const InterfaceStats& from);
+  using ::PROTOBUF_NAMESPACE_ID::Message::MergeFrom;
+  void MergeFrom( const InterfaceStats& from) {
+    InterfaceStats::MergeImpl(*this, from);
+  }
+  private:
+  static void MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg);
+  public:
+  PROTOBUF_ATTRIBUTE_REINITIALIZES void Clear() final;
+  bool IsInitialized() const final;
+
+  size_t ByteSizeLong() const final;
+  const char* _InternalParse(const char* ptr, ::PROTOBUF_NAMESPACE_ID::internal::ParseContext* ctx) final;
+  uint8_t* _InternalSerialize(
+      uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const final;
+  int GetCachedSize() const final { return _impl_._cached_size_.Get(); }
+
+  private:
+  void SharedCtor(::PROTOBUF_NAMESPACE_ID::Arena* arena, bool is_message_owned);
+  void SharedDtor();
+  void SetCachedSize(int size) const final;
+  void InternalSwap(InterfaceStats* other);
+
+  private:
+  friend class ::PROTOBUF_NAMESPACE_ID::internal::AnyMetadata;
+  static ::PROTOBUF_NAMESPACE_ID::StringPiece FullMessageName() {
+    return "yass.fs.InterfaceStats";
+  }
+  protected:
+  explicit InterfaceStats(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                       bool is_message_owned = false);
+  public:
+
+  static const ClassData _class_data_;
+  const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*GetClassData() const final;
+
+  ::PROTOBUF_NAMESPACE_ID::Metadata GetMetadata() const final;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  enum : int {
+    kIfaceFieldNumber = 1,
+    kTotalBytesSentFieldNumber = 2,
+    kTotalBytesReceivedFieldNumber = 3,
+    kTotalPacketsSentFieldNumber = 4,
+    kTotalPacketsReceivedFieldNumber = 5,
+  };
+  // string iface = 1;
+  void clear_iface();
+  const std::string& iface() const;
+  template <typename ArgT0 = const std::string&, typename... ArgT>
+  void set_iface(ArgT0&& arg0, ArgT... args);
+  std::string* mutable_iface();
+  PROTOBUF_NODISCARD std::string* release_iface();
+  void set_allocated_iface(std::string* iface);
+  private:
+  const std::string& _internal_iface() const;
+  inline PROTOBUF_ALWAYS_INLINE void _internal_set_iface(const std::string& value);
+  std::string* _internal_mutable_iface();
+  public:
+
+  // uint64 total_bytes_sent = 2;
+  void clear_total_bytes_sent();
+  uint64_t total_bytes_sent() const;
+  void set_total_bytes_sent(uint64_t value);
+  private:
+  uint64_t _internal_total_bytes_sent() const;
+  void _internal_set_total_bytes_sent(uint64_t value);
+  public:
+
+  // uint64 total_bytes_received = 3;
+  void clear_total_bytes_received();
+  uint64_t total_bytes_received() const;
+  void set_total_bytes_received(uint64_t value);
+  private:
+  uint64_t _internal_total_bytes_received() const;
+  void _internal_set_total_bytes_received(uint64_t value);
+  public:
+
+  // uint64 total_packets_sent = 4;
+  void clear_total_packets_sent();
+  uint64_t total_packets_sent() const;
+  void set_total_packets_sent(uint64_t value);
+  private:
+  uint64_t _internal_total_packets_sent() const;
+  void _internal_set_total_packets_sent(uint64_t value);
+  public:
+
+  // uint64 total_packets_received = 5;
+  void clear_total_packets_received();
+  uint64_t total_packets_received() const;
+  void set_total_packets_received(uint64_t value);
+  private:
+  uint64_t _internal_total_packets_received() const;
+  void _internal_set_total_packets_received(uint64_t value);
+  public:
+
+  // @@protoc_insertion_point(class_scope:yass.fs.InterfaceStats)
+ private:
+  class _Internal;
+
+  template <typename T> friend class ::PROTOBUF_NAMESPACE_ID::Arena::InternalHelper;
+  typedef void InternalArenaConstructable_;
+  typedef void DestructorSkippable_;
+  struct Impl_ {
+    ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr iface_;
+    uint64_t total_bytes_sent_;
+    uint64_t total_bytes_received_;
+    uint64_t total_packets_sent_;
+    uint64_t total_packets_received_;
+    mutable ::PROTOBUF_NAMESPACE_ID::internal::CachedSize _cached_size_;
+  };
+  union { Impl_ _impl_; };
+  friend struct ::TableStruct_traffic_5fstats_2eproto;
+};
 // ===================================================================
 
 
@@ -556,6 +773,56 @@ inline void TrafficStats::set_total_packets_received(uint64_t value) {
   // @@protoc_insertion_point(field_set:yass.fs.TrafficStats.total_packets_received)
 }
 
+// string peer_fs_node = 6;
+inline void TrafficStats::clear_peer_fs_node() {
+  _impl_.peer_fs_node_.ClearToEmpty();
+}
+inline const std::string& TrafficStats::peer_fs_node() const {
+  // @@protoc_insertion_point(field_get:yass.fs.TrafficStats.peer_fs_node)
+  return _internal_peer_fs_node();
+}
+template <typename ArgT0, typename... ArgT>
+inline PROTOBUF_ALWAYS_INLINE
+void TrafficStats::set_peer_fs_node(ArgT0&& arg0, ArgT... args) {
+ 
+ _impl_.peer_fs_node_.Set(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:yass.fs.TrafficStats.peer_fs_node)
+}
+inline std::string* TrafficStats::mutable_peer_fs_node() {
+  std::string* _s = _internal_mutable_peer_fs_node();
+  // @@protoc_insertion_point(field_mutable:yass.fs.TrafficStats.peer_fs_node)
+  return _s;
+}
+inline const std::string& TrafficStats::_internal_peer_fs_node() const {
+  return _impl_.peer_fs_node_.Get();
+}
+inline void TrafficStats::_internal_set_peer_fs_node(const std::string& value) {
+  
+  _impl_.peer_fs_node_.Set(value, GetArenaForAllocation());
+}
+inline std::string* TrafficStats::_internal_mutable_peer_fs_node() {
+  
+  return _impl_.peer_fs_node_.Mutable(GetArenaForAllocation());
+}
+inline std::string* TrafficStats::release_peer_fs_node() {
+  // @@protoc_insertion_point(field_release:yass.fs.TrafficStats.peer_fs_node)
+  return _impl_.peer_fs_node_.Release();
+}
+inline void TrafficStats::set_allocated_peer_fs_node(std::string* peer_fs_node) {
+  if (peer_fs_node != nullptr) {
+    
+  } else {
+    
+  }
+  _impl_.peer_fs_node_.SetAllocated(peer_fs_node, GetArenaForAllocation());
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (_impl_.peer_fs_node_.IsDefault()) {
+    _impl_.peer_fs_node_.Set("", GetArenaForAllocation());
+  }
+#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:yass.fs.TrafficStats.peer_fs_node)
+}
+
 // -------------------------------------------------------------------
 
 // TrafficStatsList
@@ -600,9 +867,145 @@ TrafficStatsList::stats() const {
   return _impl_.stats_;
 }
 
+// -------------------------------------------------------------------
+
+// InterfaceStats
+
+// string iface = 1;
+inline void InterfaceStats::clear_iface() {
+  _impl_.iface_.ClearToEmpty();
+}
+inline const std::string& InterfaceStats::iface() const {
+  // @@protoc_insertion_point(field_get:yass.fs.InterfaceStats.iface)
+  return _internal_iface();
+}
+template <typename ArgT0, typename... ArgT>
+inline PROTOBUF_ALWAYS_INLINE
+void InterfaceStats::set_iface(ArgT0&& arg0, ArgT... args) {
+ 
+ _impl_.iface_.Set(static_cast<ArgT0 &&>(arg0), args..., GetArenaForAllocation());
+  // @@protoc_insertion_point(field_set:yass.fs.InterfaceStats.iface)
+}
+inline std::string* InterfaceStats::mutable_iface() {
+  std::string* _s = _internal_mutable_iface();
+  // @@protoc_insertion_point(field_mutable:yass.fs.InterfaceStats.iface)
+  return _s;
+}
+inline const std::string& InterfaceStats::_internal_iface() const {
+  return _impl_.iface_.Get();
+}
+inline void InterfaceStats::_internal_set_iface(const std::string& value) {
+  
+  _impl_.iface_.Set(value, GetArenaForAllocation());
+}
+inline std::string* InterfaceStats::_internal_mutable_iface() {
+  
+  return _impl_.iface_.Mutable(GetArenaForAllocation());
+}
+inline std::string* InterfaceStats::release_iface() {
+  // @@protoc_insertion_point(field_release:yass.fs.InterfaceStats.iface)
+  return _impl_.iface_.Release();
+}
+inline void InterfaceStats::set_allocated_iface(std::string* iface) {
+  if (iface != nullptr) {
+    
+  } else {
+    
+  }
+  _impl_.iface_.SetAllocated(iface, GetArenaForAllocation());
+#ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (_impl_.iface_.IsDefault()) {
+    _impl_.iface_.Set("", GetArenaForAllocation());
+  }
+#endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  // @@protoc_insertion_point(field_set_allocated:yass.fs.InterfaceStats.iface)
+}
+
+// uint64 total_bytes_sent = 2;
+inline void InterfaceStats::clear_total_bytes_sent() {
+  _impl_.total_bytes_sent_ = uint64_t{0u};
+}
+inline uint64_t InterfaceStats::_internal_total_bytes_sent() const {
+  return _impl_.total_bytes_sent_;
+}
+inline uint64_t InterfaceStats::total_bytes_sent() const {
+  // @@protoc_insertion_point(field_get:yass.fs.InterfaceStats.total_bytes_sent)
+  return _internal_total_bytes_sent();
+}
+inline void InterfaceStats::_internal_set_total_bytes_sent(uint64_t value) {
+  
+  _impl_.total_bytes_sent_ = value;
+}
+inline void InterfaceStats::set_total_bytes_sent(uint64_t value) {
+  _internal_set_total_bytes_sent(value);
+  // @@protoc_insertion_point(field_set:yass.fs.InterfaceStats.total_bytes_sent)
+}
+
+// uint64 total_bytes_received = 3;
+inline void InterfaceStats::clear_total_bytes_received() {
+  _impl_.total_bytes_received_ = uint64_t{0u};
+}
+inline uint64_t InterfaceStats::_internal_total_bytes_received() const {
+  return _impl_.total_bytes_received_;
+}
+inline uint64_t InterfaceStats::total_bytes_received() const {
+  // @@protoc_insertion_point(field_get:yass.fs.InterfaceStats.total_bytes_received)
+  return _internal_total_bytes_received();
+}
+inline void InterfaceStats::_internal_set_total_bytes_received(uint64_t value) {
+  
+  _impl_.total_bytes_received_ = value;
+}
+inline void InterfaceStats::set_total_bytes_received(uint64_t value) {
+  _internal_set_total_bytes_received(value);
+  // @@protoc_insertion_point(field_set:yass.fs.InterfaceStats.total_bytes_received)
+}
+
+// uint64 total_packets_sent = 4;
+inline void InterfaceStats::clear_total_packets_sent() {
+  _impl_.total_packets_sent_ = uint64_t{0u};
+}
+inline uint64_t InterfaceStats::_internal_total_packets_sent() const {
+  return _impl_.total_packets_sent_;
+}
+inline uint64_t InterfaceStats::total_packets_sent() const {
+  // @@protoc_insertion_point(field_get:yass.fs.InterfaceStats.total_packets_sent)
+  return _internal_total_packets_sent();
+}
+inline void InterfaceStats::_internal_set_total_packets_sent(uint64_t value) {
+  
+  _impl_.total_packets_sent_ = value;
+}
+inline void InterfaceStats::set_total_packets_sent(uint64_t value) {
+  _internal_set_total_packets_sent(value);
+  // @@protoc_insertion_point(field_set:yass.fs.InterfaceStats.total_packets_sent)
+}
+
+// uint64 total_packets_received = 5;
+inline void InterfaceStats::clear_total_packets_received() {
+  _impl_.total_packets_received_ = uint64_t{0u};
+}
+inline uint64_t InterfaceStats::_internal_total_packets_received() const {
+  return _impl_.total_packets_received_;
+}
+inline uint64_t InterfaceStats::total_packets_received() const {
+  // @@protoc_insertion_point(field_get:yass.fs.InterfaceStats.total_packets_received)
+  return _internal_total_packets_received();
+}
+inline void InterfaceStats::_internal_set_total_packets_received(uint64_t value) {
+  
+  _impl_.total_packets_received_ = value;
+}
+inline void InterfaceStats::set_total_packets_received(uint64_t value) {
+  _internal_set_total_packets_received(value);
+  // @@protoc_insertion_point(field_set:yass.fs.InterfaceStats.total_packets_received)
+}
+
 #ifdef __GNUC__
   #pragma GCC diagnostic pop
 #endif  // __GNUC__
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 

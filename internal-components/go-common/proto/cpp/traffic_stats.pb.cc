@@ -25,6 +25,7 @@ namespace fs {
 PROTOBUF_CONSTEXPR TrafficStats::TrafficStats(
     ::_pbi::ConstantInitialized): _impl_{
     /*decltype(_impl_.ip_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
+  , /*decltype(_impl_.peer_fs_node_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
   , /*decltype(_impl_.total_bytes_sent_)*/uint64_t{0u}
   , /*decltype(_impl_.total_bytes_received_)*/uint64_t{0u}
   , /*decltype(_impl_.total_packets_sent_)*/uint64_t{0u}
@@ -52,9 +53,26 @@ struct TrafficStatsListDefaultTypeInternal {
   };
 };
 PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 TrafficStatsListDefaultTypeInternal _TrafficStatsList_default_instance_;
+PROTOBUF_CONSTEXPR InterfaceStats::InterfaceStats(
+    ::_pbi::ConstantInitialized): _impl_{
+    /*decltype(_impl_.iface_)*/{&::_pbi::fixed_address_empty_string, ::_pbi::ConstantInitialized{}}
+  , /*decltype(_impl_.total_bytes_sent_)*/uint64_t{0u}
+  , /*decltype(_impl_.total_bytes_received_)*/uint64_t{0u}
+  , /*decltype(_impl_.total_packets_sent_)*/uint64_t{0u}
+  , /*decltype(_impl_.total_packets_received_)*/uint64_t{0u}
+  , /*decltype(_impl_._cached_size_)*/{}} {}
+struct InterfaceStatsDefaultTypeInternal {
+  PROTOBUF_CONSTEXPR InterfaceStatsDefaultTypeInternal()
+      : _instance(::_pbi::ConstantInitialized{}) {}
+  ~InterfaceStatsDefaultTypeInternal() {}
+  union {
+    InterfaceStats _instance;
+  };
+};
+PROTOBUF_ATTRIBUTE_NO_DESTROY PROTOBUF_CONSTINIT PROTOBUF_ATTRIBUTE_INIT_PRIORITY1 InterfaceStatsDefaultTypeInternal _InterfaceStats_default_instance_;
 }  // namespace fs
 }  // namespace yass
-static ::_pb::Metadata file_level_metadata_traffic_5fstats_2eproto[2];
+static ::_pb::Metadata file_level_metadata_traffic_5fstats_2eproto[3];
 static constexpr ::_pb::EnumDescriptor const** file_level_enum_descriptors_traffic_5fstats_2eproto = nullptr;
 static constexpr ::_pb::ServiceDescriptor const** file_level_service_descriptors_traffic_5fstats_2eproto = nullptr;
 
@@ -70,6 +88,7 @@ const uint32_t TableStruct_traffic_5fstats_2eproto::offsets[] PROTOBUF_SECTION_V
   PROTOBUF_FIELD_OFFSET(::yass::fs::TrafficStats, _impl_.total_bytes_received_),
   PROTOBUF_FIELD_OFFSET(::yass::fs::TrafficStats, _impl_.total_packets_sent_),
   PROTOBUF_FIELD_OFFSET(::yass::fs::TrafficStats, _impl_.total_packets_received_),
+  PROTOBUF_FIELD_OFFSET(::yass::fs::TrafficStats, _impl_.peer_fs_node_),
   ~0u,  // no _has_bits_
   PROTOBUF_FIELD_OFFSET(::yass::fs::TrafficStatsList, _internal_metadata_),
   ~0u,  // no _extensions_
@@ -77,32 +96,50 @@ const uint32_t TableStruct_traffic_5fstats_2eproto::offsets[] PROTOBUF_SECTION_V
   ~0u,  // no _weak_field_map_
   ~0u,  // no _inlined_string_donated_
   PROTOBUF_FIELD_OFFSET(::yass::fs::TrafficStatsList, _impl_.stats_),
+  ~0u,  // no _has_bits_
+  PROTOBUF_FIELD_OFFSET(::yass::fs::InterfaceStats, _internal_metadata_),
+  ~0u,  // no _extensions_
+  ~0u,  // no _oneof_case_
+  ~0u,  // no _weak_field_map_
+  ~0u,  // no _inlined_string_donated_
+  PROTOBUF_FIELD_OFFSET(::yass::fs::InterfaceStats, _impl_.iface_),
+  PROTOBUF_FIELD_OFFSET(::yass::fs::InterfaceStats, _impl_.total_bytes_sent_),
+  PROTOBUF_FIELD_OFFSET(::yass::fs::InterfaceStats, _impl_.total_bytes_received_),
+  PROTOBUF_FIELD_OFFSET(::yass::fs::InterfaceStats, _impl_.total_packets_sent_),
+  PROTOBUF_FIELD_OFFSET(::yass::fs::InterfaceStats, _impl_.total_packets_received_),
 };
 static const ::_pbi::MigrationSchema schemas[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) = {
   { 0, -1, -1, sizeof(::yass::fs::TrafficStats)},
-  { 11, -1, -1, sizeof(::yass::fs::TrafficStatsList)},
+  { 12, -1, -1, sizeof(::yass::fs::TrafficStatsList)},
+  { 19, -1, -1, sizeof(::yass::fs::InterfaceStats)},
 };
 
 static const ::_pb::Message* const file_default_instances[] = {
   &::yass::fs::_TrafficStats_default_instance_._instance,
   &::yass::fs::_TrafficStatsList_default_instance_._instance,
+  &::yass::fs::_InterfaceStats_default_instance_._instance,
 };
 
 const char descriptor_table_protodef_traffic_5fstats_2eproto[] PROTOBUF_SECTION_VARIABLE(protodesc_cold) =
-  "\n\023traffic_stats.proto\022\007yass.fs\"\216\001\n\014Traff"
+  "\n\023traffic_stats.proto\022\007yass.fs\"\244\001\n\014Traff"
   "icStats\022\n\n\002ip\030\001 \001(\t\022\030\n\020total_bytes_sent\030"
   "\002 \001(\004\022\034\n\024total_bytes_received\030\003 \001(\004\022\032\n\022t"
   "otal_packets_sent\030\004 \001(\004\022\036\n\026total_packets"
-  "_received\030\005 \001(\004\"8\n\020TrafficStatsList\022$\n\005s"
-  "tats\030\001 \003(\0132\025.yass.fs.TrafficStatsBCZAgit"
-  "hub.com/duobitx/yass-internal-components"
-  "/go-common/proto;protob\006proto3"
+  "_received\030\005 \001(\004\022\024\n\014peer_fs_node\030\006 \001(\t\"8\n"
+  "\020TrafficStatsList\022$\n\005stats\030\001 \003(\0132\025.yass."
+  "fs.TrafficStats\"\223\001\n\016InterfaceStats\022\r\n\005if"
+  "ace\030\001 \001(\t\022\030\n\020total_bytes_sent\030\002 \001(\004\022\034\n\024t"
+  "otal_bytes_received\030\003 \001(\004\022\032\n\022total_packe"
+  "ts_sent\030\004 \001(\004\022\036\n\026total_packets_received\030"
+  "\005 \001(\004BCZAgithub.com/duobitx/yass-interna"
+  "l-components/go-common/proto;protob\006prot"
+  "o3"
   ;
 static ::_pbi::once_flag descriptor_table_traffic_5fstats_2eproto_once;
 const ::_pbi::DescriptorTable descriptor_table_traffic_5fstats_2eproto = {
-    false, false, 310, descriptor_table_protodef_traffic_5fstats_2eproto,
+    false, false, 482, descriptor_table_protodef_traffic_5fstats_2eproto,
     "traffic_stats.proto",
-    &descriptor_table_traffic_5fstats_2eproto_once, nullptr, 0, 2,
+    &descriptor_table_traffic_5fstats_2eproto_once, nullptr, 0, 3,
     schemas, file_default_instances, TableStruct_traffic_5fstats_2eproto::offsets,
     file_level_metadata_traffic_5fstats_2eproto, file_level_enum_descriptors_traffic_5fstats_2eproto,
     file_level_service_descriptors_traffic_5fstats_2eproto,
@@ -133,6 +170,7 @@ TrafficStats::TrafficStats(const TrafficStats& from)
   TrafficStats* const _this = this; (void)_this;
   new (&_impl_) Impl_{
       decltype(_impl_.ip_){}
+    , decltype(_impl_.peer_fs_node_){}
     , decltype(_impl_.total_bytes_sent_){}
     , decltype(_impl_.total_bytes_received_){}
     , decltype(_impl_.total_packets_sent_){}
@@ -148,6 +186,14 @@ TrafficStats::TrafficStats(const TrafficStats& from)
     _this->_impl_.ip_.Set(from._internal_ip(), 
       _this->GetArenaForAllocation());
   }
+  _impl_.peer_fs_node_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.peer_fs_node_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (!from._internal_peer_fs_node().empty()) {
+    _this->_impl_.peer_fs_node_.Set(from._internal_peer_fs_node(), 
+      _this->GetArenaForAllocation());
+  }
   ::memcpy(&_impl_.total_bytes_sent_, &from._impl_.total_bytes_sent_,
     static_cast<size_t>(reinterpret_cast<char*>(&_impl_.total_packets_received_) -
     reinterpret_cast<char*>(&_impl_.total_bytes_sent_)) + sizeof(_impl_.total_packets_received_));
@@ -160,6 +206,7 @@ inline void TrafficStats::SharedCtor(
   (void)is_message_owned;
   new (&_impl_) Impl_{
       decltype(_impl_.ip_){}
+    , decltype(_impl_.peer_fs_node_){}
     , decltype(_impl_.total_bytes_sent_){uint64_t{0u}}
     , decltype(_impl_.total_bytes_received_){uint64_t{0u}}
     , decltype(_impl_.total_packets_sent_){uint64_t{0u}}
@@ -169,6 +216,10 @@ inline void TrafficStats::SharedCtor(
   _impl_.ip_.InitDefault();
   #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
     _impl_.ip_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  _impl_.peer_fs_node_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.peer_fs_node_.Set("", GetArenaForAllocation());
   #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
 }
 
@@ -184,6 +235,7 @@ TrafficStats::~TrafficStats() {
 inline void TrafficStats::SharedDtor() {
   GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
   _impl_.ip_.Destroy();
+  _impl_.peer_fs_node_.Destroy();
 }
 
 void TrafficStats::SetCachedSize(int size) const {
@@ -197,6 +249,7 @@ void TrafficStats::Clear() {
   (void) cached_has_bits;
 
   _impl_.ip_.ClearToEmpty();
+  _impl_.peer_fs_node_.ClearToEmpty();
   ::memset(&_impl_.total_bytes_sent_, 0, static_cast<size_t>(
       reinterpret_cast<char*>(&_impl_.total_packets_received_) -
       reinterpret_cast<char*>(&_impl_.total_bytes_sent_)) + sizeof(_impl_.total_packets_received_));
@@ -248,6 +301,16 @@ const char* TrafficStats::_InternalParse(const char* ptr, ::_pbi::ParseContext* 
         if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 40)) {
           _impl_.total_packets_received_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
           CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // string peer_fs_node = 6;
+      case 6:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 50)) {
+          auto str = _internal_mutable_peer_fs_node();
+          ptr = ::_pbi::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(ptr);
+          CHK_(::_pbi::VerifyUTF8(str, "yass.fs.TrafficStats.peer_fs_node"));
         } else
           goto handle_unusual;
         continue;
@@ -314,6 +377,16 @@ uint8_t* TrafficStats::_InternalSerialize(
     target = ::_pbi::WireFormatLite::WriteUInt64ToArray(5, this->_internal_total_packets_received(), target);
   }
 
+  // string peer_fs_node = 6;
+  if (!this->_internal_peer_fs_node().empty()) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_peer_fs_node().data(), static_cast<int>(this->_internal_peer_fs_node().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "yass.fs.TrafficStats.peer_fs_node");
+    target = stream->WriteStringMaybeAliased(
+        6, this->_internal_peer_fs_node(), target);
+  }
+
   if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
     target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
         _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
@@ -335,6 +408,13 @@ size_t TrafficStats::ByteSizeLong() const {
     total_size += 1 +
       ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
         this->_internal_ip());
+  }
+
+  // string peer_fs_node = 6;
+  if (!this->_internal_peer_fs_node().empty()) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_peer_fs_node());
   }
 
   // uint64 total_bytes_sent = 2;
@@ -378,6 +458,9 @@ void TrafficStats::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::P
   if (!from._internal_ip().empty()) {
     _this->_internal_set_ip(from._internal_ip());
   }
+  if (!from._internal_peer_fs_node().empty()) {
+    _this->_internal_set_peer_fs_node(from._internal_peer_fs_node());
+  }
   if (from._internal_total_bytes_sent() != 0) {
     _this->_internal_set_total_bytes_sent(from._internal_total_bytes_sent());
   }
@@ -412,6 +495,10 @@ void TrafficStats::InternalSwap(TrafficStats* other) {
   ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
       &_impl_.ip_, lhs_arena,
       &other->_impl_.ip_, rhs_arena
+  );
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
+      &_impl_.peer_fs_node_, lhs_arena,
+      &other->_impl_.peer_fs_node_, rhs_arena
   );
   ::PROTOBUF_NAMESPACE_ID::internal::memswap<
       PROTOBUF_FIELD_OFFSET(TrafficStats, _impl_.total_packets_received_)
@@ -612,6 +699,317 @@ void TrafficStatsList::InternalSwap(TrafficStatsList* other) {
       file_level_metadata_traffic_5fstats_2eproto[1]);
 }
 
+// ===================================================================
+
+class InterfaceStats::_Internal {
+ public:
+};
+
+InterfaceStats::InterfaceStats(::PROTOBUF_NAMESPACE_ID::Arena* arena,
+                         bool is_message_owned)
+  : ::PROTOBUF_NAMESPACE_ID::Message(arena, is_message_owned) {
+  SharedCtor(arena, is_message_owned);
+  // @@protoc_insertion_point(arena_constructor:yass.fs.InterfaceStats)
+}
+InterfaceStats::InterfaceStats(const InterfaceStats& from)
+  : ::PROTOBUF_NAMESPACE_ID::Message() {
+  InterfaceStats* const _this = this; (void)_this;
+  new (&_impl_) Impl_{
+      decltype(_impl_.iface_){}
+    , decltype(_impl_.total_bytes_sent_){}
+    , decltype(_impl_.total_bytes_received_){}
+    , decltype(_impl_.total_packets_sent_){}
+    , decltype(_impl_.total_packets_received_){}
+    , /*decltype(_impl_._cached_size_)*/{}};
+
+  _internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+  _impl_.iface_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.iface_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+  if (!from._internal_iface().empty()) {
+    _this->_impl_.iface_.Set(from._internal_iface(), 
+      _this->GetArenaForAllocation());
+  }
+  ::memcpy(&_impl_.total_bytes_sent_, &from._impl_.total_bytes_sent_,
+    static_cast<size_t>(reinterpret_cast<char*>(&_impl_.total_packets_received_) -
+    reinterpret_cast<char*>(&_impl_.total_bytes_sent_)) + sizeof(_impl_.total_packets_received_));
+  // @@protoc_insertion_point(copy_constructor:yass.fs.InterfaceStats)
+}
+
+inline void InterfaceStats::SharedCtor(
+    ::_pb::Arena* arena, bool is_message_owned) {
+  (void)arena;
+  (void)is_message_owned;
+  new (&_impl_) Impl_{
+      decltype(_impl_.iface_){}
+    , decltype(_impl_.total_bytes_sent_){uint64_t{0u}}
+    , decltype(_impl_.total_bytes_received_){uint64_t{0u}}
+    , decltype(_impl_.total_packets_sent_){uint64_t{0u}}
+    , decltype(_impl_.total_packets_received_){uint64_t{0u}}
+    , /*decltype(_impl_._cached_size_)*/{}
+  };
+  _impl_.iface_.InitDefault();
+  #ifdef PROTOBUF_FORCE_COPY_DEFAULT_STRING
+    _impl_.iface_.Set("", GetArenaForAllocation());
+  #endif // PROTOBUF_FORCE_COPY_DEFAULT_STRING
+}
+
+InterfaceStats::~InterfaceStats() {
+  // @@protoc_insertion_point(destructor:yass.fs.InterfaceStats)
+  if (auto *arena = _internal_metadata_.DeleteReturnArena<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>()) {
+  (void)arena;
+    return;
+  }
+  SharedDtor();
+}
+
+inline void InterfaceStats::SharedDtor() {
+  GOOGLE_DCHECK(GetArenaForAllocation() == nullptr);
+  _impl_.iface_.Destroy();
+}
+
+void InterfaceStats::SetCachedSize(int size) const {
+  _impl_._cached_size_.Set(size);
+}
+
+void InterfaceStats::Clear() {
+// @@protoc_insertion_point(message_clear_start:yass.fs.InterfaceStats)
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  _impl_.iface_.ClearToEmpty();
+  ::memset(&_impl_.total_bytes_sent_, 0, static_cast<size_t>(
+      reinterpret_cast<char*>(&_impl_.total_packets_received_) -
+      reinterpret_cast<char*>(&_impl_.total_bytes_sent_)) + sizeof(_impl_.total_packets_received_));
+  _internal_metadata_.Clear<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>();
+}
+
+const char* InterfaceStats::_InternalParse(const char* ptr, ::_pbi::ParseContext* ctx) {
+#define CHK_(x) if (PROTOBUF_PREDICT_FALSE(!(x))) goto failure
+  while (!ctx->Done(&ptr)) {
+    uint32_t tag;
+    ptr = ::_pbi::ReadTag(ptr, &tag);
+    switch (tag >> 3) {
+      // string iface = 1;
+      case 1:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 10)) {
+          auto str = _internal_mutable_iface();
+          ptr = ::_pbi::InlineGreedyStringParser(str, ptr, ctx);
+          CHK_(ptr);
+          CHK_(::_pbi::VerifyUTF8(str, "yass.fs.InterfaceStats.iface"));
+        } else
+          goto handle_unusual;
+        continue;
+      // uint64 total_bytes_sent = 2;
+      case 2:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 16)) {
+          _impl_.total_bytes_sent_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // uint64 total_bytes_received = 3;
+      case 3:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 24)) {
+          _impl_.total_bytes_received_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // uint64 total_packets_sent = 4;
+      case 4:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 32)) {
+          _impl_.total_packets_sent_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      // uint64 total_packets_received = 5;
+      case 5:
+        if (PROTOBUF_PREDICT_TRUE(static_cast<uint8_t>(tag) == 40)) {
+          _impl_.total_packets_received_ = ::PROTOBUF_NAMESPACE_ID::internal::ReadVarint64(&ptr);
+          CHK_(ptr);
+        } else
+          goto handle_unusual;
+        continue;
+      default:
+        goto handle_unusual;
+    }  // switch
+  handle_unusual:
+    if ((tag == 0) || ((tag & 7) == 4)) {
+      CHK_(ptr);
+      ctx->SetLastTag(tag);
+      goto message_done;
+    }
+    ptr = UnknownFieldParse(
+        tag,
+        _internal_metadata_.mutable_unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(),
+        ptr, ctx);
+    CHK_(ptr != nullptr);
+  }  // while
+message_done:
+  return ptr;
+failure:
+  ptr = nullptr;
+  goto message_done;
+#undef CHK_
+}
+
+uint8_t* InterfaceStats::_InternalSerialize(
+    uint8_t* target, ::PROTOBUF_NAMESPACE_ID::io::EpsCopyOutputStream* stream) const {
+  // @@protoc_insertion_point(serialize_to_array_start:yass.fs.InterfaceStats)
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  // string iface = 1;
+  if (!this->_internal_iface().empty()) {
+    ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::VerifyUtf8String(
+      this->_internal_iface().data(), static_cast<int>(this->_internal_iface().length()),
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::SERIALIZE,
+      "yass.fs.InterfaceStats.iface");
+    target = stream->WriteStringMaybeAliased(
+        1, this->_internal_iface(), target);
+  }
+
+  // uint64 total_bytes_sent = 2;
+  if (this->_internal_total_bytes_sent() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteUInt64ToArray(2, this->_internal_total_bytes_sent(), target);
+  }
+
+  // uint64 total_bytes_received = 3;
+  if (this->_internal_total_bytes_received() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteUInt64ToArray(3, this->_internal_total_bytes_received(), target);
+  }
+
+  // uint64 total_packets_sent = 4;
+  if (this->_internal_total_packets_sent() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteUInt64ToArray(4, this->_internal_total_packets_sent(), target);
+  }
+
+  // uint64 total_packets_received = 5;
+  if (this->_internal_total_packets_received() != 0) {
+    target = stream->EnsureSpace(target);
+    target = ::_pbi::WireFormatLite::WriteUInt64ToArray(5, this->_internal_total_packets_received(), target);
+  }
+
+  if (PROTOBUF_PREDICT_FALSE(_internal_metadata_.have_unknown_fields())) {
+    target = ::_pbi::WireFormat::InternalSerializeUnknownFieldsToArray(
+        _internal_metadata_.unknown_fields<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(::PROTOBUF_NAMESPACE_ID::UnknownFieldSet::default_instance), target, stream);
+  }
+  // @@protoc_insertion_point(serialize_to_array_end:yass.fs.InterfaceStats)
+  return target;
+}
+
+size_t InterfaceStats::ByteSizeLong() const {
+// @@protoc_insertion_point(message_byte_size_start:yass.fs.InterfaceStats)
+  size_t total_size = 0;
+
+  uint32_t cached_has_bits = 0;
+  // Prevent compiler warnings about cached_has_bits being unused
+  (void) cached_has_bits;
+
+  // string iface = 1;
+  if (!this->_internal_iface().empty()) {
+    total_size += 1 +
+      ::PROTOBUF_NAMESPACE_ID::internal::WireFormatLite::StringSize(
+        this->_internal_iface());
+  }
+
+  // uint64 total_bytes_sent = 2;
+  if (this->_internal_total_bytes_sent() != 0) {
+    total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(this->_internal_total_bytes_sent());
+  }
+
+  // uint64 total_bytes_received = 3;
+  if (this->_internal_total_bytes_received() != 0) {
+    total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(this->_internal_total_bytes_received());
+  }
+
+  // uint64 total_packets_sent = 4;
+  if (this->_internal_total_packets_sent() != 0) {
+    total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(this->_internal_total_packets_sent());
+  }
+
+  // uint64 total_packets_received = 5;
+  if (this->_internal_total_packets_received() != 0) {
+    total_size += ::_pbi::WireFormatLite::UInt64SizePlusOne(this->_internal_total_packets_received());
+  }
+
+  return MaybeComputeUnknownFieldsSize(total_size, &_impl_._cached_size_);
+}
+
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData InterfaceStats::_class_data_ = {
+    ::PROTOBUF_NAMESPACE_ID::Message::CopyWithSourceCheck,
+    InterfaceStats::MergeImpl
+};
+const ::PROTOBUF_NAMESPACE_ID::Message::ClassData*InterfaceStats::GetClassData() const { return &_class_data_; }
+
+
+void InterfaceStats::MergeImpl(::PROTOBUF_NAMESPACE_ID::Message& to_msg, const ::PROTOBUF_NAMESPACE_ID::Message& from_msg) {
+  auto* const _this = static_cast<InterfaceStats*>(&to_msg);
+  auto& from = static_cast<const InterfaceStats&>(from_msg);
+  // @@protoc_insertion_point(class_specific_merge_from_start:yass.fs.InterfaceStats)
+  GOOGLE_DCHECK_NE(&from, _this);
+  uint32_t cached_has_bits = 0;
+  (void) cached_has_bits;
+
+  if (!from._internal_iface().empty()) {
+    _this->_internal_set_iface(from._internal_iface());
+  }
+  if (from._internal_total_bytes_sent() != 0) {
+    _this->_internal_set_total_bytes_sent(from._internal_total_bytes_sent());
+  }
+  if (from._internal_total_bytes_received() != 0) {
+    _this->_internal_set_total_bytes_received(from._internal_total_bytes_received());
+  }
+  if (from._internal_total_packets_sent() != 0) {
+    _this->_internal_set_total_packets_sent(from._internal_total_packets_sent());
+  }
+  if (from._internal_total_packets_received() != 0) {
+    _this->_internal_set_total_packets_received(from._internal_total_packets_received());
+  }
+  _this->_internal_metadata_.MergeFrom<::PROTOBUF_NAMESPACE_ID::UnknownFieldSet>(from._internal_metadata_);
+}
+
+void InterfaceStats::CopyFrom(const InterfaceStats& from) {
+// @@protoc_insertion_point(class_specific_copy_from_start:yass.fs.InterfaceStats)
+  if (&from == this) return;
+  Clear();
+  MergeFrom(from);
+}
+
+bool InterfaceStats::IsInitialized() const {
+  return true;
+}
+
+void InterfaceStats::InternalSwap(InterfaceStats* other) {
+  using std::swap;
+  auto* lhs_arena = GetArenaForAllocation();
+  auto* rhs_arena = other->GetArenaForAllocation();
+  _internal_metadata_.InternalSwap(&other->_internal_metadata_);
+  ::PROTOBUF_NAMESPACE_ID::internal::ArenaStringPtr::InternalSwap(
+      &_impl_.iface_, lhs_arena,
+      &other->_impl_.iface_, rhs_arena
+  );
+  ::PROTOBUF_NAMESPACE_ID::internal::memswap<
+      PROTOBUF_FIELD_OFFSET(InterfaceStats, _impl_.total_packets_received_)
+      + sizeof(InterfaceStats::_impl_.total_packets_received_)
+      - PROTOBUF_FIELD_OFFSET(InterfaceStats, _impl_.total_bytes_sent_)>(
+          reinterpret_cast<char*>(&_impl_.total_bytes_sent_),
+          reinterpret_cast<char*>(&other->_impl_.total_bytes_sent_));
+}
+
+::PROTOBUF_NAMESPACE_ID::Metadata InterfaceStats::GetMetadata() const {
+  return ::_pbi::AssignDescriptors(
+      &descriptor_table_traffic_5fstats_2eproto_getter, &descriptor_table_traffic_5fstats_2eproto_once,
+      file_level_metadata_traffic_5fstats_2eproto[2]);
+}
+
 // @@protoc_insertion_point(namespace_scope)
 }  // namespace fs
 }  // namespace yass
@@ -623,6 +1021,10 @@ Arena::CreateMaybeMessage< ::yass::fs::TrafficStats >(Arena* arena) {
 template<> PROTOBUF_NOINLINE ::yass::fs::TrafficStatsList*
 Arena::CreateMaybeMessage< ::yass::fs::TrafficStatsList >(Arena* arena) {
   return Arena::CreateMessageInternal< ::yass::fs::TrafficStatsList >(arena);
+}
+template<> PROTOBUF_NOINLINE ::yass::fs::InterfaceStats*
+Arena::CreateMaybeMessage< ::yass::fs::InterfaceStats >(Arena* arena) {
+  return Arena::CreateMessageInternal< ::yass::fs::InterfaceStats >(arena);
 }
 PROTOBUF_NAMESPACE_CLOSE
 
