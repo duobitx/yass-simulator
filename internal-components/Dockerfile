@@ -22,11 +22,15 @@ COPY metrics-bridge/main ./metrics-bridge
 
 # Events exporter (Loki -> .ods)
 COPY events-exporter/main ./events-exporter
+
+# FUSE errorfs — mounted by world-controller to simulate DiskFailure
+COPY fuse-errorfs/main ./fuse-errorfs
+
 COPY --from=docker.io/library/geo-calc-builder /build/geo_calc ./geo_calc
 RUN apt-get install -y libjansson4
 
-# Networking tools
-RUN apt-get install -y iproute2 bash inetutils-ping
+# Networking + fuse tools (for hardware-event injection)
+RUN apt-get install -y iproute2 bash inetutils-ping fuse
 
 COPY traffic.sh /
 COPY world-controller-wrapper.sh /

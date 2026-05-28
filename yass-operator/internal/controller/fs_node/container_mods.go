@@ -31,19 +31,43 @@ func modMountSharedVolume(ro bool) modFunc {
 }
 
 func modVolumeMount(volumeName, mountPoint string, ro bool) modFunc {
+	return modVolumeMountP(volumeName, mountPoint, ro, "")
+}
+
+// modVolumeMountP is modVolumeMount with an explicit mount propagation
+// mode. Empty string means "no propagation" (the kernel/kubelet default,
+// equivalent to `None`).
+func modVolumeMountP(volumeName, mountPoint string, ro bool, propagation v1.MountPropagationMode) modFunc {
 	return func(_ *v1.Pod, container *v1.Container) {
-		vms := []v1.VolumeMount{
-			{
-				Name:      volumeName,
-				ReadOnly:  ro,
-				MountPath: mountPoint,
-			},
+		vm := v1.VolumeMount{
+			Name:      volumeName,
+			ReadOnly:  ro,
+			MountPath: mountPoint,
+		}
+		if propagation != "" {
+			p := propagation
+			vm.MountPropagation = &p
 		}
 		if container.VolumeMounts == nil {
-			container.VolumeMounts = vms
+			container.VolumeMounts = []v1.VolumeMount{vm}
 		} else {
-			container.VolumeMounts = append(container.VolumeMounts, vms...)
+			container.VolumeMounts = append(container.VolumeMounts, vm)
 		}
+	}
+}
+
+// modPrivileged turns on privileged mode and forces runAsUser=0. Needed
+// by world-controller so it can remount engine/agent volumes via
+// Bidirectional propagation (see yass-docs/hardware-events-spec.md §9.0).
+func modPrivileged() modFunc {
+	return func(pod *v1.Pod, container *v1.Container) {
+		if container.SecurityContext == nil {
+			container.SecurityContext = &v1.SecurityContext{}
+		}
+		t := true
+		var zero int64 = 0
+		container.SecurityContext.Privileged = &t
+		container.SecurityContext.RunAsUser = &zero
 	}
 }
 

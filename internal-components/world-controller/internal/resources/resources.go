@@ -261,6 +261,61 @@ func stripContainerIDPrefix(id string) string {
 
 var containerIDRe = regexp.MustCompile(`[0-9a-f]{64}`)
 
+// PIDsByContainerNames returns the PIDs (in the world-controller's PID
+// namespace) of every process belonging to any of the named containers
+// in the FsNode's own pod. Requires shareProcessNamespace: true.
+//
+// Used by the hardware-event injector to deliver SIGKILL/SIGURG to
+// agent + engine processes from the world-controller (see
+// yass-docs/hardware-events-spec.md §9.5).
+func (p *Publisher) PIDsByContainerNames(ctx context.Context, names []string) []int {
+	pod, err := p.findOwnPod(ctx)
+	if err != nil {
+		slog.Warn("resources: cannot find own pod", "error", err)
+		return nil
+	}
+	wanted := map[string]struct{}{}
+	for _, n := range names {
+		wanted[n] = struct{}{}
+	}
+	idToName := map[string]string{}
+	for _, cs := range pod.Status.ContainerStatuses {
+		if _, ok := wanted[cs.Name]; !ok {
+			continue
+		}
+		if cid := stripContainerIDPrefix(cs.ContainerID); cid != "" {
+			idToName[cid] = cs.Name
+		}
+	}
+	if len(idToName) == 0 {
+		return nil
+	}
+	procEntries, err := os.ReadDir("/proc")
+	if err != nil {
+		return nil
+	}
+	out := make([]int, 0, 16)
+	for _, entry := range procEntries {
+		pid, err := strconv.Atoi(entry.Name())
+		if err != nil || pid <= 0 {
+			continue
+		}
+		cgroupRaw, err := os.ReadFile(fmt.Sprintf("/proc/%d/cgroup", pid))
+		if err != nil {
+			continue
+		}
+		cid := containerIDRe.FindString(string(cgroupRaw))
+		if cid == "" {
+			continue
+		}
+		if _, ok := idToName[cid]; !ok {
+			continue
+		}
+		out = append(out, pid)
+	}
+	return out
+}
+
 func readProcStats(pid int) (ticks, rss uint64, err error) {
 	raw, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
 	if err != nil {

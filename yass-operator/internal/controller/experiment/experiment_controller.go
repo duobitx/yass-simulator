@@ -493,6 +493,7 @@ func (r *Reconciler) createFsNodeResource(ctx context.Context, namespace string,
 			EngineVolumes:    experiment.Spec.EngineVolumes,
 			Agent:            behaviour.Agent,
 			Properties:       props,
+			HardwareEvents:   behaviour.HardwareEvents,
 		},
 	}
 	if err := r.Create(ctx, fsNode); err != nil {

@@ -84,12 +84,6 @@ type ExperimentDefinitionSpec struct {
 	// +listType=map
 	// +listMapKey=fsNode
 	Behaviours []Behaviour `json:"behaviours,omitempty"`
-
-	// HardwareEvents is a global list of scheduled hardware events that apply
-	// across all nodes (e.g. solar storms, ground-station outages). Per-node
-	// events go on the individual Behaviour. The event schema itself is still
-	// being designed — see [HardwareEvent].
-	HardwareEvents []HardwareEvent `json:"HardwareEvents,omitempty"`
 }
 
 // Behaviour binds an agent payload to a single named FsNode. The FsNode name is
@@ -105,16 +99,9 @@ type Behaviour struct {
 	// over MQTT, drops files into `/mnt/transfer`).
 	Agent SimpleContainer `json:"agent"`
 
-	// HardwareEvents is the list of hardware events scoped to this single node
-	// (in addition to the spec-level global events).
+	// HardwareEvents is the list of scheduled hardware faults injected into
+	// this node by the world-controller. See [HardwareEvent] and
+	// yass-docs/hardware-events-spec.md.
 	// +kubebuilder:validation:Optional
-	HardwareEvents []HardwareEvent `json:"hardwareEvents"`
-}
-
-// HardwareEvent is a placeholder for the upcoming hardware-event schema (battery
-// fault injection, antenna degradation, sun-blinding, ...). The shape is still
-// being designed — for now the field exists so that experiments authored today
-// remain forward-compatible with a future operator.
-type HardwareEvent struct {
-	// TODO: schema is intentionally empty until the event model is finalised.
+	HardwareEvents []HardwareEvent `json:"hardwareEvents,omitempty"`
 }

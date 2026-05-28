@@ -320,11 +320,18 @@ func (r *FsNodeReconciler) getSystemContainers(fsNode *yassv1.FsNode, pod *v1.Po
 					"DISABLE_NETWORKING_MANIPULATION": strconv.FormatBool(r.Configuration.DisableNetworkingManipulation),
 				}),
 				modMountSharedVolume(false),
-				// Read-only mounts so the resources publisher can statfs each volume.
-				modVolumeMount(transferVolumeName, "/var/yass/transfer", true),
-				modVolumeMount(engineTMPVolumeName, "/var/yass/engine-tmp", true),
-				modVolumeMount(agentTMPVolumeName, "/var/yass/agent-tmp", true),
+				// Read-write + Bidirectional propagation so the
+				// hardware-event injector can remount engine/agent
+				// volumes at runtime; the resources publisher can
+				// statfs them through the same mountpoints.
+				// See yass-docs/hardware-events-spec.md §9.0.
+				modVolumeMountP(transferVolumeName, "/var/yass/transfer", false, v1.MountPropagationBidirectional),
+				modVolumeMountP(engineTMPVolumeName, "/var/yass/engine-tmp", false, v1.MountPropagationBidirectional),
+				modVolumeMountP(agentTMPVolumeName, "/var/yass/agent-tmp", false, v1.MountPropagationBidirectional),
 				modCapability("NET_ADMIN"),
+				modCapability("SYS_ADMIN"),
+				modCapability("KILL"),
+				modPrivileged(),
 			},
 		},
 		{
@@ -333,8 +340,11 @@ func (r *FsNodeReconciler) getSystemContainers(fsNode *yassv1.FsNode, pod *v1.Po
 			ports: nil,
 			mods: []modFunc{
 				modLogLevelVariableSet(),
-				modVolumeMount(agentTMPVolumeName, "/tmp", false),
-				modVolumeMount(transferVolumeName, "/mnt/transfer", false),
+				// HostToContainer so mount events injected by
+				// world-controller (hardware DiskFull/DiskFailure)
+				// propagate into the agent without restart.
+				modVolumeMountP(agentTMPVolumeName, "/tmp", false, v1.MountPropagationHostToContainer),
+				modVolumeMountP(transferVolumeName, "/mnt/transfer", false, v1.MountPropagationHostToContainer),
 				modFor(fsNode.Spec.Agent),
 				modMountSharedVolume(true),
 			},
@@ -383,15 +393,18 @@ func (r *FsNodeReconciler) getEngineContainers(fsNode *yassv1.FsNode) []v1.Conta
 		if eContainer.VolumeMounts == nil {
 			eContainer.VolumeMounts = []v1.VolumeMount{}
 		}
+		htc := v1.MountPropagationHostToContainer
 		eContainer.VolumeMounts = append(eContainer.VolumeMounts, v1.VolumeMount{
-			Name:      engineTMPVolumeName,
-			MountPath: "/tmp",
-			ReadOnly:  false,
+			Name:             engineTMPVolumeName,
+			MountPath:        "/tmp",
+			ReadOnly:         false,
+			MountPropagation: &htc,
 		})
 		eContainer.VolumeMounts = append(eContainer.VolumeMounts, v1.VolumeMount{
-			Name:      transferVolumeName,
-			MountPath: "/mnt/transfer",
-			ReadOnly:  false,
+			Name:             transferVolumeName,
+			MountPath:        "/mnt/transfer",
+			ReadOnly:         false,
+			MountPropagation: &htc,
 		})
 		setVariableIfUnset(eContainer, "LOG_LEVEL", experimentLogLevel)
 		engineContainers = append(engineContainers, *eContainer)

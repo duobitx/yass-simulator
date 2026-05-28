@@ -14,6 +14,7 @@ import (
 	"github.com/duobitx/yass-simulator/internal-components/world-controller/consts"
 	"github.com/duobitx/yass-simulator/internal-components/world-controller/internal"
 	"github.com/duobitx/yass-simulator/internal-components/world-controller/internal/hw"
+	"github.com/duobitx/yass-simulator/internal-components/world-controller/internal/hwevents"
 	"github.com/duobitx/yass-simulator/internal-components/world-controller/internal/model"
 	"github.com/duobitx/yass-simulator/internal-components/world-controller/internal/networking"
 	"github.com/duobitx/yass-simulator/internal-components/world-controller/internal/resources"
@@ -289,6 +290,34 @@ func main() {
 		}
 	})
 
+	// Hardware-event injector. Reads scheduled faults from the FsNode CR
+	// (populated by the experiment-controller from Behaviour.hardwareEvents)
+	// and executes them per yass-docs/hardware-events-spec.md.
+	go func() {
+		fsn := yassv1.FsNode{}
+		if err := app.k8sClient.Get(ctx, app.fsNodeObjKey, &fsn); err != nil {
+			slog.Error("hwevents: cannot read own FsNode, no faults will be scheduled", "error", err)
+			return
+		}
+		if len(fsn.Spec.HardwareEvents) == 0 {
+			return
+		}
+		mgr := hwevents.New(hwevents.Config{
+			FsNode:     app.fsNodeObjKey.Name,
+			Namespace:  app.fsNodeObjKey.Namespace,
+			Experiment: app.experiment,
+			Events:     fsn.Spec.HardwareEvents,
+			Facade:     facade,
+			K8sClient:  app.k8sClient,
+			Networking: networkingHandler,
+			KillTargets: func() []int {
+				return resPublisher.PIDsByContainerNames(ctx, killTargetContainerNames(&fsn))
+			},
+			PublishOffln: func() error { return app.publishOnlineState(false) },
+		})
+		mgr.Start(ctx, time.Now())
+	}()
+
 	internal.BackgroundPeriodicTask(ctx, 5*time.Second, func() {
 		node := yassv1.FsNode{}
 		err = app.k8sClient.Get(ctx, app.fsNodeObjKey, &node)
@@ -311,4 +340,16 @@ func main() {
 	<-ctx.Done()
 	time.Sleep(1 * time.Second)
 	slog.Info("Terminated")
+}
+
+// killTargetContainerNames returns the container names whose PIDs the
+// hardware-event injector may SIGKILL on Destroy — i.e. every engine
+// container plus the agent. The world-controller and any system
+// containers are excluded.
+func killTargetContainerNames(fsn *yassv1.FsNode) []string {
+	out := []string{"agent"}
+	for _, c := range fsn.Spec.EngineContainers {
+		out = append(out, c.Name)
+	}
+	return out
 }

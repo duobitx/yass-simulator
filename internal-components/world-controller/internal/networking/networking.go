@@ -57,6 +57,10 @@ type Handler struct {
 	netmask    net.IPMask
 	defEthLink netlink.Link
 	disabled   bool
+	// Fault-overlay state — driven by the hardware-event injector
+	// (see overlay.go and yass-docs/hardware-events-spec.md §9.1/§9.2).
+	externalCapBps int64
+	blackHole      bool
 }
 
 func NewNetworkHandler(disabled bool) (*Handler, error) {
@@ -116,21 +120,29 @@ func (h *Handler) Update(networkParams []NetworkParam) error {
 	}
 	for _, param := range networkParams {
 		currentProfiles[param.ToIP] = true
-		if oldState, ok := h.state[param.ToIP]; ok && isAlmostEqual(oldState, &param) {
+		if oldState, ok := h.state[param.ToIP]; ok && isAlmostEqual(oldState, &param) && !h.blackHole && h.externalCapBps == 0 {
 			continue
 		}
 		h.state[param.ToIP] = &param
-		if param.isFullyBlocking() {
+		effective := param
+		if h.externalCapBps > 0 && (effective.Bandwidth == 0 || h.externalCapBps < effective.Bandwidth) {
+			effective.Bandwidth = h.externalCapBps
+		}
+		if h.blackHole {
+			effective.Bandwidth = 1
+			effective.PackageLoss = 100
+		}
+		if effective.isFullyBlocking() {
 			if err := h.removeIPProfile(param.ToIP); err != nil {
 				jeh.Append(errors.Wrapf(err, "error removing ipProfile for %s", param.ToIP))
 			} else {
 				slog.Default().Debug("ipProfile removed", "ip", param.ToIP)
 			}
 		} else {
-			if err := h.replaceIPProfile(&param); err != nil {
+			if err := h.replaceIPProfile(&effective); err != nil {
 				jeh.Append(errors.Wrapf(err, "error applying ipProfile for %s", param.ToIP))
 			} else {
-				slog.Default().Debug("ipProfile applied", "ip", param.ToIP, "param", param)
+				slog.Default().Debug("ipProfile applied", "ip", param.ToIP, "param", effective)
 			}
 		}
 	}

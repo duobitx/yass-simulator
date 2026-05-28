@@ -79,6 +79,14 @@ type FsNodeSpec struct {
 	// controller and does not need to be set here.
 	// +kubebuilder:validation:Optional
 	EngineVolumes []corev1.Volume `json:"engineVolumes,omitempty"`
+
+	// HardwareEvents is the list of scheduled hardware faults the
+	// world-controller should inject into this node during the
+	// experiment. Populated by the experiment-controller from the
+	// matching Behaviour.hardwareEvents in the ExperimentDefinition.
+	// See yass-docs/hardware-events-spec.md.
+	// +kubebuilder:validation:Optional
+	HardwareEvents []HardwareEvent `json:"hardwareEvents,omitempty"`
 }
 
 // FsNodeStatus is reported by the fs-node controller and reflects the live state

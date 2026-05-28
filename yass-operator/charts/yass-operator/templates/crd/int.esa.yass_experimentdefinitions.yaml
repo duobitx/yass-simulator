@@ -73,20 +73,6 @@ spec:
           spec:
             description: Spec is the actual scenario body. See [ExperimentDefinitionSpec].
             properties:
-              HardwareEvents:
-                description: |-
-                  HardwareEvents is a global list of scheduled hardware events that apply
-                  across all nodes (e.g. solar storms, ground-station outages). Per-node
-                  events go on the individual Behaviour. The event schema itself is still
-                  being designed — see [HardwareEvent].
-                items:
-                  description: |-
-                    HardwareEvent is a placeholder for the upcoming hardware-event schema (battery
-                    fault injection, antenna degradation, sun-blinding, ...). The shape is still
-                    being designed — for now the field exists so that experiments authored today
-                    remain forward-compatible with a future operator.
-                  type: object
-                type: array
               behaviours:
                 description: |-
                   Behaviours describes one agent payload per FsNode. The list is keyed by
@@ -146,15 +132,148 @@ spec:
                       type: string
                     hardwareEvents:
                       description: |-
-                        HardwareEvents is the list of hardware events scoped to this single node
-                        (in addition to the spec-level global events).
+                        HardwareEvents is the list of scheduled hardware faults injected into
+                        this node by the world-controller. See [HardwareEvent] and
+                        yass-docs/hardware-events-spec.md.
                       items:
                         description: |-
-                          HardwareEvent is a placeholder for the upcoming hardware-event schema (battery
-                          fault injection, antenna degradation, sun-blinding, ...). The shape is still
-                          being designed — for now the field exists so that experiments authored today
-                          remain forward-compatible with a future operator.
+                          HardwareEvent declares a scheduled hardware fault injected by the
+                          world-controller into the simulated platform of an FsNode. Faults
+                          affect ONLY the agent and the fs-engine container — the
+                          world-controller and any system containers continue to run so the
+                          failure can be observed and (where applicable) cleared.
+
+                          Timing:
+                            - StartOffset is relative to the experiment's `t=0`. Go-duration
+                              format (`10s`, `5m`, `2h30m`).
+                            - Either Duration (one-shot) or Schedule (recurring) is set, but
+                              never both. For Destroy neither is allowed — Destroy is
+                              instantaneous and terminal.
+
+                          Overlap rule: at most one event of the same Type may be active on a
+                          node at once. A second occurrence overlapping an already-active one
+                          of the same type is dropped and reported as `dropped_overlap` on
+                          `hardware-events/<fsNode>`.
+                        properties:
+                          duration:
+                            description: |-
+                              Duration is the wall-clock length of a single one-shot event.
+                              Go-duration format. Mutually exclusive with Schedule; ignored
+                              (and rejected) for Destroy.
+                            type: string
+                          name:
+                            description: |-
+                              Name is a stable identifier within the event list. Used as the
+                              `name` label on emitted MQTT/K8s events so dashboards can
+                              correlate activate/clear pairs. Optional; operator synthesises
+                              `<type>-<index>` if missing.
+                            type: string
+                          params:
+                            description: Params carries type-specific tuning knobs.
+                            properties:
+                              networkBandwidth:
+                                description: NetworkBandwidth is required for NetworkBandwidthReduced.
+                                properties:
+                                  capBitsPerSec:
+                                    description: |-
+                                      CapBitsPerSec is the hard throughput cap in bits per second.
+                                      Effective rate = min(orbital, this).
+                                    format: int64
+                                    minimum: 1
+                                    type: integer
+                                  reductionPercent:
+                                    description: |-
+                                      ReductionPercent reduces the current effective bandwidth by this
+                                      fraction. 25 = "drop to 75% of the natural cap".
+                                    format: int32
+                                    maximum: 99
+                                    minimum: 1
+                                    type: integer
+                                type: object
+                                x-kubernetes-validations:
+                                - message: Exactly one of capBitsPerSec or reductionPercent
+                                    must be set.
+                                  rule: (has(self.capBitsPerSec) && !has(self.reductionPercent))
+                                    || (!has(self.capBitsPerSec) && has(self.reductionPercent))
+                            type: object
+                          schedule:
+                            description: |-
+                              Schedule turns the event into a recurring fault — see
+                              HardwareEventSchedule. Mutually exclusive with Duration.
+                            properties:
+                              durationJitterPercent:
+                                description: |-
+                                  DurationJitterPercent — same semantics as IntervalJitterPercent
+                                  but applied to occurrence duration.
+                                format: int32
+                                maximum: 100
+                                minimum: 0
+                                type: integer
+                              durationMean:
+                                description: DurationMean is the average length of
+                                  each occurrence.
+                                type: string
+                              intervalJitterPercent:
+                                description: |-
+                                  IntervalJitterPercent makes the actual interval uniformly random
+                                  in `[mean*(1-p/100), mean*(1+p/100)]`. 0 = deterministic.
+                                format: int32
+                                maximum: 100
+                                minimum: 0
+                                type: integer
+                              intervalMean:
+                                description: |-
+                                  IntervalMean is the average wall-clock time between the *start*
+                                  of two consecutive occurrences. Go-duration format.
+                                type: string
+                              maxOccurrences:
+                                description: |-
+                                  MaxOccurrences caps the total number of times this event fires.
+                                  0 (default) = unlimited until experiment end.
+                                format: int32
+                                minimum: 0
+                                type: integer
+                              seed:
+                                description: |-
+                                  Seed lets a recurring event be reproduced bit-for-bit across
+                                  re-runs. If unset, the world-controller seeds from
+                                  `fsNode + event-name` so different runs of the same experiment
+                                  share a schedule.
+                                format: int64
+                                type: integer
+                            required:
+                            - durationMean
+                            - intervalMean
+                            type: object
+                          startOffset:
+                            description: |-
+                              StartOffset is the Go-duration offset from experiment start at
+                              which the first occurrence fires. For a Schedule this is the
+                              earliest time the first occurrence may happen; subsequent
+                              occurrences are spaced by Schedule.IntervalMean ± jitter.
+                            type: string
+                          type:
+                            description: Type selects which fault to inject. See HardwareEventType.
+                            enum:
+                            - NetworkBandwidthReduced
+                            - NetworkFailure
+                            - DiskFull
+                            - DiskFailure
+                            - Destroy
+                            type: string
+                        required:
+                        - startOffset
+                        - type
                         type: object
+                        x-kubernetes-validations:
+                        - message: One-shot events require duration; recurring events
+                            require schedule; Destroy allows neither.
+                          rule: 'self.type == ''Destroy'' ? (!has(self.duration) &&
+                            !has(self.schedule)) : ((has(self.duration) && !has(self.schedule))
+                            || (!has(self.duration) && has(self.schedule)))'
+                        - message: NetworkBandwidthReduced requires params.networkBandwidth.
+                          rule: 'self.type == ''NetworkBandwidthReduced'' ? (has(self.params)
+                            && has(self.params.networkBandwidth)) : true'
                       type: array
                   required:
                   - agent

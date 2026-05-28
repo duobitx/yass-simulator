@@ -26,6 +26,7 @@ tasks:
       - task -d experiment-executor default
       - task -d metrics-bridge default
       - task -d events-exporter default
+      - task -d fuse-errorfs default
       - task -d geo-calculator build
 
   docker-build:

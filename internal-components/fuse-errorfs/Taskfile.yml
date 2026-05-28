@@ -1,0 +1,25 @@
+version: '3'
+
+vars:
+  TARGETARCH: 'amd64'
+  TARGETOS:   'linux'
+
+silent: true
+
+tasks:
+  build:
+    desc: Build the fuse-errorfs binary
+    env:
+      CGO_ENABLED: '0'
+      GOOS:   '{{.TARGETOS}}'
+      GOARCH: '{{.TARGETARCH}}'
+    sources:
+      - '**/*.go'
+      - go.mod
+    cmds:
+      - go build -o main -a main.go
+
+  default:
+    desc: Alias to build
+    cmds:
+      - task: build

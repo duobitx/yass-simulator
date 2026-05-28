@@ -29,6 +29,9 @@ type Metrics struct {
 	NetworkRxBytesTotal   *prometheus.CounterVec
 	NetworkTxPacketsTotal *prometheus.CounterVec
 	NetworkRxPacketsTotal *prometheus.CounterVec
+
+	HardwareEventActive       *prometheus.GaugeVec
+	HardwareEventDroppedTotal *prometheus.CounterVec
 }
 
 func deliveryBuckets() []float64 {
@@ -83,6 +86,13 @@ func New(reg prometheus.Registerer) *Metrics {
 		NetworkRxBytesTotal:   prometheus.NewCounterVec(prometheus.CounterOpts{Name: "yass_network_rx_bytes_total"}, labelsNet),
 		NetworkTxPacketsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "yass_network_tx_packets_total"}, labelsNet),
 		NetworkRxPacketsTotal: prometheus.NewCounterVec(prometheus.CounterOpts{Name: "yass_network_rx_packets_total"}, labelsNet),
+
+		HardwareEventActive: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{Name: "yass_hardware_event_active", Help: "1 while a hardware-event fault is active on the fsNode (per type)."},
+			[]string{"fsNode", "type"}),
+		HardwareEventDroppedTotal: prometheus.NewCounterVec(
+			prometheus.CounterOpts{Name: "yass_hardware_event_dropped_total", Help: "Hardware-event occurrences dropped (e.g. overlap with already-active event of the same type)."},
+			[]string{"fsNode", "type", "reason"}),
 	}
 	reg.MustRegister(
 		m.FileProducedTotal, m.FileProducedBytesTotal,
@@ -93,6 +103,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.ContainerCPUMilli, m.ContainerCPUMilliLim, m.ContainerMemoryBytes, m.ContainerMemoryLimit,
 		m.NetworkTxBytesTotal, m.NetworkRxBytesTotal,
 		m.NetworkTxPacketsTotal, m.NetworkRxPacketsTotal,
+		m.HardwareEventActive, m.HardwareEventDroppedTotal,
 	)
 	return m
 }

@@ -4,6 +4,7 @@ use (
 	./internal-components/events-exporter
 	./internal-components/events-webapp
 	./internal-components/experiment-executor
+	./internal-components/fuse-errorfs
 	./internal-components/go-common
 	./internal-components/metrics-bridge
 	./internal-components/resource-to-json

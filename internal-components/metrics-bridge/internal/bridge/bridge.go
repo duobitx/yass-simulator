@@ -463,6 +463,18 @@ func (b *Bridge) onHardwareEvent(topic string, data []byte) {
 		payload = map[string]any{"raw": string(data)}
 	}
 	eventType, _ := payload["type"].(string)
+	state, _ := payload["state"].(string)
+	reason, _ := payload["reason"].(string)
+	if eventType != "" {
+		switch state {
+		case "active":
+			b.m.HardwareEventActive.WithLabelValues(fsNode, eventType).Set(1)
+		case "cleared":
+			b.m.HardwareEventActive.WithLabelValues(fsNode, eventType).Set(0)
+		case "dropped_overlap":
+			b.m.HardwareEventDroppedTotal.WithLabelValues(fsNode, eventType, reason).Inc()
+		}
+	}
 	b.pushEvent("hardware", fsNode, eventType, time.Now(), payload)
 }
 
