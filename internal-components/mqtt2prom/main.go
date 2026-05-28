@@ -128,13 +128,18 @@ func (c *collector) evictAggregatorLocked(aggregator string) {
 		}
 		if v, ok := c.vecs[key.Metric]; ok {
 			labels := parseHash(key.Hash)
+			// Counters are folded into GaugeVec at register time (see
+			// registerLocked) so deletion always goes through v.gauge for
+			// both kinds.
 			switch v.kind {
-			case "counter":
-				v.counter.Delete(labels)
-			case "gauge":
-				v.gauge.Delete(labels)
+			case "counter", "gauge":
+				if v.gauge != nil {
+					v.gauge.Delete(labels)
+				}
 			case "histogram":
-				v.histogram.Delete(labels)
+				if v.histogram != nil {
+					v.histogram.Delete(labels)
+				}
 			}
 		}
 		delete(c.owners, key)
@@ -173,24 +178,28 @@ func (c *collector) handleSnapshot(body []byte) {
 		return
 	}
 	values := orderedValues(vec.labels, enrichedLabels)
+	// Defensive: WithLabelValues panics on cardinality mismatch. Use the
+	// error-returning variant + early skip with a log line.
+	setGauge := func() {
+		if vec.gauge == nil || s.Value == nil {
+			return
+		}
+		g, err := vec.gauge.GetMetricWithLabelValues(values...)
+		if err != nil {
+			slog.Warn("mqtt2prom: gauge labels mismatch", "metric", s.Metric, "err", err, "want", vec.labels, "values", values)
+			return
+		}
+		g.Set(*s.Value)
+	}
 	switch vec.kind {
 	case "counter":
-		// MQTT pub sends absolute counter value; setting via Add is wrong
-		// for re-publishes. We approximate by overriding via the
-		// counter's underlying gauge trick — easiest: drop and re-register
-		// the labelset with the current value. Prometheus tolerates
-		// counters that don't go down per scrape if same labelset.
-		// Simplest correct path: use a Gauge for "counter" too (lossy
-		// for rate() but works for cumulative).
-		// We register counters as GaugeVec under the hood to side-step.
-		// (See registerLocked: counter kind → GaugeVec.)
-		if vec.gauge != nil && s.Value != nil {
-			vec.gauge.WithLabelValues(values...).Set(*s.Value)
-		}
+		// MQTT pub sends absolute counter value; we register counters as
+		// GaugeVec under the hood to side-step Counter.Add (which is
+		// wrong for re-published absolutes). Lossy for rate() across
+		// resets, acceptable for our UC-deliverable queries.
+		setGauge()
 	case "gauge":
-		if s.Value != nil {
-			vec.gauge.WithLabelValues(values...).Set(*s.Value)
-		}
+		setGauge()
 	case "histogram":
 		if vec.histogram != nil && s.Sum != nil && s.Count != nil {
 			// Approximate the histogram by Observe()ing the bucket
@@ -329,7 +338,10 @@ func main() {
 	listenAddr := goutils.Env("LISTEN_ADDR", ":9090")
 
 	reg := prometheus.NewRegistry()
-	reg.MustRegister(prometheus.NewGoCollector(), prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}))
+	// Intentionally NOT registering NewGoCollector / NewProcessCollector —
+	// aggregators already publish go_/process_ metrics over MQTT, and a
+	// local-side registration with no labels would collide with the
+	// labeled snapshots we receive (yass-docs/observability-v2-spec.md §6.5).
 	col := newCollector(reg)
 
 	clientID := fmt.Sprintf("%s-%d", appName, time.Now().UnixNano())
