@@ -26,13 +26,12 @@ spec:
               done
       containers:
         - name: metrics-bridge
-          image: "ghcr.io/duobitx/yass-internal-components:latest"
-          imagePullPolicy: "IfNotPresent"
+          image: "{{ .Values.internalComponentImage }}"
+          imagePullPolicy: "{{ .Values.imagePullPolicy }}"
           command:
             - "/metrics-bridge"
-          ports:
-            - name: metrics
-              containerPort: 9090
+          # No HTTP port / probes in v2 — bridge speaks MQTT only.
+          # See yass-docs/observability-v2-spec.md §6.
           env:
             - name: NAMESPACE
               valueFrom:
@@ -50,18 +49,6 @@ spec:
             limits:
               cpu: "500m"
               memory: "256Mi"
-          readinessProbe:
-            httpGet:
-              path: /metrics
-              port: 9090
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          livenessProbe:
-            httpGet:
-              path: /
-              port: 9090
-            initialDelaySeconds: 20
-            periodSeconds: 20
       volumes:
         - name: exports
           hostPath:

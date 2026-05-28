@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mqtt2prom
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mqtt2prom
+  template:
+    metadata:
+      labels:
+        app: mqtt2prom
+        yass.observability/role: mqtt2prom
+    spec:
+      serviceAccountName: yass-experiment-sa
+      initContainers:
+        - name: wait-for-messaging
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z messaging 1883; do
+                echo "waiting for messaging"; sleep 2
+              done
+      containers:
+        - name: mqtt2prom
+          image: "{{ .Values.internalComponentImage }}"
+          imagePullPolicy: "{{ .Values.imagePullPolicy }}"
+          command:
+            - "/mqtt2prom"
+          ports:
+            - name: metrics
+              containerPort: 9090
+          env:
+            - name: MESSAGING_BROKER_HOST_PORT
+              value: "messaging:1883"
+            - name: LISTEN_ADDR
+              value: ":9090"
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: 9090
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 9090
+            initialDelaySeconds: 20
+            periodSeconds: 20

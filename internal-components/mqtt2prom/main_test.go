@@ -56,6 +56,61 @@ func TestHandleMetaThenSnapshotRegistersWithJoinedLabels(t *testing.T) {
 	}
 }
 
+func TestHistogramSnapshotExposesBuckets(t *testing.T) {
+	reg := prometheus.NewRegistry()
+	c := newCollector(reg)
+	c.handleMeta("agg", mustJSON(t, meta{
+		Aggregator: "agg", Experiment: "exp", Engine: "tus",
+		RunID: "r1", Layout: "l1", Namespace: "ns",
+	}))
+	sum := 412.5
+	cnt := uint64(7)
+	c.handleSnapshot(mustJSON(t, snapshot{
+		Metric: "yass_file_delivery_seconds", Kind: "histogram",
+		Aggregator: "agg",
+		Labels:     map[string]string{"source_fsNode": "oneweb-0008"},
+		Sum:        &sum, Count: &cnt,
+		Buckets: []bucketSnapshot{
+			{UpperBound: 1, Count: 0},
+			{UpperBound: 5, Count: 2},
+			{UpperBound: 15, Count: 7},
+		},
+	}))
+	mfs, err := reg.Gather()
+	if err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+	var got *dto.MetricFamily
+	for _, mf := range mfs {
+		if mf.GetName() == "yass_file_delivery_seconds" {
+			got = mf
+			break
+		}
+	}
+	if got == nil {
+		t.Fatalf("yass_file_delivery_seconds not in registry")
+	}
+	if got.GetType() != dto.MetricType_HISTOGRAM {
+		t.Errorf("want HISTOGRAM, got %v", got.GetType())
+	}
+	if len(got.Metric) != 1 {
+		t.Fatalf("want 1 series, got %d", len(got.Metric))
+	}
+	h := got.Metric[0].GetHistogram()
+	if h == nil {
+		t.Fatalf("metric has no Histogram payload")
+	}
+	if h.GetSampleCount() != cnt {
+		t.Errorf("count=%d, want %d", h.GetSampleCount(), cnt)
+	}
+	if h.GetSampleSum() != sum {
+		t.Errorf("sum=%v, want %v", h.GetSampleSum(), sum)
+	}
+	if len(h.GetBucket()) != 3 {
+		t.Errorf("buckets=%d, want 3", len(h.GetBucket()))
+	}
+}
+
 func TestSnapshotBeforeMetaIsIgnored(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	c := newCollector(reg)

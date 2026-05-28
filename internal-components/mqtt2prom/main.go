@@ -70,10 +70,14 @@ type registryKey struct {
 type registeredVec struct {
 	kind   string
 	labels []string
-	// One of the following is non-nil depending on kind.
-	counter   *prometheus.CounterVec
-	gauge     *prometheus.GaugeVec
-	histogram *prometheus.HistogramVec
+	// gauge is used for both kind=gauge and kind=counter (counter
+	// snapshots arrive as absolute values, lossy for rate() across
+	// resets but works for cumulative dashboards).
+	gauge *prometheus.GaugeVec
+	// histogram is a custom prometheus.Collector that exposes
+	// histograms built from the absolute bucket counts on the
+	// MQTT snapshots. See histogram.go.
+	histogram *histogramStore
 }
 
 type collector struct {
@@ -129,8 +133,7 @@ func (c *collector) evictAggregatorLocked(aggregator string) {
 		if v, ok := c.vecs[key.Metric]; ok {
 			labels := parseHash(key.Hash)
 			// Counters are folded into GaugeVec at register time (see
-			// registerLocked) so deletion always goes through v.gauge for
-			// both kinds.
+			// registerLocked); histograms use the custom histogramStore.
 			switch v.kind {
 			case "counter", "gauge":
 				if v.gauge != nil {
@@ -138,7 +141,12 @@ func (c *collector) evictAggregatorLocked(aggregator string) {
 				}
 			case "histogram":
 				if v.histogram != nil {
-					v.histogram.Delete(labels)
+					// histogramStore.Delete takes ordered values, not a Labels map.
+					ordered := make([]string, len(v.labels))
+					for i, ln := range v.labels {
+						ordered[i] = labels[ln]
+					}
+					v.histogram.Delete(ordered)
 				}
 			}
 		}
@@ -202,17 +210,13 @@ func (c *collector) handleSnapshot(body []byte) {
 		setGauge()
 	case "histogram":
 		if vec.histogram != nil && s.Sum != nil && s.Count != nil {
-			// Approximate the histogram by Observe()ing the bucket
-			// midpoints `count` many times. This is lossy (we lose the
-			// sum precision) so we additionally publish a companion
-			// gauge with the raw sum/count. For UC dashboards p95/p99
-			// from buckets is the headline metric, so good enough.
-			// TODO: explore exposing a custom Collector that emits
-			// histogram_bucket samples directly.
-			_ = values // honoured via Observe below
-			// no-op for now — buckets are absolute cumulative counts;
-			// the simplest exposition is a custom Collector. Phase
-			// follow-up.
+			buckets := make(map[float64]uint64, len(s.Buckets))
+			for _, b := range s.Buckets {
+				buckets[b.UpperBound] = b.Count
+			}
+			if err := vec.histogram.Update(values, buckets, *s.Sum, *s.Count); err != nil {
+				slog.Warn("mqtt2prom: histogram update", "metric", s.Metric, "err", err)
+			}
 		}
 	}
 	// Track ownership for eviction.
@@ -237,15 +241,17 @@ func (c *collector) registerLocked(name, kind string, labelNames []string) *regi
 			v.gauge = g
 		}
 	case "histogram":
-		h := prometheus.NewHistogramVec(prometheus.HistogramOpts{Name: name, Help: name + " (via mqtt2prom)", Buckets: c.defaultBuckets}, labelNames)
-		if err := c.reg.Register(h); err != nil {
+		store := newHistogramStore(name, labelNames)
+		if err := c.reg.Register(store); err != nil {
 			if existed, ok := err.(prometheus.AlreadyRegisteredError); ok {
-				v.histogram = existed.ExistingCollector.(*prometheus.HistogramVec)
+				if hs, hsOk := existed.ExistingCollector.(*histogramStore); hsOk {
+					v.histogram = hs
+				}
 			} else {
 				slog.Warn("mqtt2prom: register", "metric", name, "error", err)
 			}
 		} else {
-			v.histogram = h
+			v.histogram = store
 		}
 	}
 	return v

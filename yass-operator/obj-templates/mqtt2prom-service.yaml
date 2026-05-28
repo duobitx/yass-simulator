@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mqtt2prom
+  labels:
+    yass.observability/role: mqtt2prom
+spec:
+  selector:
+    app: mqtt2prom
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: metrics

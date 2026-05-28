@@ -208,6 +208,8 @@ func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx c
 		{"events-webapp-deployment.yaml", "events-webapp", "", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
 		{"events-webapp-service.yaml", "events-webapp", "", &v1.Service{}, nil},
 		{"metrics-bridge-deployment.yaml", "metrics-bridge", "", &appsv1.Deployment{}, modMetricsBridge(experiment)},
+		{"mqtt2prom-deployment.yaml", "mqtt2prom", "", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
+		{"mqtt2prom-service.yaml", "mqtt2prom", "", &v1.Service{}, nil},
 		{"web-ui-deployment.yaml", "web-ui", "", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
 		{"web-ui-service.yaml", "web-ui", "", &v1.Service{}, modAddExperimentAnnotation(experiment.Name)},
 		{"web-ui-ingress.yaml", "web-ui", experiment.Name, &netv1.Ingress{}, modAddExperimentAnnotation(experiment.Name)},
@@ -332,10 +334,12 @@ func (r *Reconciler) createExperimentComponentIfRequired(recon *reconciliationSt
 		return errors.Wrap(err, fmt.Sprintf("cannot read file %s", fn))
 	}
 	values := map[string]any{
-		"templateFile":   fName,
-		"experiment":     experiment,
-		"namespace":      namespace,
-		"experimentName": experiment.Name,
+		"templateFile":              fName,
+		"experiment":                experiment,
+		"namespace":                 namespace,
+		"experimentName":            experiment.Name,
+		"internalComponentImage":    r.Configuration.InternalComponentImage,
+		"imagePullPolicy":           string(r.Configuration.InternalComponentImagePullPolicy),
 	}
 	buff, err = processTemplate(buff, values)
 	if err != nil {

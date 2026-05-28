@@ -25,8 +25,8 @@ spec:
               done
       containers:
         - name: events-webapp
-          image: "ghcr.io/duobitx/yass-internal-components:latest"
-          imagePullPolicy: "Always"
+          image: "{{ .Values.internalComponentImage }}"
+          imagePullPolicy: "{{ .Values.imagePullPolicy }}"
           command:
             - "/events-webapp"
           ports:
