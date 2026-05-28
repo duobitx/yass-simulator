@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -16,10 +15,10 @@ import (
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/k8sevents"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/lokipush"
 	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/metrics"
+	"github.com/duobitx/yass-simulator/internal-components/metrics-bridge/internal/mqttpub"
 	"github.com/m-szalik/com-facade/mqtt"
 	"github.com/m-szalik/goutils"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const appName = "metrics-bridge"
@@ -55,7 +54,7 @@ func main() {
 
 	// One subscription per topic-prefix the bridge cares about. Wildcards
 	// keep MQTT routing cheap on the broker side.
-	for _, topic := range []string{"crud-events", "+/resources", "total-network-stats/+", "online-states/+", "experiment-lifecycle", "hardware-events/+", "updates/_time_"} {
+	for _, topic := range []string{"crud-events", "+/resources", "total-network-stats/+", "online-states/+", "experiment-lifecycle", "hardware-events/+", "los/+", "edfs-cids/+", "updates/_time_"} {
 		if err := facade.Subscribe(topic, br.Handle); err != nil {
 			goutils.ExitOnError(fmt.Errorf("subscribe %s: %w", topic, err), 4)
 		}
@@ -63,32 +62,42 @@ func main() {
 
 	go runSweeper(ctx, br)
 
-	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
-	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-	server := &http.Server{Addr: cfg.ListenAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
-	go func() {
-		slog.Info("HTTP listening", "addr", cfg.ListenAddr)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			slog.Error("HTTP server error", "error", err)
-			cancel()
-		}
-	}()
+	// Phase E: publish metrics on MQTT instead of HTTP /metrics.
+	// `metrics/_meta_/<ns>` retained once at startup; per-labelset
+	// snapshots on `metrics/<name>/<hash>` every PublishInterval.
+	// See yass-docs/observability-v2-spec.md §6.
+	aggregator := cfg.Namespace
+	if aggregator == "" {
+		aggregator = cfg.ExperimentName
+	}
+	pub := mqttpub.New(facade, reg, mqttpub.Meta{
+		Aggregator: aggregator,
+		Experiment: cfg.ExperimentName,
+		Engine:     cfg.Engine,
+		RunID:      cfg.RunID,
+		Layout:     cfg.Layout,
+		Namespace:  cfg.Namespace,
+	}, 5*time.Second)
+	go pub.Run(ctx)
 
 	slog.Info("StartupCompleted",
 		"experiment", cfg.ExperimentName,
 		"engine", cfg.Engine,
 		"run_id", cfg.RunID,
+		"layout", cfg.Layout,
 		"namespace", cfg.Namespace,
+		"aggregator", aggregator,
 		"target_gs_by_fsnode", cfg.TargetGSByFsNode,
 	)
 
 	<-ctx.Done()
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer shutdownCancel()
-	_ = server.Shutdown(shutdownCtx)
+	// Best-effort graceful: clear retained _meta_ so mqtt2prom drops
+	// our metrics promptly.
+	clearCtx, clearCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer clearCancel()
+	if err := pub.ClearMeta(clearCtx); err != nil {
+		slog.Warn("ClearMeta failed", "error", err)
+	}
 	slog.Info("Terminated")
 }
 

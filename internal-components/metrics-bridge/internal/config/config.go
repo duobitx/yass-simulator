@@ -13,6 +13,7 @@ type Config struct {
 	ExperimentName       string
 	Engine               string
 	RunID                string
+	Layout               string
 	Namespace            string
 	BrokerHostPort       string
 	ListenAddr           string
@@ -37,6 +38,7 @@ func FromEnv() (*Config, error) {
 		ExperimentName:       goutils.Env("EXPERIMENT_NAME", ""),
 		Engine:               goutils.Env("ENGINE", ""),
 		RunID:                goutils.Env("RUN_ID", ""),
+		Layout:               goutils.Env("LAYOUT", ""),
 		Namespace:            goutils.Env("NAMESPACE", ""),
 		BrokerHostPort:       goutils.Env("MESSAGING_BROKER_HOST_PORT", "messaging:1883"),
 		ListenAddr:           goutils.Env("LISTEN_ADDR", ":9090"),

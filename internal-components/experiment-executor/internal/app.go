@@ -353,6 +353,25 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GlobalGeoCalcU
 
 		err := t.facade.Publish(t.mainCtx, fmt.Sprintf("updates/%s", data.Name), 0, true, gr)
 		jeh.Append(err)
+
+		// Sibling publish for observability — `los/<src>` carries just the
+		// peer roster (names + their network params) so metrics-bridge can
+		// derive `yass_los_active{src, peer}` without parsing the full
+		// FsNodeUpdate. See yass-docs/observability-v2-spec.md §G3 / §A.3.
+		losPeers := make([]map[string]any, 0, len(data.ReachableFsNodes))
+		for _, peer := range data.ReachableFsNodes {
+			losPeers = append(losPeers, map[string]any{
+				"name":     peer.NameTo,
+				"distance": peer.Distance,
+			})
+		}
+		losMsg := map[string]any{
+			"fsNode":             data.Name,
+			"updatedUnixMillis":  nowMillis,
+			"peers":              losPeers,
+		}
+		err = t.facade.Publish(t.mainCtx, fmt.Sprintf("los/%s", data.Name), 0, true, losMsg)
+		jeh.Append(err)
 	}
 	return jeh.AsError()
 }

@@ -126,6 +126,15 @@ type ExperimentSpec struct {
 	// engine containers. Propagated to every FsNode.
 	// +kubebuilder:validation:Optional
 	EngineVolumes []corev1.Volume `json:"engineVolumes,omitempty"`
+
+	// RunID, when set, overrides the auto-generated run identifier
+	// `<experimentName>@<creationTimestamp>` that the operator stamps on
+	// every metric and event. Authors can use it to bake engine params
+	// into the identifier (e.g. `forever-edfs-K3N5-par-on`) so dashboards
+	// can multi-select on `run_id` to compare parameter sweeps.
+	// See yass-docs/observability-v2-spec.md §G2.
+	// +kubebuilder:validation:Optional
+	RunID string `json:"runId,omitempty"`
 }
 
 // ExperimentStatus is the observed state reported by the experiment-controller.

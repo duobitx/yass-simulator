@@ -39,6 +39,25 @@ export interface SseAgentFileEvent {
   md5?: string;
 }
 
+/** Hardware-event transition published by world-controller's hwevents
+ *  scheduler (yass-docs/observability-v2-spec.md §G6.1). UI renders a
+ *  per-fsNode fault badge from these. */
+export interface SseHardwareEvent {
+  source: string;        // fsNode the fault is happening on
+  timestamp: string;
+  eventType: "HardwareEvent";
+  hwType:
+    | "NetworkBandwidthReduced"
+    | "NetworkFailure"
+    | "DiskFull"
+    | "DiskFailure"
+    | "Destroy"
+    | string;
+  state: "active" | "cleared" | "dropped_overlap" | string;
+  name?: string;
+  reason?: string;
+}
+
 export interface SseNetworkUsageEvent {
   source: string;
   timestamp: string;

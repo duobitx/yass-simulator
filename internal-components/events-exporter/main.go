@@ -33,8 +33,16 @@ func main() {
 	since := flag.Duration("since", 24*time.Hour, "look-back window from now")
 	startStr := flag.String("start", "", "absolute RFC3339 start time (overrides --since)")
 	endStr := flag.String("end", "", "absolute RFC3339 end time (defaults to now)")
-	out := flag.String("out", "", "output file path (default /var/yass-observability/exports/<experiment>-<run_id>.ods)")
+	out := flag.String("out", "", "output file path (default /var/yass-observability/exports/<experiment>-<run_id>.<ext>)")
+	format := flag.String("format", "ods", "output format: ods (default, single spreadsheet) or csv (tar.gz with one CSV per event kind)")
 	flag.Parse()
+	switch *format {
+	case "ods", "csv":
+		// ok
+	default:
+		fmt.Fprintf(os.Stderr, "bad --format %q: want ods|csv\n", *format)
+		os.Exit(2)
+	}
 
 	if *experiment == "" {
 		fmt.Fprintln(os.Stderr, "missing --experiment / EXPERIMENT_NAME")
@@ -67,7 +75,11 @@ func main() {
 		if *runID != "" {
 			name = name + "-" + *runID
 		}
-		name = name + "-" + stamp + ".ods"
+		ext := ".ods"
+		if *format == "csv" {
+			ext = ".tar.gz"
+		}
+		name = name + "-" + stamp + ext
 		outPath = filepath.Join("/var/yass-observability/exports", name)
 	}
 	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
@@ -95,16 +107,25 @@ func main() {
 		fmt.Fprintf(os.Stderr, "create %s: %v\n", outPath, err)
 		os.Exit(5)
 	}
-	if err := ods.Write(f, sheets); err != nil {
-		_ = f.Close()
-		fmt.Fprintf(os.Stderr, "write ods: %v\n", err)
-		os.Exit(6)
+	switch *format {
+	case "ods":
+		if err := ods.Write(f, sheets); err != nil {
+			_ = f.Close()
+			fmt.Fprintf(os.Stderr, "write ods: %v\n", err)
+			os.Exit(6)
+		}
+	case "csv":
+		if err := writeCSVTarGz(f, sheets); err != nil {
+			_ = f.Close()
+			fmt.Fprintf(os.Stderr, "write csv: %v\n", err)
+			os.Exit(6)
+		}
 	}
 	if err := f.Close(); err != nil {
 		fmt.Fprintf(os.Stderr, "close: %v\n", err)
 		os.Exit(7)
 	}
-	slog.Info("written", "path", outPath, "sheets", len(sheets))
+	slog.Info("written", "path", outPath, "sheets", len(sheets), "format", *format)
 }
 
 func buildSelector(experiment, engine, runID string) string {

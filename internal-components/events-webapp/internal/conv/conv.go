@@ -155,3 +155,40 @@ func FsNodeNetworkUsageConv(topic string, data []byte) (any, error) {
 	}
 	return out, nil
 }
+
+// HardwareEventConv maps `hardware-events/<fsNode>` MQTT messages into
+// api.HardwareEvent so the web UI can render a per-fsNode fault badge.
+// See yass-docs/observability-v2-spec.md §G6.1.
+func HardwareEventConv(topic string, data []byte) (any, error) {
+	parts := strings.Split(topic, "/")
+	if len(parts) < 2 {
+		return nil, nil
+	}
+	fsNode := parts[1]
+	in := struct {
+		Type     string `json:"type"`
+		State    string `json:"state"`
+		Name     string `json:"name"`
+		Reason   string `json:"reason"`
+		WallTime string `json:"wallTime"`
+	}{}
+	if err := json.Unmarshal(data, &in); err != nil {
+		return nil, err
+	}
+	if in.Type == "" || in.State == "" {
+		return nil, nil
+	}
+	ts := time.Now()
+	if in.WallTime != "" {
+		if t, err := time.Parse(time.RFC3339Nano, in.WallTime); err == nil {
+			ts = t
+		}
+	}
+	return api.HardwareEvent{
+		BaseEvent: api.BaseEvent{Source: fsNode, Timestamp: ts, EventType: "HardwareEvent"},
+		HwType:    in.Type,
+		State:     in.State,
+		Name:      in.Name,
+		Reason:    in.Reason,
+	}, nil
+}

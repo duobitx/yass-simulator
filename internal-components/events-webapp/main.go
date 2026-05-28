@@ -125,6 +125,9 @@ func (t *appType) message(_ context.Context, topic string, _ bool, data []byte) 
 	if topic == "crud-events" {
 		cf = conv.AgentFileEventConv
 	}
+	if strings.HasPrefix(topic, "hardware-events/") && !strings.HasSuffix(topic, "_") {
+		cf = conv.HardwareEventConv
+	}
 	if cf != nil {
 		apiResponse, err := cf(topic, data)
 		if err != nil {

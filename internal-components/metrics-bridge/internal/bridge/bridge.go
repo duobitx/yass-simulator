@@ -51,6 +51,10 @@ type Bridge struct {
 	prevLowPower sync.Map // fsNode -> bool
 	prevOnline   sync.Map // fsNode -> bool
 
+	// prevLosPeers tracks the previous peer set per fsNode so we can
+	// zero out LosActive when a peer drops out of visibility.
+	prevLosPeers sync.Map // fsNode -> map[peer]struct{}
+
 	// Experiment-clock tracking. We sample updates/_time_ from the
 	// experiment-executor and convert every event's wall-clock timestamp into
 	// simulated experiment time so Loki, Grafana and the .ods export all show
@@ -152,6 +156,10 @@ func (b *Bridge) Handle(_ context.Context, topic string, _ bool, data []byte) {
 		b.onLifecycle(data)
 	case strings.HasPrefix(topic, "hardware-events/") && !strings.HasSuffix(topic, "_"):
 		b.onHardwareEvent(topic, data)
+	case strings.HasPrefix(topic, "los/") && !strings.HasSuffix(topic, "_"):
+		b.onLos(topic, data)
+	case strings.HasPrefix(topic, "edfs-cids/") && !strings.HasSuffix(topic, "_"):
+		b.onEdfsCids(topic, data)
 	case topic == "updates/_time_":
 		b.onTimeUpdate(data)
 	}
@@ -450,6 +458,85 @@ func (b *Bridge) runExportAfterGrace() {
 		return
 	}
 	slog.Info("events-exporter ok", "output", string(out))
+}
+
+// onEdfsCids handles `edfs-cids/<fsNode>` — periodic snapshot of which
+// root CIDs this fsNode currently has and how complete each replica is.
+// See yass-docs/observability-v2-spec.md §G4 Tier 1.
+//
+// Expected payload:
+//
+//	{"fsNode":"oneweb-0008",
+//	 "snapshotAt":"...",
+//	 "cids":[{"cid":"bafy...","totalBlocks":12,"presentBlocks":7}]}
+func (b *Bridge) onEdfsCids(topic string, data []byte) {
+	parts := strings.Split(topic, "/")
+	if len(parts) < 2 {
+		return
+	}
+	fsNode := parts[1]
+	var msg struct {
+		Cids []struct {
+			CID           string `json:"cid"`
+			TotalBlocks   int64  `json:"totalBlocks"`
+			PresentBlocks int64  `json:"presentBlocks"`
+		} `json:"cids"`
+	}
+	if err := json.Unmarshal(data, &msg); err != nil {
+		slog.Warn("metrics-bridge: cannot decode edfs-cids", "topic", topic, "error", err)
+		return
+	}
+	for _, c := range msg.Cids {
+		if c.CID == "" {
+			continue
+		}
+		if c.TotalBlocks > 0 {
+			b.m.EdfsBlocksTotal.WithLabelValues(c.CID).Set(float64(c.TotalBlocks))
+		}
+		b.m.EdfsBlocksPresent.WithLabelValues(c.CID, fsNode).Set(float64(c.PresentBlocks))
+		completeness := 0.0
+		if c.TotalBlocks > 0 {
+			completeness = float64(c.PresentBlocks) / float64(c.TotalBlocks)
+		}
+		b.m.EdfsReplicaCompleteness.WithLabelValues(c.CID, fsNode).Set(completeness)
+	}
+}
+
+// onLos handles `los/<fsNode>` — the executor's per-tick peer roster
+// derived from geo-calc visibility. We toggle yass_los_active{fsNode,
+// peer} to 1 for every peer currently in the roster, and to 0 for
+// peers that were visible last tick but aren't now.
+func (b *Bridge) onLos(topic string, data []byte) {
+	parts := strings.Split(topic, "/")
+	if len(parts) < 2 {
+		return
+	}
+	fsNode := parts[1]
+	var msg struct {
+		Peers []struct {
+			Name string `json:"name"`
+		} `json:"peers"`
+	}
+	if err := json.Unmarshal(data, &msg); err != nil {
+		slog.Warn("metrics-bridge: cannot decode los message", "topic", topic, "error", err)
+		return
+	}
+	now := map[string]struct{}{}
+	for _, p := range msg.Peers {
+		if p.Name == "" {
+			continue
+		}
+		now[p.Name] = struct{}{}
+		b.m.LosActive.WithLabelValues(fsNode, p.Name).Set(1)
+	}
+	if prev, ok := b.prevLosPeers.Load(fsNode); ok {
+		for peer := range prev.(map[string]struct{}) {
+			if _, still := now[peer]; !still {
+				b.m.LosActive.WithLabelValues(fsNode, peer).Set(0)
+			}
+		}
+	}
+	b.prevLosPeers.Store(fsNode, now)
 }
 
 func (b *Bridge) onHardwareEvent(topic string, data []byte) {

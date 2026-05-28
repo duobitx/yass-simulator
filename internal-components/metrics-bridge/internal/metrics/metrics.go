@@ -32,6 +32,15 @@ type Metrics struct {
 
 	HardwareEventActive       *prometheus.GaugeVec
 	HardwareEventDroppedTotal *prometheus.CounterVec
+
+	LosActive *prometheus.GaugeVec
+
+	// EDFS replica tracking — Tier 1 in obs-v2-spec §G4.
+	// Engines publish snapshots on edfs-cids/<fsNode>; the bridge derives
+	// per-CID gauges. Per-block tracking is Tier 2 (Loki only).
+	EdfsBlocksPresent       *prometheus.GaugeVec
+	EdfsBlocksTotal         *prometheus.GaugeVec
+	EdfsReplicaCompleteness *prometheus.GaugeVec
 }
 
 func deliveryBuckets() []float64 {
@@ -93,6 +102,20 @@ func New(reg prometheus.Registerer) *Metrics {
 		HardwareEventDroppedTotal: prometheus.NewCounterVec(
 			prometheus.CounterOpts{Name: "yass_hardware_event_dropped_total", Help: "Hardware-event occurrences dropped (e.g. overlap with already-active event of the same type)."},
 			[]string{"fsNode", "type", "reason"}),
+
+		LosActive: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{Name: "yass_los_active", Help: "1 while there is line-of-sight from `fsNode` to `peer` per the executor's geo-calc tick."},
+			[]string{"fsNode", "peer"}),
+
+		EdfsBlocksPresent: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{Name: "yass_edfs_blocks_present", Help: "Number of locally-pinned blocks of root CID on fsNode."},
+			[]string{"cid", "fsNode"}),
+		EdfsBlocksTotal: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{Name: "yass_edfs_blocks_total", Help: "Total number of blocks the root CID is made of (advertised by the source's engine)."},
+			[]string{"cid"}),
+		EdfsReplicaCompleteness: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{Name: "yass_edfs_replica_completeness", Help: "0..1 fraction of CID's blocks present on fsNode. 1.0 = full replica."},
+			[]string{"cid", "fsNode"}),
 	}
 	reg.MustRegister(
 		m.FileProducedTotal, m.FileProducedBytesTotal,
@@ -104,6 +127,8 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.NetworkTxBytesTotal, m.NetworkRxBytesTotal,
 		m.NetworkTxPacketsTotal, m.NetworkRxPacketsTotal,
 		m.HardwareEventActive, m.HardwareEventDroppedTotal,
+		m.LosActive,
+		m.EdfsBlocksPresent, m.EdfsBlocksTotal, m.EdfsReplicaCompleteness,
 	)
 	return m
 }

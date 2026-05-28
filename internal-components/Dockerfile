@@ -17,8 +17,11 @@ COPY events-webapp/main ./events-webapp
 # Experiment executor
 COPY experiment-executor/main ./experiment-executor
 
-# Metrics bridge (MQTT -> Prometheus)
+# Metrics bridge (MQTT -> MQTT metrics aggregator)
 COPY metrics-bridge/main ./metrics-bridge
+
+# mqtt2prom (MQTT metrics -> Prometheus /metrics)
+COPY mqtt2prom/main ./mqtt2prom
 
 # Events exporter (Loki -> .ods)
 COPY events-exporter/main ./events-exporter

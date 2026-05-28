@@ -16,6 +16,7 @@ import (
 const (
 	labelEngine = "yass-engine"
 	labelRunID  = "yass-run-id"
+	labelLayout = "yass-layout"
 )
 
 // modMetricsBridge stamps experiment context (name/engine/run-id) as pod
@@ -39,11 +40,13 @@ func modMetricsBridge(experiment *yassv1.Experiment) func(client.Object) {
 		dep.Spec.Template.Labels[controller.LabelExperiment] = experiment.Name
 		dep.Spec.Template.Labels[labelEngine] = engine
 		dep.Spec.Template.Labels[labelRunID] = runID
+		dep.Spec.Template.Labels[labelLayout] = experiment.Spec.LayoutDefRef
 
 		envs := []v1.EnvVar{
 			{Name: "EXPERIMENT_NAME", Value: experiment.Name},
 			{Name: "ENGINE", Value: engine},
 			{Name: "RUN_ID", Value: runID},
+			{Name: "LAYOUT", Value: experiment.Spec.LayoutDefRef},
 		}
 		for i := range dep.Spec.Template.Spec.Containers {
 			c := &dep.Spec.Template.Spec.Containers[i]
@@ -68,10 +71,14 @@ func deriveEngine(experiment *yassv1.Experiment) string {
 	return "unknown"
 }
 
-// deriveRunID returns "<experiment>_<yyyyMMddTHHmmssZ>". The separator and
-// stamp use only characters valid in a Kubernetes label value
-// ([A-Za-z0-9._-]).
+// deriveRunID returns the experiment's user-set RunID when present
+// (yass-docs/observability-v2-spec.md §G2), otherwise the auto-stamp
+// "<experiment>_<yyyyMMddTHHmmssZ>". Auto-stamp uses only characters
+// valid in a Kubernetes label value ([A-Za-z0-9._-]).
 func deriveRunID(experiment *yassv1.Experiment) string {
+	if experiment.Spec.RunID != "" {
+		return experiment.Spec.RunID
+	}
 	t := experiment.CreationTimestamp.UTC()
 	if t.IsZero() {
 		t = time.Now().UTC()

@@ -81,3 +81,15 @@ type ResourceEvent struct {
 	Volumes           []VolumeUsage      `json:"volumes,omitempty"`
 	EngineContainers  []ContainerCompute `json:"engineContainers,omitempty"`
 }
+
+// HardwareEvent mirrors what the world-controller publishes on
+// `hardware-events/<fsNode>`. Surfaced to the web UI so it can render
+// fault badges over the affected satellite/GS.
+// See yass-docs/observability-v2-spec.md §G6.1.
+type HardwareEvent struct {
+	BaseEvent
+	HwType string `json:"hwType"` // NetworkBandwidthReduced | NetworkFailure | DiskFull | DiskFailure | Destroy
+	State  string `json:"state"`  // active | cleared | dropped_overlap
+	Name   string `json:"name,omitempty"`
+	Reason string `json:"reason,omitempty"`
+}

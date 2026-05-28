@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { SseAgentFileEvent, SseNetworkUsageEvent, SsePositionEvent } from "@/lib/sse-types";
+import type { SseAgentFileEvent, SseHardwareEvent, SseNetworkUsageEvent, SsePositionEvent } from "@/lib/sse-types";
 
 const EVENTS_HISTORY_PER_FSNODE = 50;
 
@@ -37,6 +37,11 @@ export function useSatelliteSse(url: string, enabled: boolean) {
   const tracksRef = useRef<Record<string, SsePositionEvent>>({});
   const usageRef = useRef<Record<string, SseNetworkUsageEvent>>({});
   const eventsRef = useRef<Record<string, SseAgentFileEvent[]>>({});
+  // faultsRef: per-fsNode set of currently-active hardware-event types
+  // (NetworkFailure, DiskFull, …). UI renders a fault badge whenever the
+  // set is non-empty. Cleared when the corresponding HardwareEvent state
+  // transitions to "cleared". Destroy is sticky — never cleared.
+  const faultsRef = useRef<Record<string, Set<string>>>({});
   const expClockRef = useRef<ExperimentClockAnchor | null>(null);
   const [tracks, setTracks] = useState<Record<string, SsePositionEvent>>({});
   const [sourceSignature, setSourceSignature] = useState("");
@@ -134,6 +139,17 @@ export function useSatelliteSse(url: string, enabled: boolean) {
               const next = [full, ...prev].slice(0, EVENTS_HISTORY_PER_FSNODE);
               eventsRef.current = { ...eventsRef.current, [full.source]: next };
               // No state flush: read on demand by popups.
+            } else if (ev.eventType === "HardwareEvent") {
+              const full = row as SseHardwareEvent;
+              const prev = faultsRef.current[full.source] ?? new Set<string>();
+              const next = new Set(prev);
+              if (full.state === "active") {
+                next.add(full.hwType);
+              } else if (full.state === "cleared" && full.hwType !== "Destroy") {
+                next.delete(full.hwType);
+              }
+              faultsRef.current = { ...faultsRef.current, [full.source]: next };
+              // No state flush: consumed by per-tick CesiumScene rendering.
             }
           }
         }
@@ -156,5 +172,5 @@ export function useSatelliteSse(url: string, enabled: boolean) {
     };
   }, [url, enabled]);
 
-  return { tracks, tracksRef, usageRef, eventsRef, expClockRef, sourceSignature, status };
+  return { tracks, tracksRef, usageRef, eventsRef, faultsRef, expClockRef, sourceSignature, status };
 }
