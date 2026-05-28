@@ -48,9 +48,6 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-	// FIXME
-	// utilruntime.Must(corev1.AddToScheme(scheme))
-	// utilruntime.Must(appsv1.AddToScheme(scheme))
 	utilruntime.Must(yassv1.AddToScheme(scheme))
 	// +kubebuilder:scaffold:scheme
 }

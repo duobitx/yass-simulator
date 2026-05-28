@@ -191,14 +191,6 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 	}
 	// POD isn't found we need to create the POD
 	experimentName := fsNode.Labels[controller.LabelExperiment]
-	// create Pod
-
-	// FIXME: commented as _enginePorts are not used
-	// var _enginePorts []v1.ContainerPort
-	// for port, prot := range engineOpenPorts {
-	// 	_enginePorts = append(_enginePorts, v1.ContainerPort{ContainerPort: int32(port), Protocol: prot})
-	// }
-	// _enginePorts = append(_enginePorts, v1.ContainerPort{ContainerPort: int32(8080)})
 
 	engineResources := v1.ResourceRequirements{Limits: map[v1.ResourceName]resource.Quantity{}}
 	if fsNode.Spec.HardwareSpec != nil {
@@ -209,7 +201,6 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 			engineResources.Limits[v1.ResourceMemory] = *fsNode.Spec.HardwareSpec.Memory
 		}
 	}
-	// TODO mount
 	var diskSizeLimit *resource.Quantity = nil
 	terminationGracePeriodSeconds := int64(8)
 	if fsNode.Spec.HardwareSpec != nil {
