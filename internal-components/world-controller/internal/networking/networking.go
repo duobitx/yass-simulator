@@ -256,6 +256,10 @@ func (h *Handler) replaceIPProfile(param *NetworkParam) error {
 }
 
 func (h *Handler) addIngressFilters(srcIP net.IP) error {
+	// Clean existing ingress filters for this IP first — FilterReplace on
+	// flower filters without a stable Handle returns EEXIST on some kernels.
+	_ = h.removeIngressFilters(srcIP.String())
+
 	protoTCP := nl.IPProto(unix.IPPROTO_TCP)
 	protoUDP := nl.IPProto(unix.IPPROTO_UDP)
 	protoICMP := nl.IPProto(unix.IPPROTO_ICMP)
@@ -267,7 +271,6 @@ func (h *Handler) addIngressFilters(srcIP net.IP) error {
 		Protocol:  uint16(unix.ETH_P_IP),
 	}
 
-	// Helper to create ingress flower filter
 	mkIngressFlower := func(p *nl.IPProto, minP, maxP uint16) *netlink.Flower {
 		fl := &netlink.Flower{
 			FilterAttrs:     fa,
@@ -277,7 +280,6 @@ func (h *Handler) addIngressFilters(srcIP net.IP) error {
 			SrcPortRangeMax: maxP,
 			IPProto:         p,
 		}
-		// Action to count packets (PIPE means continue processing)
 		fl.Actions = []netlink.Action{
 			&netlink.GenericAction{
 				ActionAttrs: netlink.ActionAttrs{
@@ -288,16 +290,14 @@ func (h *Handler) addIngressFilters(srcIP net.IP) error {
 		return fl
 	}
 
-	// Add TCP and UDP filters for each managed port range
 	for _, p := range []*nl.IPProto{&protoTCP, &protoUDP} {
 		for _, r := range managedPortRanges {
-			if err := netlink.FilterReplace(mkIngressFlower(p, r.from, r.to)); err != nil {
-				return errors.Wrap(err, "ingress FilterReplace (tcp/udp)")
+			if err := netlink.FilterAdd(mkIngressFlower(p, r.from, r.to)); err != nil && !isEEXIST(err) {
+				return errors.Wrap(err, "ingress FilterAdd (tcp/udp)")
 			}
 		}
 	}
 
-	// Add ICMP filter
 	flICMP := &netlink.Flower{
 		FilterAttrs: fa,
 		EthType:     unix.ETH_P_IP,
@@ -311,11 +311,15 @@ func (h *Handler) addIngressFilters(srcIP net.IP) error {
 			},
 		},
 	}
-	if err := netlink.FilterReplace(flICMP); err != nil {
-		return errors.Wrap(err, "ingress FilterReplace (icmp)")
+	if err := netlink.FilterAdd(flICMP); err != nil && !isEEXIST(err) {
+		return errors.Wrap(err, "ingress FilterAdd (icmp)")
 	}
 
 	return nil
+}
+
+func isEEXIST(err error) bool {
+	return err != nil && strings.Contains(err.Error(), "file exists")
 }
 
 // removeIPProfile assumes h.lock is already held by the caller.
