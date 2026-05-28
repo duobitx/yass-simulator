@@ -226,6 +226,20 @@ func (b *Bridge) onCrudEvent(data []byte) {
 				isTarget = "true"
 			}
 			b.m.FileDeliverySeconds.WithLabelValues(put.Source, e.FsNodeName, isTarget).Observe(deliverySeconds)
+			// Emit a synthetic Loki event that joins the PUT and the
+			// RECEIVED into one row — lets yass-timeline draw a single
+			// source→target arrow with delivery_seconds, and gives
+			// events-exporter a "deliveries" sheet without a manual
+			// PUT↔RECEIVED join. See yass-docs/observability-v2-spec.md §G3.
+			b.pushEvent("file_delivered", e.FsNodeName, "DELIVERED", when, map[string]any{
+				"source":          put.Source,
+				"target":          e.FsNodeName,
+				"md5":             e.Md5Sum,
+				"name":            e.Name,
+				"size":            e.ContentSizeBytes,
+				"deliverySeconds": deliverySeconds,
+				"isTargetGs":      isTarget,
+			})
 		}
 	case "DELETE":
 		b.m.FileDeletedTotal.WithLabelValues(e.FsNodeName).Inc()
