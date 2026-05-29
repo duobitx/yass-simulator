@@ -26,6 +26,7 @@ import {
   Event as CesiumEvent,
   Entity,
   HeightReference,
+  ArcType,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
@@ -610,6 +611,7 @@ const CesiumScene = ({
           polyline: {
             positions: positions,
             width: 1.5,
+            arcType: ArcType.NONE,
             material: new PolylineGlowMaterialProperty({
               glowPower: 0.2,
               color: sat.color.withAlpha(0.4),
@@ -804,6 +806,7 @@ const CesiumScene = ({
             polyline: {
               positions: [a.position, b.position],
               width: 3,
+              arcType: ArcType.NONE,
               material: new PolylineDashMaterialProperty({
                 color: Color.fromCssColorString("#ff44ff").withAlpha(0.8),
                 gapColor: Color.TRANSPARENT,
@@ -870,6 +873,7 @@ const CesiumScene = ({
               polyline: {
                 positions: [gsPosition, bestSat.position],
                 width: 1.5,
+                arcType: ArcType.NONE,
                 material: new PolylineDashMaterialProperty({
                   color: linkColor,
                   gapColor: Color.TRANSPARENT,
@@ -978,6 +982,7 @@ const CesiumScene = ({
         show: new CallbackProperty(() => transferState.has(pairKey), false),
         polyline: {
           positions: new CallbackProperty(() => endpoints(endpointBuf) ?? [ZERO, ZERO], false),
+          arcType: ArcType.NONE,
           width: new CallbackProperty(() => {
             const t = transferState.get(pairKey);
             return t ? baseWidth + 2 : baseWidth;
