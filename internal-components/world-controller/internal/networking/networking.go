@@ -3,7 +3,6 @@ package networking
 // Engine open ports: 4000-5000 and 9000-9999 — covers IPFS swarm (4001), tus (9090), ipfs-cluster (9094, 9096).
 // Excludes 8080 (control-plane: experiment-executor / events-webapp / web-ui).
 import (
-	"encoding/binary"
 	"fmt"
 	"log/slog"
 	"math"
@@ -54,24 +53,38 @@ func (np NetworkParam) isFullyBlocking() bool {
 type Handler struct {
 	lock       sync.Mutex
 	state      map[string]*NetworkParam
-	netmask    net.IPMask
 	defEthLink netlink.Link
 	disabled   bool
+	// cidByIP assigns a stable per-IP HTB minor (>= cidFirst, skipping
+	// reserved 0x900 / 0x9999). Caller holds h.lock.
+	cidByIP map[string]uint16
+	nextCID uint16
 	// Fault-overlay state — driven by the hardware-event injector
 	// (see overlay.go and yass-docs/hardware-events-spec.md §9.1/§9.2).
 	externalCapBps int64
 	blackHole      bool
 }
 
+// HTB minors reserved by traffic.sh: 0x900 (drop class) and 0x9999
+// (default class). The root class uses minor 0. We start per-IP cids
+// at 0x100 to leave headroom for future reserved values.
+const (
+	cidFirst   uint16 = 0x100
+	cidDrop    uint16 = 0x900
+	cidDefault uint16 = 0x9999
+)
+
 func NewNetworkHandler(disabled bool) (*Handler, error) {
 	if disabled {
 		slog.Default().Info("Networking manipulation disabled; skipping netlink setup")
 		return &Handler{
 			state:    make(map[string]*NetworkParam),
+			cidByIP:  make(map[string]uint16),
+			nextCID:  cidFirst,
 			disabled: true,
 		}, nil
 	}
-	netMask, defaultNetworkInterfaceName, err := findDefaultNetworkNetmask()
+	_, defaultNetworkInterfaceName, err := findDefaultNetworkInterface()
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +96,8 @@ func NewNetworkHandler(disabled bool) (*Handler, error) {
 	h := &Handler{
 		lock:       sync.Mutex{},
 		state:      make(map[string]*NetworkParam),
-		netmask:    netMask,
+		cidByIP:    make(map[string]uint16),
+		nextCID:    cidFirst,
 		defEthLink: defEthLink,
 	}
 	// Setup ingress qdisc for incoming traffic stats
@@ -410,19 +424,25 @@ func (h *Handler) removeIngressFilters(ip string) error {
 	return nil
 }
 
+// getCID returns the stable HTB minor assigned to ip. Allocates a new
+// one if the IP has not been seen before. Earlier versions derived the
+// minor from the IP's host bits, which collapsed to 0 on CNIs that
+// assign Pods a /32 (Cilium, Calico in IPAM-per-host mode), causing
+// every per-IP class to overwrite the HTB root. Caller must hold h.lock.
 func (h *Handler) getCID(ip string) (uint16, error) {
-	ipAddr := net.ParseIP(ip)
-	if ipAddr == nil {
-		return 0, fmt.Errorf("invalid ipAddr '%s'", ip)
+	if net.ParseIP(ip).To4() == nil {
+		return 0, fmt.Errorf("invalid IPv4 address %q", ip)
 	}
-	ip4 := ipAddr.To4()
-	if ip4 == nil {
-		return 0, fmt.Errorf("cannot convert ip ti ipv4 '%s'", ip)
+	if c, ok := h.cidByIP[ip]; ok {
+		return c, nil
 	}
-	ipUint := binary.BigEndian.Uint32(ip4)
-	maskUint := binary.BigEndian.Uint32(h.netmask)
-	result := ipUint &^ maskUint
-	return uint16(result & 0xFFFF), nil
+	for h.nextCID < cidFirst || h.nextCID == cidDrop || h.nextCID == cidDefault {
+		h.nextCID++
+	}
+	c := h.nextCID
+	h.nextCID++
+	h.cidByIP[ip] = c
+	return c, nil
 }
 
 func isAlmostEqual(s0 *NetworkParam, s1 *NetworkParam) bool {
@@ -588,7 +608,7 @@ func (h *Handler) setupIngressQdisc() error {
 	return nil
 }
 
-func findDefaultNetworkNetmask() (net.IPMask, string, error) {
+func findDefaultNetworkInterface() (net.IPMask, string, error) {
 	ifacesAll, err := net.Interfaces()
 	if err != nil {
 		return nil, "", err
