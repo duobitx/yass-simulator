@@ -59,18 +59,29 @@ spec:
           volumeMounts:
             - mountPath: /mnt/shared
               name: shared
-          readinessProbe:
-            httpGet:
-              port: 8080
-              path: "/"
-            periodSeconds: 6
-            initialDelaySeconds: 12
-          livenessProbe:
+          # startupProbe gives the executor up to 5 min to come up
+          # (geo-calc subprocess + initial position sync) without the
+          # liveness clock ticking. Once it passes, liveness/readiness
+          # take over with a generous failure window so a single slow
+          # tick does not kill an otherwise healthy pod.
+          startupProbe:
             httpGet:
               port: 8080
               path: "/"
             periodSeconds: 5
-            initialDelaySeconds: 12
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              port: 8080
+              path: "/"
+            periodSeconds: 10
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              port: 8080
+              path: "/"
+            periodSeconds: 30
+            failureThreshold: 6
       volumes:
         - name: shared
           emptyDir:

@@ -144,6 +144,14 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitRet c
 	if experiment.Status.ExperimentState == yassv1.ExperimentStateInit {
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
+	// Spec.Start=true asks the operator to POST /start once the
+	// experiment goes Ready. If state is still Ready after the
+	// reconcile, the start attempt either DNS-raced (StartPending
+	// event) or simply hasn't happened yet — either way requeue
+	// quickly without involving exponential backoff.
+	if experiment.Status.ExperimentState == yassv1.ExperimentStateReady && experiment.Spec.Start {
+		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -263,6 +271,15 @@ func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx c
 	if experiment.Status.ExperimentState == yassv1.ExperimentStateReady && experiment.Spec.Start {
 		err = r.httpExperimentExecutor(recon, "start", nil, experiment)
 		if err != nil {
+			if errors.Is(err, errExecutorDNSPending) {
+				// DNS race: the Service was just created and CoreDNS
+				// hasn't picked it up yet. Treat as a normal pending
+				// state; the Reconcile loop requeues quickly so we
+				// retry within a few seconds without exponential
+				// backoff.
+				r.recorder.Eventf(experiment, v1.EventTypeNormal, "StartPending", "executor service not yet in DNS, will retry")
+				return nil
+			}
 			r.recorder.Eventf(experiment, v1.EventTypeWarning, "StartSignalError", "error starting experiment - %s", err)
 			return errors.Wrap(err, "cannot start experiment")
 		}
@@ -506,10 +523,20 @@ func (r *Reconciler) createFsNodeResource(ctx context.Context, namespace string,
 	return fsNode, nil
 }
 
+// errExecutorDNSPending is returned by httpExperimentExecutor when the
+// experiment-executor Service has not yet propagated to CoreDNS. This
+// is a transient startup-race signal — callers should swallow it,
+// record a Normal event, and requeue quickly instead of letting
+// controller-runtime apply exponential backoff.
+var errExecutorDNSPending = errors.New("experiment-executor service not in cluster DNS yet")
+
 func (r *Reconciler) httpExperimentExecutor(recon *reconciliationStatus, endpoint string, body []byte, experiment *yassv1.Experiment) error {
 	reqBody := bytes.NewBuffer(body)
 	response, err := http.Post(fmt.Sprintf("http://experiment-executor.%s.svc.cluster.local:8080/%s", experiment.Namespace, endpoint), goutils.BoolToStr(body != nil, "application/json", ""), reqBody)
 	if err != nil {
+		if strings.Contains(err.Error(), "no such host") {
+			return errExecutorDNSPending
+		}
 		r.recorder.Eventf(experiment, v1.EventTypeWarning, "ExperimentNotStarted", "unable to start experiment - %s", err)
 		return err
 	}
