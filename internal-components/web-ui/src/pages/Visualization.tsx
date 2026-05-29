@@ -15,8 +15,6 @@ import SatelliteInfoPopup, { SatelliteInfo } from "@/components/visualization/Sa
 import GroundStationInfoPopup, { GroundStationInfo } from "@/components/visualization/GroundStationInfoPopup";
 import SatelliteSearch, { type SatelliteSearchItem } from "@/components/visualization/SatelliteSearch";
 import { FileJourneyPanel } from "@/components/visualization/FileJourneyPanel";
-import { ReplayScrubber } from "@/components/visualization/ReplayScrubber";
-import { useEventHistory } from "@/hooks/useEventHistory";
 import esaLogo from "@/assets/esa-logo.svg";
 import { useSatelliteSse, wallMsToExperimentMs, type ExperimentClockAnchor } from "@/hooks/useSatelliteSse";
 import { sseEventsUrl } from "@/lib/sse-types";
@@ -66,10 +64,6 @@ const CesiumScene = lazy(() => import("@/components/visualization/CesiumScene"))
 
 const Visualization = () => {
   const sse = useSatelliteSse(sseEventsUrl(), true);
-  // G6.3 replay: capture file + fault events with timestamps so the
-  // ReplayScrubber can drive consumers to a past moment. Scene rewind
-  // not wired (see ReplayScrubber comment).
-  const historyRef = useEventHistory({ eventsRef: sse.eventsRef, faultsRef: sse.faultsRef });
   const experimentName = useExperimentName();
 
   const { sceneSatellites, sceneGroundStations } = useMemo(() => {
@@ -329,9 +323,6 @@ const Visualization = () => {
               }
             />
           )}
-
-          {/* G6.3 replay scrubber — bottom-centre, opt-in */}
-          {liveMode && <ReplayScrubber historyRef={historyRef} />}
 
           {/* Info popups */}
           {selectedSatellite && (
