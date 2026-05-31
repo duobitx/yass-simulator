@@ -213,6 +213,10 @@ func (h *Handler) replaceIPProfile(param *NetworkParam) error {
 		netlink.HtbClassAttrs{
 			Rate: uint64(param.Bandwidth),
 			Ceil: uint64(param.Bandwidth),
+			// Pin the quantum to one MTU. Otherwise the kernel derives it from
+			// rate/r2q and emits "quantum too small/large" warnings (and shapes
+			// inaccurately) at the extremes of our 100 kbit/s..100 Mbit/s range.
+			Quantum: 1500,
 		},
 	)
 	if err := netlink.ClassReplace(htbClass); err != nil {
