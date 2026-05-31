@@ -10,13 +10,17 @@ func TestTrackerRecordAndMatch(t *testing.T) {
 	now := time.Now()
 	tr.RecordPut("abc", "sat-1", 100, now)
 
-	p := tr.MatchReceive("abc")
-	if p == nil || p.Source != "sat-1" || p.SizeBytes != 100 {
-		t.Fatalf("unexpected match: %#v", p)
+	p, dup := tr.MatchReceive("abc", "gs-1")
+	if p == nil || dup || p.Source != "sat-1" || p.SizeBytes != 100 {
+		t.Fatalf("unexpected match: %#v dup=%v", p, dup)
 	}
-	// MatchReceive must not remove the entry — multi-peer delivery.
-	if got := tr.MatchReceive("abc"); got == nil {
-		t.Fatal("entry was removed after match; expected it to persist")
+	// A different receiver is a separate delivery — entry must persist.
+	if got, dup := tr.MatchReceive("abc", "gs-2"); got == nil || dup {
+		t.Fatal("entry was removed after match; expected it to persist for other receivers")
+	}
+	// The same receiver again is a duplicate receipt — must be flagged.
+	if got, dup := tr.MatchReceive("abc", "gs-1"); got != nil || !dup {
+		t.Fatalf("expected duplicate receipt for gs-1, got %#v dup=%v", got, dup)
 	}
 }
 
@@ -30,10 +34,10 @@ func TestTrackerEvictExpired(t *testing.T) {
 	if lost["sat-1"] != 1 {
 		t.Fatalf("expected 1 lost from sat-1, got %d", lost["sat-1"])
 	}
-	if p := tr.MatchReceive("old"); p != nil {
+	if p, _ := tr.MatchReceive("old", "gs-1"); p != nil {
 		t.Fatal("old entry should have been evicted")
 	}
-	if p := tr.MatchReceive("fresh"); p == nil {
+	if p, _ := tr.MatchReceive("fresh", "gs-1"); p == nil {
 		t.Fatal("fresh entry should still be present")
 	}
 }
@@ -42,7 +46,7 @@ func TestTrackerEmptyKey(t *testing.T) {
 	tr := NewTracker(time.Hour, 100)
 	tr.RecordPut("", "sat-1", 1, time.Now())
 	tr.RecordPut("md5", "", 1, time.Now())
-	if p := tr.MatchReceive(""); p != nil {
+	if p, _ := tr.MatchReceive("", "gs-1"); p != nil {
 		t.Fatal("empty md5 should not match")
 	}
 }

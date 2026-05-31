@@ -10,6 +10,7 @@ type PendingPut struct {
 	Source    string
 	SizeBytes int64
 	When      time.Time
+	received  map[string]struct{} // receivers already counted (dedup)
 }
 
 type Tracker struct {
@@ -46,21 +47,34 @@ func (t *Tracker) RecordPut(md5sum, source string, size int64, when time.Time) {
 	}
 }
 
-// MatchReceive looks up a pending PUT for the given md5sum. It does NOT
-// remove the entry — a single file may be received by multiple peers, and
-// each receipt yields a histogram observation. Returns nil if unknown.
-func (t *Tracker) MatchReceive(md5sum string) *PendingPut {
+// MatchReceive looks up a pending PUT for the given md5sum and records that
+// `receiver` got it. It does NOT remove the entry — a single file may be
+// received by multiple distinct peers, each a separate delivery. It returns
+// (nil, true) when this exact (md5sum, receiver) pair has already been seen
+// (a duplicate receipt — engine restart, re-pin, idempotent re-fetch) so the
+// caller can skip double-counting, and (nil, false) when the md5sum is
+// unknown. The dedup set lives inside the PendingPut, so it is bounded by the
+// pending map and freed when the PUT is evicted.
+func (t *Tracker) MatchReceive(md5sum, receiver string) (*PendingPut, bool) {
 	if md5sum == "" {
-		return nil
+		return nil, false
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	p, ok := t.pending[md5sum]
 	if !ok {
-		return nil
+		return nil, false
 	}
+	if p.received == nil {
+		p.received = make(map[string]struct{})
+	}
+	if _, dup := p.received[receiver]; dup {
+		return nil, true
+	}
+	p.received[receiver] = struct{}{}
 	cp := *p
-	return &cp
+	cp.received = nil
+	return &cp, false
 }
 
 // EvictExpired returns the (source → target → count) of PUTs older than
