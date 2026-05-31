@@ -380,9 +380,9 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GlobalGeoCalcU
 			})
 		}
 		losMsg := map[string]any{
-			"fsNode":             data.Name,
-			"updatedUnixMillis":  nowMillis,
-			"peers":              losPeers,
+			"fsNode":            data.Name,
+			"updatedUnixMillis": nowMillis,
+			"peers":             losPeers,
 		}
 		err = t.facade.Publish(t.mainCtx, fmt.Sprintf("los/%s", data.Name), 0, true, losMsg)
 		jeh.Append(err)
@@ -396,7 +396,7 @@ const (
 	bandwidthMinBps      = 100 * 1024              // 100 kbit/s floor
 	bandwidthRefDistance = 1000.0                  // km — distance at which we still get full bandwidth
 	transmitterDelayMs   = 1.0                     // fixed transmitter delay in ms
-	speedOfLightKmPerMs  = 300.0                   // km per millisecond
+	speedOfLightKmPerMs  = 299.792458              // km per millisecond
 	packageLossBase      = 0.001                   // 0.1% baseline loss
 	packageLossSlope     = 0.001                   // per (d/d_ref)^2 unit
 	packageLossMax       = 0.5                     // 50% cap; above that link is effectively dead
