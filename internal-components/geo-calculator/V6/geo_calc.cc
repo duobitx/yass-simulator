@@ -298,29 +298,34 @@ int calc_pos_proto(int prnt)
   for(k=nref=0;k<n_sat+n_bs;k++)
     for(l=k+1;l<n_sat+n_bs;l++)
       if(  (d=dist(k,l)) > 0.0 ) {
-        auto* dist = message.add_distances();
-        dist->set_item_id_a(k+1);
-        dist->set_item_id_b(l+1);
-        dist->set_distance(d);
-        dist->set_los(true);
-        dist->set_item_id_a(l+1);
-        dist->set_item_id_b(k+1);
-        dist->set_distance(d);
-        dist->set_los(true);
+        // Emit two directed records (a->b and b->a). Previously a single
+        // record was added and its id fields were overwritten, so only b->a
+        // survived. (The consumer convert.go dedups, so this is safe.)
+        auto* distAB = message.add_distances();
+        distAB->set_item_id_a(k+1);
+        distAB->set_item_id_b(l+1);
+        distAB->set_distance(d);
+        distAB->set_los(true);
+        auto* distBA = message.add_distances();
+        distBA->set_item_id_a(l+1);
+        distBA->set_item_id_b(k+1);
+        distBA->set_distance(d);
+        distBA->set_los(true);
         nref+=2;
         if(prnt) printf("item_id_a: %3d, item_id_b: %3d, distance: %8.2f, los: %d\nitem_id_a: %3d, item_id_b: %3d, distance: %8.2f, los: %d\n",
                          k+1,l+1,d,1,l+1,k+1,d,1);
        }
       else {
-        auto* dist = message.add_distances();
-        dist->set_item_id_a(k+1);
-        dist->set_item_id_b(l+1);
-        dist->set_distance(-d);
-        dist->set_los(false);
-        dist->set_item_id_a(l+1);
-        dist->set_item_id_b(k+1);
-        dist->set_distance(-d);
-        dist->set_los(false);
+        auto* distAB = message.add_distances();
+        distAB->set_item_id_a(k+1);
+        distAB->set_item_id_b(l+1);
+        distAB->set_distance(-d);
+        distAB->set_los(false);
+        auto* distBA = message.add_distances();
+        distBA->set_item_id_a(l+1);
+        distBA->set_item_id_b(k+1);
+        distBA->set_distance(-d);
+        distBA->set_los(false);
         if(prnt) printf("item_id_a: %3d, item_id_b: %3d, distance: %8.2f, los: %d\nitem_id_a: %3d, item_id_b: %3d, distance: %8.2f, los: %d\n",
                          k+1,l+1,-d,0,l+1,k+1,-d,0);
        }
