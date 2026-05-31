@@ -64,8 +64,9 @@ type activeFault struct {
 	name     string
 	typ      yassv1.HardwareEventType
 	endsAt   time.Time // wall-clock; zero for Destroy
-	params   *yassv1.HardwareEventParams
-	override int64 // remembered externalCap for clean teardown
+	params       *yassv1.HardwareEventParams
+	override     int64 // remembered externalCap (bps) for clean teardown
+	reductionPct int32 // remembered bandwidth reduction % for clean teardown
 }
 
 type eventSchedState struct {
@@ -266,6 +267,7 @@ func (m *Manager) fire(ctx context.Context, idx int, now time.Time) {
 	}
 	if e.Type == yassv1.HardwareEventNetworkBandwidthReduced && e.Params != nil && e.Params.NetworkBandwidth != nil {
 		af.override = e.Params.NetworkBandwidth.CapBitsPerSec
+		af.reductionPct = e.Params.NetworkBandwidth.ReductionPercent
 	}
 	m.active[e.Type] = af
 	st.fired++
@@ -329,16 +331,12 @@ func (m *Manager) clearAll(ctx context.Context, reason string) {
 func (m *Manager) activate(ctx context.Context, a *activeFault) error {
 	switch a.typ {
 	case yassv1.HardwareEventNetworkBandwidthReduced:
-		cap := int64(0)
-		if a.params != nil && a.params.NetworkBandwidth != nil {
-			cap = a.params.NetworkBandwidth.CapBitsPerSec
-			// ReductionPercent path is informational here — we'd need
-			// the current per-peer orbital cap to apply it precisely.
-			// Cap-as-bps is honoured; ReductionPercent left as TODO.
-		}
-		return m.networking.ApplyFaultOverlay(cap, m.isBlackHole())
+		// CapBitsPerSec is an absolute floor; ReductionPercent is a
+		// multiplicative reduction of each peer's orbital rate — the overlay
+		// applies whichever is set (the CRD enforces exactly one).
+		return m.networking.ApplyFaultOverlay(a.override, a.reductionPct, m.isBlackHole())
 	case yassv1.HardwareEventNetworkFailure:
-		return m.networking.ApplyFaultOverlay(m.externalCap(), true)
+		return m.networking.ApplyFaultOverlay(m.externalCap(), m.reductionPercent(), true)
 	case yassv1.HardwareEventDiskFull:
 		return m.remountReadOnly()
 	case yassv1.HardwareEventDiskFailure:
@@ -352,9 +350,9 @@ func (m *Manager) activate(ctx context.Context, a *activeFault) error {
 func (m *Manager) deactivate(ctx context.Context, a *activeFault) error {
 	switch a.typ {
 	case yassv1.HardwareEventNetworkBandwidthReduced:
-		return m.networking.ApplyFaultOverlay(0, m.isBlackHole())
+		return m.networking.ApplyFaultOverlay(0, 0, m.isBlackHole())
 	case yassv1.HardwareEventNetworkFailure:
-		return m.networking.ApplyFaultOverlay(m.externalCap(), false)
+		return m.networking.ApplyFaultOverlay(m.externalCap(), m.reductionPercent(), false)
 	case yassv1.HardwareEventDiskFull:
 		return m.remountReadWrite()
 	case yassv1.HardwareEventDiskFailure:
@@ -381,6 +379,14 @@ func (m *Manager) externalCap() int64 {
 	defer m.mu.Unlock()
 	if a, ok := m.active[yassv1.HardwareEventNetworkBandwidthReduced]; ok {
 		return a.override
+	}
+	return 0
+}
+func (m *Manager) reductionPercent() int32 {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if a, ok := m.active[yassv1.HardwareEventNetworkBandwidthReduced]; ok {
+		return a.reductionPct
 	}
 	return 0
 }

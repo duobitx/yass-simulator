@@ -62,6 +62,7 @@ type Handler struct {
 	// Fault-overlay state — driven by the hardware-event injector
 	// (see overlay.go and yass-docs/hardware-events-spec.md §9.1/§9.2).
 	externalCapBps int64
+	reductionPct   int32
 	blackHole      bool
 }
 
@@ -134,18 +135,12 @@ func (h *Handler) Update(networkParams []NetworkParam) error {
 	}
 	for _, param := range networkParams {
 		currentProfiles[param.ToIP] = true
-		if oldState, ok := h.state[param.ToIP]; ok && isAlmostEqual(oldState, &param) && !h.blackHole && h.externalCapBps == 0 {
+		if oldState, ok := h.state[param.ToIP]; ok && isAlmostEqual(oldState, &param) && !h.blackHole && h.externalCapBps == 0 && h.reductionPct == 0 {
 			continue
 		}
 		h.state[param.ToIP] = &param
 		effective := param
-		if h.externalCapBps > 0 && (effective.Bandwidth == 0 || h.externalCapBps < effective.Bandwidth) {
-			effective.Bandwidth = h.externalCapBps
-		}
-		if h.blackHole {
-			effective.Bandwidth = 1
-			effective.PackageLoss = 100
-		}
+		h.applyOverlayLocked(&effective)
 		if effective.isFullyBlocking() {
 			if err := h.removeIPProfile(param.ToIP); err != nil {
 				jeh.Append(errors.Wrapf(err, "error removing ipProfile for %s", param.ToIP))

@@ -18,36 +18,51 @@ import (
 //     broker is unaffected because the broker IP is never in h.state.
 //
 // Idempotent. Calling with `(0, false)` is equivalent to ClearFaultOverlay.
-func (h *Handler) ApplyFaultOverlay(externalCapBps int64, blackHole bool) error {
+func (h *Handler) ApplyFaultOverlay(externalCapBps int64, reductionPct int32, blackHole bool) error {
 	if h.disabled {
 		return nil
 	}
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	h.externalCapBps = externalCapBps
+	h.reductionPct = reductionPct
 	h.blackHole = blackHole
 	return h.reapplyAllLocked()
 }
 
 // ClearFaultOverlay restores the natural orbital rules. Equivalent to
-// ApplyFaultOverlay(0, false).
+// ApplyFaultOverlay(0, 0, false).
 func (h *Handler) ClearFaultOverlay() error {
-	return h.ApplyFaultOverlay(0, false)
+	return h.ApplyFaultOverlay(0, 0, false)
+}
+
+// applyOverlayLocked mutates `p` to reflect the active fault overlay on top of
+// its orbital values: first a multiplicative bandwidth reduction
+// (reductionPct), then an absolute cap (externalCapBps, applied as a min), then
+// a full black-hole. Caller must hold h.lock.
+func (h *Handler) applyOverlayLocked(p *NetworkParam) {
+	if h.reductionPct > 0 && p.Bandwidth > 0 {
+		p.Bandwidth = p.Bandwidth * int64(100-h.reductionPct) / 100
+		if p.Bandwidth < 1 {
+			p.Bandwidth = 1 // a reduction throttles; it must not fully block
+		}
+	}
+	if h.externalCapBps > 0 && (p.Bandwidth == 0 || h.externalCapBps < p.Bandwidth) {
+		p.Bandwidth = h.externalCapBps
+	}
+	if h.blackHole {
+		p.Bandwidth = 1
+		p.PackageLoss = 100
+	}
 }
 
 // reapplyAllLocked re-runs replaceIPProfile / removeIPProfile for every
-// peer in h.state so the overlay flags (externalCapBps / blackHole) take
-// effect immediately. Caller must hold h.lock.
+// peer in h.state so the overlay flags take effect immediately. Caller must
+// hold h.lock.
 func (h *Handler) reapplyAllLocked() error {
 	for ip, p := range h.state {
 		effective := *p
-		if h.externalCapBps > 0 && (effective.Bandwidth == 0 || h.externalCapBps < effective.Bandwidth) {
-			effective.Bandwidth = h.externalCapBps
-		}
-		if h.blackHole {
-			effective.Bandwidth = 1
-			effective.PackageLoss = 100
-		}
+		h.applyOverlayLocked(&effective)
 		if effective.isFullyBlocking() {
 			if err := h.removeIPProfile(ip); err != nil {
 				return errors.Wrapf(err, "overlay remove %s", ip)
