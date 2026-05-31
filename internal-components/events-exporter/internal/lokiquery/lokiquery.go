@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -43,6 +44,11 @@ type Entry struct {
 func (c *Client) QueryRange(ctx context.Context, selector string, start, end time.Time) ([]Entry, error) {
 	var out []Entry
 	cursor := start
+	// Signatures of entries already emitted at exactly `cursor`; the next page
+	// re-includes that nanosecond (cursor is inclusive) so we drop the ones we
+	// already have instead of skipping same-nanosecond entries that didn't fit
+	// in the previous page.
+	var seenAtCursor map[string]struct{}
 	for {
 		page, err := c.queryPage(ctx, selector, cursor, end, defaultPageLimit)
 		if err != nil {
@@ -51,12 +57,37 @@ func (c *Client) QueryRange(ctx context.Context, selector string, start, end tim
 		if len(page) == 0 {
 			break
 		}
-		out = append(out, page...)
+		newCount := 0
+		for _, e := range page {
+			if seenAtCursor != nil && e.Time.Equal(cursor) {
+				if _, dup := seenAtCursor[e.Line]; dup {
+					continue
+				}
+			}
+			out = append(out, e)
+			newCount++
+		}
 		if len(page) < defaultPageLimit {
 			break
 		}
-		// Advance cursor by 1 ns past the last entry to avoid re-fetching it.
-		cursor = page[len(page)-1].Time.Add(time.Nanosecond)
+		last := page[len(page)-1].Time
+		if last.Equal(cursor) {
+			// A full page sits entirely in a single nanosecond we cannot
+			// subdivide; advance past it to guarantee progress. This can only
+			// lose data if more than a page of entries share one nanosecond.
+			if newCount == 0 {
+				slog.Warn("loki pagination: more than a page of entries in one nanosecond, some may be skipped", "ns", last.UnixNano())
+			}
+			cursor = last.Add(time.Nanosecond)
+			seenAtCursor = nil
+		} else {
+			// Re-fetch the boundary nanosecond next round, deduping its entries.
+			cursor = last
+			seenAtCursor = make(map[string]struct{})
+			for i := len(page) - 1; i >= 0 && page[i].Time.Equal(last); i-- {
+				seenAtCursor[page[i].Line] = struct{}{}
+			}
+		}
 		if !cursor.Before(end) {
 			break
 		}
