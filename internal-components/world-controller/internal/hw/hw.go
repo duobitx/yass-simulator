@@ -65,6 +65,9 @@ func (s *NodeHwState) Update(tStats []*proto.TrafficStats) ([]byte, string, erro
 		change = 0
 	} else {
 		s.batteryLevel += change / 3600.0
+		if s.batteryLevel < 0 {
+			s.batteryLevel = 0
+		}
 	}
 	lowPowerMode := s.batteryLevel <= s.hw.LowPowerThresholdWh
 	slog.Info("NodeHwState.Update.battery", "change", change, "newLevel", s.batteryLevel, "drain", drain, "gain", gain, "lowPowerMode", lowPowerMode)
