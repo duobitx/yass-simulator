@@ -1172,7 +1172,12 @@ const CesiumScene = ({
       transferState.clear();
       prevSamples.clear();
     };
-  }, [isInitialized, liveMode, liveTracksRef, liveUsageRef, groundStationsProp]);
+    // satellites + the visibility toggles are listed because the entity-rebuild
+    // effect calls viewer.entities.removeAll() when any of them changes, which
+    // also deletes our vis-* polylines. Re-running here tears down the stale
+    // `pairs` map so onTick re-creates the lines; otherwise they vanish
+    // permanently after a source-set change or a layer toggle.
+  }, [isInitialized, liveMode, liveTracksRef, liveUsageRef, groundStationsProp, satellites, showGroundStations, showOrbits, showTrails]);
 
   return (
     <div
