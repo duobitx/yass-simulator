@@ -61,6 +61,7 @@ type appType struct {
 	fsNodeObjKey      client.ObjectKey
 	podIP             string
 	experiment        string
+	nodeType          string
 	nodes             map[string]model.SharedNodeInfo
 	nodesLock         sync.Mutex
 	networkingHandler *networking.Handler
@@ -100,8 +101,9 @@ func (a *appType) publishOnlineState(online bool) error {
 			Name:       a.fsNodeObjKey.Name,
 			Experiment: a.experiment,
 		},
-		Ip:     podIP,
-		Online: online,
+		Ip:       podIP,
+		Online:   online,
+		NodeType: a.nodeType,
 	})
 }
 
@@ -212,6 +214,18 @@ func main() {
 		}
 	}
 	app.k8sClient = k8sClient
+
+	// Learn our own node type (satellite / groundStation) so it can be
+	// stamped onto online-state messages; metrics-bridge uses it to tell SAT
+	// from GS (e.g. to count ground deliveries).
+	{
+		var self yassv1.FsNode
+		if err := app.k8sClient.Get(ctx, app.fsNodeObjKey, &self); err != nil {
+			slog.Warn("cannot read own FsNode for node type", "error", err)
+		} else {
+			app.nodeType = string(self.Spec.NodeType)
+		}
+	}
 
 	subscribeUpdateTopic := fmt.Sprintf("updates/%s", app.fsNodeObjKey.Name)
 	slog.Info("Subscribe", "topic", subscribeUpdateTopic)
