@@ -81,8 +81,25 @@ func (s *NodeHwState) Update(tStats []*proto.TrafficStats) ([]byte, string, erro
 		s.energyConsumption = s.hw.EnergyConsumption.NormalPowerBaseW
 	}
 	s.lastUpdate = now
-	buff, err := json.Marshal(s)
+	// NodeHwState's fields are unexported, so json.Marshal(s) would emit only
+	// {"InShadow":...}. Marshal an explicit snapshot so the energy payload
+	// actually carries the battery state. Caller (this method) holds s.lock.
+	buff, err := json.Marshal(energySnapshot{
+		BatteryWh:          s.batteryLevel,
+		CapacityWh:         s.hw.BatteryCapacityWh,
+		EnergyConsumptionW: s.energyConsumption,
+		InShadow:           s.InShadow,
+		LowPower:           lowPowerMode,
+	})
 	return buff, s.format(change), err
+}
+
+type energySnapshot struct {
+	BatteryWh          float32 `json:"batteryWh"`
+	CapacityWh         float32 `json:"capacityWh"`
+	EnergyConsumptionW float32 `json:"energyConsumptionW"`
+	InShadow           bool    `json:"inShadow"`
+	LowPower           bool    `json:"lowPower"`
 }
 
 // SetInShadow updates the shadow flag under the state lock. Called from the
