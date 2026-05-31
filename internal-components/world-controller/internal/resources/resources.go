@@ -104,11 +104,11 @@ func (p *Publisher) Snapshot(ctx context.Context, periodSeconds float64) *proto.
 func (p *Publisher) collectVolumes() []*proto.VolumeUsage {
 	out := make([]*proto.VolumeUsage, 0, len(p.volumes))
 	for _, v := range p.volumes {
-		used, ok := statfsUsed(v.MountPath)
+		used, total, ok := statfs(v.MountPath)
 		if !ok {
 			continue
 		}
-		capacity := uint64(0)
+		capacity := total
 		if v.HardLimited && p.hwSpec != nil && p.hwSpec.DiskSpace != nil {
 			capacity = uint64(p.hwSpec.DiskSpace.Value())
 		}
@@ -123,19 +123,19 @@ func (p *Publisher) collectVolumes() []*proto.VolumeUsage {
 	return out
 }
 
-// statfsUsed returns bytes-used on the filesystem backing mountPath.
-// Returns ok=false if the path is not accessible.
-func statfsUsed(mountPath string) (used uint64, ok bool) {
+// statfs returns bytes-used and total bytes on the filesystem backing
+// mountPath. Returns ok=false if the path is not accessible.
+func statfs(mountPath string) (used, total uint64, ok bool) {
 	var stat syscall.Statfs_t
 	if err := syscall.Statfs(mountPath, &stat); err != nil {
-		return 0, false
+		return 0, 0, false
 	}
-	total := stat.Blocks * uint64(stat.Bsize)
+	total = stat.Blocks * uint64(stat.Bsize)
 	avail := stat.Bavail * uint64(stat.Bsize)
 	if total < avail {
-		return 0, true
+		return 0, total, true
 	}
-	return total - avail, true
+	return total - avail, total, true
 }
 
 type containerAcc struct {
@@ -160,6 +160,26 @@ func (p *Publisher) collectContainers(ctx context.Context, periodSeconds float64
 	}
 	if len(engineNames) == 0 {
 		return nil
+	}
+	limits := map[string]struct {
+		cpuMilli float32
+		memBytes uint64
+	}{}
+	for _, c := range pod.Spec.Containers {
+		if _, ok := engineNames[c.Name]; !ok {
+			continue
+		}
+		lim := struct {
+			cpuMilli float32
+			memBytes uint64
+		}{}
+		if q, ok := c.Resources.Limits[corev1.ResourceCPU]; ok {
+			lim.cpuMilli = float32(q.MilliValue())
+		}
+		if q, ok := c.Resources.Limits[corev1.ResourceMemory]; ok {
+			lim.memBytes = uint64(q.Value())
+		}
+		limits[c.Name] = lim
 	}
 	idToName := map[string]string{}
 	for _, cs := range pod.Status.ContainerStatuses {
@@ -228,10 +248,13 @@ func (p *Publisher) collectContainers(ctx context.Context, periodSeconds float64
 		if periodSeconds > 0 {
 			cpuMillicores = float32((float64(acc.tickDelta) / float64(clockTicksPerSecond)) / periodSeconds * 1000.0)
 		}
+		lim := limits[name]
 		out = append(out, &proto.ContainerCompute{
-			ContainerName: name,
-			CpuMillicores: cpuMillicores,
-			MemoryBytes:   acc.rss,
+			ContainerName:      name,
+			CpuMillicores:      cpuMillicores,
+			MemoryBytes:        acc.rss,
+			CpuMillicoresLimit: lim.cpuMilli,
+			MemoryBytesLimit:   lim.memBytes,
 		})
 	}
 	return out
