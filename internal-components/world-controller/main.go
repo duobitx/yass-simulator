@@ -32,8 +32,27 @@ import (
 )
 
 type updates struct {
+	mu         sync.Mutex
 	posStr     string
 	batteryStr string
+}
+
+func (u *updates) setPos(s string) {
+	u.mu.Lock()
+	u.posStr = s
+	u.mu.Unlock()
+}
+
+func (u *updates) setBattery(s string) {
+	u.mu.Lock()
+	u.batteryStr = s
+	u.mu.Unlock()
+}
+
+func (u *updates) snapshot() (pos, battery string) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	return u.posStr, u.batteryStr
 }
 type appType struct {
 	mainCtx           context.Context
@@ -57,7 +76,7 @@ func (a *appType) handleUpdate(_ context.Context, data []byte) error {
 		return err
 	}
 	a.hw.InShadow = dataObj.InShadow
-	a.updates.posStr = dataObj.PosStr
+	a.updates.setPos(dataObj.PosStr)
 	jeh := goutils.JoinErrorHelper{}
 	networkParams := goutils.SliceMap[*proto.FsNodeUpdateNetworkParamEntry, networking.NetworkParam](
 		dataObj.NetworkParams,
@@ -270,7 +289,7 @@ func main() {
 			slog.Error("cannot update energy stats", "error", err)
 			return
 		}
-		app.updates.batteryStr = statusStr
+		app.updates.setBattery(statusStr)
 		// Deprecated topic — superseded by `<fsNode>/resources`. See ../TOPICS.md.
 		topic := fmt.Sprintf("energy/%s", app.fsNodeObjKey.Name)
 		err = facade.Publish(ctx, topic, 0, false, data)
@@ -325,8 +344,9 @@ func main() {
 			slog.Error("cannot get node object", "error", err)
 			return
 		}
-		node.Status.EnergyConsumptionStr = app.updates.batteryStr
-		node.Status.PosStr = app.updates.posStr
+		pos, battery := app.updates.snapshot()
+		node.Status.EnergyConsumptionStr = battery
+		node.Status.PosStr = pos
 		err = app.k8sClient.Status().Update(ctx, &node)
 		if err != nil {
 			slog.Error("cannot update node status", "error", err)
