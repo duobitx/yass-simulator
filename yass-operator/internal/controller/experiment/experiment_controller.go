@@ -263,13 +263,13 @@ func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx c
 		r.updateExperimentState(recon, experiment, yassv1.ExperimentStateErrored)
 		message := fmt.Sprintf("one or more components failed %s", strings.Join(failedComponents, ","))
 		r.recorder.Eventf(experiment, v1.EventTypeWarning, "componentFailed", message)
-		err = r.httpExperimentExecutor(recon, "error-report", []byte(message), experiment)
+		err = r.httpExperimentExecutor(ctx, recon, "error-report", []byte(message), experiment)
 		if err != nil {
 			return errors.Wrap(err, "cannot start experiment")
 		}
 	}
 	if experiment.Status.ExperimentState == yassv1.ExperimentStateReady && experiment.Spec.Start {
-		err = r.httpExperimentExecutor(recon, "start", nil, experiment)
+		err = r.httpExperimentExecutor(ctx, recon, "start", nil, experiment)
 		if err != nil {
 			if errors.Is(err, errExecutorDNSPending) {
 				// DNS race: the Service was just created and CoreDNS
@@ -530,9 +530,18 @@ func (r *Reconciler) createFsNodeResource(ctx context.Context, namespace string,
 // controller-runtime apply exponential backoff.
 var errExecutorDNSPending = errors.New("experiment-executor service not in cluster DNS yet")
 
-func (r *Reconciler) httpExperimentExecutor(recon *reconciliationStatus, endpoint string, body []byte, experiment *yassv1.Experiment) error {
-	reqBody := bytes.NewBuffer(body)
-	response, err := http.Post(fmt.Sprintf("http://experiment-executor.%s.svc.cluster.local:8080/%s", experiment.Namespace, endpoint), goutils.BoolToStr(body != nil, "application/json", ""), reqBody)
+func (r *Reconciler) httpExperimentExecutor(ctx context.Context, recon *reconciliationStatus, endpoint string, body []byte, experiment *yassv1.Experiment) error {
+	url := fmt.Sprintf("http://experiment-executor.%s.svc.cluster.local:8080/%s", experiment.Namespace, endpoint)
+	reqCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(reqCtx, http.MethodPost, url, bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+	if contentType := goutils.BoolToStr(body != nil, "application/json", ""); contentType != "" {
+		request.Header.Set("Content-Type", contentType)
+	}
+	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		if strings.Contains(err.Error(), "no such host") {
 			return errExecutorDNSPending
