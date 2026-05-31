@@ -30,6 +30,21 @@ Prometheus instance in `yass-system` to scrape.
 | `LOG_LEVEL`              | no       | `INFO`           |                                                                  |
 | `K8S_EVENTS_SKIP_KINDS`  | no       | —                | comma-separated Loki-event kinds to skip when mirroring to k8s Events (e.g. `crud`) |
 
+## Delivery detection
+
+`yass_file_delivery_seconds`, `yass_file_received_*` and `yass_file_lost_total`
+are derived by joining each `PUT` to the later `RECEIVED` events for the
+**same file content hash (md5)**. A delivery is counted once per
+`(md5, receiver)` pair (so a peer re-fetching the same content is not
+double-counted), and `is_target_gs` marks receipts by a ground-station node.
+
+> **Assumption: every generated file has unique content.** Files are keyed by
+> md5, so two byte-identical files share a key: the second `PUT` is dropped and
+> its delivery/loss is misattributed to the first. The experiment agents must
+> produce distinct content per file (e.g. randomised payloads, not zero-filled
+> blobs of a fixed size). All current scenarios satisfy this; keep it in mind
+> when adding new producers.
+
 ## Kubernetes Events
 
 Every event the bridge sends to Loki is also mirrored as a Kubernetes
