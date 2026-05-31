@@ -82,6 +82,7 @@ const Visualization = () => {
   const containerRef = useRef<HTMLDivElement>(null);
   const [showGroundStations, setShowGroundStations] = useState(true);
   const [showOrbits, setShowOrbits] = useState(false);
+  const [showConnections, setShowConnections] = useState(false);
   const [selectedSatellite, setSelectedSatellite] = useState<SatelliteInfo | null>(null);
   const [selectedStation, setSelectedStation] = useState<GroundStationInfo | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -228,6 +229,19 @@ const Visualization = () => {
               </div>
               <Switch checked={showOrbits} onCheckedChange={setShowOrbits} />
             </div>
+
+            <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/50">
+              <div className="flex items-center gap-3">
+                <Activity className="h-4 w-4 text-accent" />
+                <div>
+                  <p className="text-sm font-medium">Connections (LOS)</p>
+                  <p className="text-xs text-muted-foreground">
+                    Faint links for in-range pairs; active transfers stay highlighted
+                  </p>
+                </div>
+              </div>
+              <Switch checked={showConnections} onCheckedChange={setShowConnections} />
+            </div>
           </div>
 
           {/* Legend */}
@@ -302,6 +316,7 @@ const Visualization = () => {
                   orbitLayerVisibility={ALL_LAYERS_VISIBLE}
                   showGroundStations={showGroundStations}
                   showOrbits={showOrbits}
+                  showConnections={showConnections}
                   satellites={sceneSatellites}
                   groundStationsList={sceneGroundStations}
                   liveMode={liveMode}

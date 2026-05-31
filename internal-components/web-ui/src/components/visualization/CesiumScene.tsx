@@ -59,6 +59,7 @@ interface CesiumSceneProps {
   showOrbits: boolean;
   showDataTransfer?: boolean;
   showGroundLinks?: boolean;
+  showConnections?: boolean;
   showTrails?: boolean;
   simulationSpeed?: number;
   isPaused?: boolean;
@@ -355,6 +356,7 @@ const CesiumScene = ({
   showOrbits,
   showDataTransfer = false,
   showGroundLinks = false,
+  showConnections = false,
   showTrails = false,
   simulationSpeed = 1,
   isPaused = false,
@@ -371,6 +373,9 @@ const CesiumScene = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<Viewer | null>(null);
   const connectionsRef = useRef<{ satLinks: Record<string, string[]>; gsLinks: Record<string, string[]>; stationToSat: Record<string, string> }>({ satLinks: {}, gsLinks: {}, stationToSat: {} });
+  // Read live by the vis-* polyline `show` callback so toggling does not rebuild the effect.
+  const showConnectionsRef = useRef(showConnections);
+  showConnectionsRef.current = showConnections;
   const [isInitialized, setIsInitialized] = useState(false);
   const orbitLayerVisRef = useRef(orbitLayerVisibility);
   orbitLayerVisRef.current = orbitLayerVisibility;
@@ -976,10 +981,11 @@ const CesiumScene = ({
 
       const polyline = viewer.entities.add({
         id: `vis-${pairKey}`,
-        // Only render the line when an actual transfer is in progress.
-        // LOS visibility alone is not enough — it would suggest active flow
-        // on every reachable peer, which is misleading for sequential engines.
-        show: new CallbackProperty(() => transferState.has(pairKey), false),
+        // By default render the line only when an actual transfer is in
+        // progress — LOS visibility alone would suggest active flow on every
+        // reachable peer. When showConnections is on, also render idle LOS
+        // links (faint, static) so connectivity is visible without transfer.
+        show: new CallbackProperty(() => showConnectionsRef.current || transferState.has(pairKey), false),
         polyline: {
           positions: new CallbackProperty(() => endpoints(endpointBuf) ?? [ZERO, ZERO], false),
           arcType: ArcType.NONE,
