@@ -480,7 +480,10 @@ func (t *AppType) augmentGroundStationLinks(nodes []*geocalc.FsNodeInfo) {
 }
 
 func greatCircleDistanceKm(lat1, lng1, lat2, lng2 float32) float32 {
-	const earthRadiusKm = 6371.0
+	// Match the geo-calculator's Earth radius (libsgp4 WGS72, radiusearthkm)
+	// so terrestrial GS-GS distances are on the same Earth as the LOS-derived
+	// satellite distances.
+	const earthRadiusKm = 6378.137
 	const degToRad = math.Pi / 180.0
 	la1 := float64(lat1) * degToRad
 	la2 := float64(lat2) * degToRad
