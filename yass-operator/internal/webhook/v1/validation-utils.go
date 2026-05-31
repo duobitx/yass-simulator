@@ -33,7 +33,7 @@ func validateTLE(tle []string, elementIndex int, jeh *goutils.JoinErrorHelper) {
 	if !tleLine1Re.MatchString(tle[0]) {
 		jeh.Append(fmt.Errorf("element %d: 1st line of TLE is invalid", elementIndex))
 	}
-	if !tleLine2Re.MatchString(tle[0]) {
+	if !tleLine2Re.MatchString(tle[1]) {
 		jeh.Append(fmt.Errorf("element %d: 2nd line of TLE is invalid", elementIndex))
 	}
 }
