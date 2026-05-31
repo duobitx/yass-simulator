@@ -378,7 +378,7 @@ func (r *Reconciler) createExperimentComponentIfRequired(recon *reconciliationSt
 	if annotations == nil {
 		annotations = make(map[string]string)
 	}
-	labels["component-source"] = fName
+	annotations["component-source"] = fName
 	obj.SetAnnotations(annotations)
 	obj.SetOwnerReferences([]metav1.OwnerReference{*metav1.NewControllerRef(experiment, v1.SchemeGroupVersion.WithKind(experiment.Kind))})
 	if modifier != nil {
