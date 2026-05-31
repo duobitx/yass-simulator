@@ -232,6 +232,12 @@ func (b *Bridge) onCrudEvent(data []byte) {
 		if put != nil {
 			source = put.Source
 			deliverySeconds = when.Sub(put.When).Seconds()
+			if deliverySeconds < 0 {
+				// Cross-pod wall-clock skew (producer ahead of receiver) can
+				// make the delta negative; a negative observation would corrupt
+				// the histogram sum.
+				deliverySeconds = 0
+			}
 		}
 		b.m.FileReceivedTotal.WithLabelValues(e.FsNodeName, source).Inc()
 		b.m.FileReceivedBytesTotal.WithLabelValues(e.FsNodeName, source).Add(float64(e.ContentSizeBytes))
