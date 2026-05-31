@@ -72,6 +72,10 @@ type Bridge struct {
 // not run forever or outlive shutdown.
 const exportTimeout = 5 * time.Minute
 
+// groundStationNodeType mirrors yassv1.FsNodeTypeGroundStation, the node-type
+// string the world-controller stamps onto online-state messages.
+const groundStationNodeType = "groundStation"
+
 func New(cfg *config.Config, m *metrics.Metrics, loki *lokipush.Pusher, events k8sevents.Emitter) *Bridge {
 	if events == nil {
 		events = k8sevents.Noop()
@@ -229,8 +233,17 @@ func (b *Bridge) onCrudEvent(data []byte) {
 		b.m.FileReceivedTotal.WithLabelValues(e.FsNodeName, source).Inc()
 		b.m.FileReceivedBytesTotal.WithLabelValues(e.FsNodeName, source).Add(float64(e.ContentSizeBytes))
 		if put != nil {
+			// "Delivered to ground" = the receiver is a ground station. If an
+			// explicit per-satellite target map is configured, honour it;
+			// otherwise classify by the receiver's node type (published on
+			// online-state). Without this, sat->sat replica hops look like
+			// ground deliveries and the is_target_gs="true" KPI is empty.
 			isTarget := "false"
-			if b.cfg.TargetGSFor(put.Source) == e.FsNodeName {
+			if target := b.cfg.TargetGSFor(put.Source); target != "" {
+				if target == e.FsNodeName {
+					isTarget = "true"
+				}
+			} else if b.ips.NodeType(e.FsNodeName) == groundStationNodeType {
 				isTarget = "true"
 			}
 			b.m.FileDeliverySeconds.WithLabelValues(put.Source, e.FsNodeName, isTarget).Observe(deliverySeconds)
