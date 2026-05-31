@@ -22,7 +22,7 @@
 #define SHM_NAME "/geo_calc_shared_memory"
 struct common *pcom;
 
-#define MAXSAT 200
+#define MAXSAT 512
 struct sun_pos_dscr { double lat, lon, vx, vy, vz; } sun;
 struct sat_pos_dscr { double x, y, z; } sat[MAXSAT];
 
@@ -362,7 +362,14 @@ int calc_pos_proto(int prnt)
    }
 
   if( !shm_flag ) {
-    shm_bufsize=1024 * (int)( 1.1*(bufsize+5)/1024 +1);
+    // Size for the worst case at the current node count, not just this first
+    // frame: the reader mmaps shm_bufsize once and never re-maps, so a later,
+    // denser frame must still fit. Upper bound = items (<=256 B each) plus up
+    // to N*(N-1) directed Distance records (<=24 B each).
+    int nodes = n_sat + n_bs;
+    int worst = 64 + nodes*256 + nodes*(nodes-1)*24;
+    if( worst < bufsize+5 ) worst = bufsize+5;
+    shm_bufsize=1024 * ( worst/1024 + 1 );
     shm = shm_open(SHM_NAME, O_CREAT | O_RDWR, 0666);
     if( shm == -1 ) {  perror("shm_open failed\n"); return 1; }
     ftruncate(shm, shm_bufsize);
