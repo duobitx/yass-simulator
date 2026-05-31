@@ -103,7 +103,7 @@ func (t *appType) eventsSSE(w http.ResponseWriter, request *http.Request) {
 		if err != nil {
 			continue
 		}
-		if _, err = fmt.Fprintln(w, string(buff)); err != nil {
+		if _, err = fmt.Fprintf(w, "data: %s\n\n", buff); err != nil {
 			slog.Info("Client disconnected during replay", "clientID", clientID, "error", err)
 			return
 		}
@@ -120,7 +120,7 @@ func (t *appType) eventsSSE(w http.ResponseWriter, request *http.Request) {
 				slog.Error("error marshalling event", "error", err, "clientID", clientID)
 				continue
 			}
-			_, err = fmt.Fprintln(w, string(buff))
+			_, err = fmt.Fprintf(w, "data: %s\n\n", buff)
 			if err != nil {
 				slog.Error("error sending event", "error", err, "clientID", clientID)
 				continue
