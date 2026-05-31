@@ -399,14 +399,21 @@ func (m *Manager) remountReadOnly() error { return m.remountTargets("ro") }
 func (m *Manager) remountReadWrite() error { return m.remountTargets("rw") }
 
 func (m *Manager) remountTargets(mode string) error {
+	var failures []string
 	for _, pid := range m.uniqueMntNsPIDs() {
 		for _, p := range []string{"/tmp", "/mnt/transfer"} {
 			cmd := exec.Command("nsenter", "-t", strconv.Itoa(pid), "-m", "--",
 				"mount", "-o", "remount,"+mode+",bind", p, p)
 			if out, err := cmd.CombinedOutput(); err != nil {
 				slog.Warn("hwevents: nsenter mount failed", "pid", pid, "path", p, "mode", mode, "error", err, "out", string(out))
+				failures = append(failures, fmt.Sprintf("pid %d %s: %v", pid, p, err))
 			}
 		}
+	}
+	if len(failures) > 0 {
+		// Propagate so a fault that failed to remount is recorded as failed
+		// rather than reported "active" while having done nothing.
+		return fmt.Errorf("remount %s failed: %s", mode, strings.Join(failures, "; "))
 	}
 	return nil
 }
