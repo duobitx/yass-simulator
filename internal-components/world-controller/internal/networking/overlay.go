@@ -13,10 +13,13 @@ import (
 //
 //   - externalCapBps: if > 0, every per-peer class is reprogrammed so the
 //     effective rate becomes min(orbital, externalCapBps). 0 = no cap.
-//   - blackHole: if true, every per-peer class is reprogrammed with a
-//     1 bps rate and 100% packet loss, effectively dropping all
-//     peer-to-peer traffic. The world-controller's own MQTT path to the
-//     broker is unaffected because the broker IP is never in h.state.
+//   - reductionPct: if > 0, every per-peer rate is reduced to
+//     (100-reductionPct)% of its orbital value before any cap is applied.
+//   - blackHole: if true, every peer is fully blocked — the per-peer egress
+//     class is removed (so egress falls through to the drop class) and an
+//     ingress drop filter is installed, dropping all peer-to-peer traffic in
+//     both directions. The world-controller's own MQTT path to the broker is
+//     unaffected because the broker IP is never in h.state.
 //
 // Idempotent. Calling with `(0, false)` is equivalent to ClearFaultOverlay.
 func (h *Handler) ApplyFaultOverlay(externalCapBps int64, reductionPct int32, blackHole bool) error {
