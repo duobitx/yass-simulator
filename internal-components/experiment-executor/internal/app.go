@@ -42,6 +42,7 @@ type AppType struct {
 	namespace           string
 	experimentStartedAt atomic.Pointer[time.Time]
 	experimentTime      atomic.Pointer[time.Time]
+	starting            atomic.Bool
 }
 
 func (t *AppType) handleOnlineUpdate(_ context.Context, data []byte) error {
@@ -126,7 +127,7 @@ func NewApp(ctx context.Context, facade com.Facade) (*AppType, error) {
 }
 
 func (t *AppType) Start(ctxParent context.Context) error {
-	if t.experimentStartedAt.Load() != nil {
+	if !t.starting.CompareAndSwap(false, true) {
 		slog.Default().Info("Start() called but experiment already started; treating as no-op")
 		return nil
 	}
@@ -135,6 +136,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 	err := t.facade.Publish(experimentCtx, experimentEndTopic, 0, true, "")
 	if err != nil {
 		cancel(err)
+		t.starting.Store(false)
 		return errors.Wrapf(err, "cannot publish to %s", experimentEndTopic)
 	}
 	err = t.facade.Subscribe(experimentEndTopic, func(sCtx context.Context, topic string, retained bool, data []byte) {
@@ -160,6 +162,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 		}
 	})
 	if err != nil {
+		t.starting.Store(false)
 		return errors.Wrapf(err, "cannot subscribe to %s", experimentEndTopic)
 	}
 	var experimentEndAt time.Time // experiment time
