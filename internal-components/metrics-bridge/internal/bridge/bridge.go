@@ -341,6 +341,13 @@ func (b *Bridge) onNetworkStats(topic string, data []byte) {
 	for _, s := range stats {
 		peerIP := state.TrimPort(s.Ip)
 		peerNode := b.ips.Lookup(peerIP).FsNode
+		if peerNode == "" {
+			// Peer's online-state (IP->name) hasn't propagated yet. Emitting
+			// now would create a peer_node="" series whose accumulated value is
+			// orphaned once the name resolves (a different labelset). Skip until
+			// resolved; the delta baseline is set on the first resolved sample.
+			continue
+		}
 		labels := []string{fsNode, peerIP, peerNode}
 		b.addAbsolute("tx_bytes", b.m.NetworkTxBytesTotal, labels, float64(s.TotalBytesSent))
 		b.addAbsolute("rx_bytes", b.m.NetworkRxBytesTotal, labels, float64(s.TotalBytesReceived))
