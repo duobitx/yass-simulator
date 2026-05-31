@@ -73,9 +73,9 @@ func (v *LayoutWebhook) ValidateDelete(_ context.Context, _ runtime.Object) (adm
 
 func (v *LayoutWebhook) Default(_ context.Context, obj runtime.Object) error {
 	fsNode := obj.(*yassv1.Layout)
-	for _, node := range fsNode.Spec {
-		if node.NodeType == "" {
-			node.NodeType = yassv1.FsNodeTypeSatellite
+	for i := range fsNode.Spec {
+		if fsNode.Spec[i].NodeType == "" {
+			fsNode.Spec[i].NodeType = yassv1.FsNodeTypeSatellite
 		}
 	}
 	return nil
