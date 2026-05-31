@@ -481,7 +481,12 @@ func (h *Handler) getCID(ip string) (uint16, error) {
 }
 
 func isAlmostEqual(s0 *NetworkParam, s1 *NetworkParam) bool {
-	if math.Abs(float64(s0.Bandwidth-s1.Bandwidth)) > 1024 {
+	// Bandwidth spans 100 kbit/s .. 100 Mbit/s, so a fixed absolute tolerance
+	// would re-apply on every tick at the high end and never at the low end.
+	// Treat as equal within 1% of the larger value, with a 1024 bps floor.
+	bwDiff := math.Abs(float64(s0.Bandwidth - s1.Bandwidth))
+	bwTol := math.Max(1024, 0.01*math.Max(math.Abs(float64(s0.Bandwidth)), math.Abs(float64(s1.Bandwidth))))
+	if bwDiff > bwTol {
 		return false
 	}
 	if math.Abs(float64(s0.PackageDelay-s1.PackageDelay)) > 10 {
