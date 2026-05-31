@@ -49,7 +49,12 @@ func (s *NodeHwState) Update(tStats []*proto.TrafficStats) ([]byte, string, erro
 	if !s.lastUpdate.IsZero() {
 		t = now.Sub(s.lastUpdate).Seconds()
 	}
-	drain := float64(s.hw.EnergyConsumption.NormalPowerBaseW)*t + float64(float32(sumBytesOutThisTurn)*s.hw.EnergyConsumption.PerkByteTXWh)
+	// Base draw integrated over the interval is W*s (joules); the /3600 below
+	// converts the whole `change` to Wh. The TX term is already an energy
+	// (PerkByteTXWh is Wh per *kByte*), so convert bytes->kBytes and scale by
+	// 3600 to keep it in joules until the shared /3600.
+	txWh := float64(sumBytesOutThisTurn) / 1000.0 * float64(s.hw.EnergyConsumption.PerkByteTXWh)
+	drain := float64(s.hw.EnergyConsumption.NormalPowerBaseW)*t + txWh*3600.0
 	gain := 0.0
 	if !s.InShadow {
 		gain = float64(s.hw.BatteryChargeW) * t
