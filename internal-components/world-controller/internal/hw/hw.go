@@ -73,6 +73,14 @@ func (s *NodeHwState) Update(tStats []*proto.TrafficStats) ([]byte, string, erro
 	return buff, s.format(change), err
 }
 
+// SetInShadow updates the shadow flag under the state lock. Called from the
+// MQTT update callback, concurrently with Update/Power.
+func (s *NodeHwState) SetInShadow(v bool) {
+	s.lock.Lock()
+	s.InShadow = v
+	s.lock.Unlock()
+}
+
 // Power returns a snapshot of the current battery state. Safe for concurrent use.
 func (s *NodeHwState) Power() (batteryWh, capacityWh float32, inShadow, lowPower bool) {
 	s.lock.Lock()

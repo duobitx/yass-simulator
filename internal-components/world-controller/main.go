@@ -75,7 +75,7 @@ func (a *appType) handleUpdate(_ context.Context, data []byte) error {
 	if err != nil {
 		return err
 	}
-	a.hw.InShadow = dataObj.InShadow
+	a.hw.SetInShadow(dataObj.InShadow)
 	a.updates.setPos(dataObj.PosStr)
 	jeh := goutils.JoinErrorHelper{}
 	networkParams := goutils.SliceMap[*proto.FsNodeUpdateNetworkParamEntry, networking.NetworkParam](
