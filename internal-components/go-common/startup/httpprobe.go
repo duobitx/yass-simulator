@@ -27,8 +27,6 @@ func HttpProbe(ctx context.Context, port int) {
 		IdleTimeout:       60 * time.Second,
 	}
 	slog.Info("HTTP server starting", "addr", srv.Addr)
-	err := srv.ListenAndServe()
-	goutils.ExitOnErrorf(err, 80, "cannot start http server on port %d", port)
 	go func() {
 		<-ctx.Done()
 		slog.Info("Shutdown signal received, shutting down HTTP server...")
@@ -36,6 +34,12 @@ func HttpProbe(ctx context.Context, port int) {
 		defer cancel()
 		if err := srv.Shutdown(shutdownCtx); err != nil {
 			slog.Error("HTTP server shutdown error", "error", err)
+		}
+	}()
+	go func() {
+		err := srv.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			goutils.ExitOnErrorf(err, 80, "cannot start http server on port %d", port)
 		}
 	}()
 }
