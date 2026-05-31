@@ -54,7 +54,7 @@ func main() {
 	case "experiment":
 		jsonObj, err = handleExperimentResource(ctx, k8sClient, namespacedName)
 		exportedResources["experiment.json"] = jsonObj
-	case "hardwareDefinition":
+	case "hardwaredefinition":
 		jsonObj, err = handleHardwareDefinitionResource(ctx, k8sClient, namespacedName)
 		exportedResources["hardware.json"] = jsonObj
 
