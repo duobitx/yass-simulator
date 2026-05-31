@@ -130,8 +130,8 @@ const SatelliteInfoPopup = ({ satellite, onClose, position, eventsRef, expClockR
             <div>
               <p className="text-xs text-muted-foreground">Current Position</p>
               <p className="font-mono text-primary">
-                {satellite.lat.toFixed(2)}°{satellite.lat >= 0 ? "N" : "S"},{" "}
-                {satellite.lon.toFixed(2)}°{satellite.lon >= 0 ? "E" : "W"}
+                {Math.abs(satellite.lat).toFixed(2)}°{satellite.lat >= 0 ? "N" : "S"},{" "}
+                {Math.abs(satellite.lon).toFixed(2)}°{satellite.lon >= 0 ? "E" : "W"}
               </p>
             </div>
           </div>
