@@ -34,6 +34,24 @@ const (
 	pathAgentTmp  = "/var/yass/agent-tmp"
 )
 
+// Both disk faults act on the same logical storage — /mnt/transfer and /tmp —
+// but via different mechanisms because remount-flag changes do not propagate
+// across mount namespaces while new mounts do (see remountTargets vs
+// mountErrorFS):
+//
+//   - diskFaultContainerPaths: what DiskFull remounts read-only via nsenter
+//     into each engine/agent mount namespace.
+//   - diskFaultHostPaths: what DiskFailure mounts the fuse errorfs over, in the
+//     world-controller; the operator's Bidirectional->HostToContainer volume
+//     binds propagate these to the container paths above:
+//       /var/yass/transfer   -> /mnt/transfer (engine + agent)
+//       /var/yass/engine-tmp -> /tmp (engine)
+//       /var/yass/agent-tmp  -> /tmp (agent)
+var (
+	diskFaultContainerPaths = []string{"/mnt/transfer", "/tmp"}
+	diskFaultHostPaths      = []string{pathTransfer, pathEngineTmp, pathAgentTmp}
+)
+
 // fuseErrorFsBinary is the path inside the internal-components image
 // where the FUSE binary is copied (see internal-components/Dockerfile).
 const fuseErrorFsBinary = "/fuse-errorfs"
@@ -401,7 +419,7 @@ func (m *Manager) remountReadWrite() error { return m.remountTargets("rw") }
 func (m *Manager) remountTargets(mode string) error {
 	var failures []string
 	for _, pid := range m.uniqueMntNsPIDs() {
-		for _, p := range []string{"/tmp", "/mnt/transfer"} {
+		for _, p := range diskFaultContainerPaths {
 			cmd := exec.Command("nsenter", "-t", strconv.Itoa(pid), "-m", "--",
 				"mount", "-o", "remount,"+mode+",bind", p, p)
 			if out, err := cmd.CombinedOutput(); err != nil {
@@ -449,7 +467,7 @@ func (m *Manager) uniqueMntNsPIDs() []int {
 // it with nohup — `fusermount -u` at clear time triggers fs.Serve to
 // return and the daemon to exit. Output is captured to /tmp for debug.
 func (m *Manager) mountErrorFS() error {
-	for _, path := range []string{pathTransfer, pathEngineTmp, pathAgentTmp} {
+	for _, path := range diskFaultHostPaths {
 		logFile := fmt.Sprintf("/tmp/fuse-errorfs-%s.log", strings.ReplaceAll(strings.TrimPrefix(path, "/"), "/", "_"))
 		shellCmd := fmt.Sprintf("nohup %s %s >%s 2>&1 &", fuseErrorFsBinary, path, logFile)
 		out, err := exec.Command("sh", "-c", shellCmd).CombinedOutput()
@@ -463,11 +481,11 @@ func (m *Manager) mountErrorFS() error {
 }
 
 func (m *Manager) unmountErrorFS() error {
-	return runAll(
-		[]string{"fusermount", "-u", pathTransfer},
-		[]string{"fusermount", "-u", pathEngineTmp},
-		[]string{"fusermount", "-u", pathAgentTmp},
-	)
+	cmds := make([][]string, 0, len(diskFaultHostPaths))
+	for _, path := range diskFaultHostPaths {
+		cmds = append(cmds, []string{"fusermount", "-u", path})
+	}
+	return runAll(cmds...)
 }
 
 func (m *Manager) destroy(ctx context.Context) error {
