@@ -121,7 +121,9 @@ static int parse_json(char *fname)
    sgp4dttm = libsgp4::DateTime(tm.tm_year+1900,tm.tm_mon+1,tm.tm_mday);
    tm_start=timegm(&tm);
   json_t *edur = json_object_get(root, "MaxDuration");
-   if( json_is_integer(edur) ) tm_stop = tm_start + json_integer_value(edur);
+   // MaxDuration is a Go time.Duration, marshalled by encoding/json as an
+   // int64 count of NANOSECONDS. Convert to seconds for the time_t stop time.
+   if( json_is_integer(edur) ) tm_stop = tm_start + json_integer_value(edur)/1000000000LL;
   json_t *acc = json_object_get(root, "TimeAcceleration");
    if( json_is_integer(acc) ) accel= json_integer_value(acc);
     else if( json_is_real(acc) ) accel= json_real_value(acc);
