@@ -275,6 +275,29 @@ func (p *Publisher) findOwnPod(ctx context.Context) (*corev1.Pod, error) {
 	return &podList.Items[0], nil
 }
 
+// KillTargetContainerNames returns the agent + engine container names declared
+// by the fs-node controller on this pod's annotations (yass-containers/agent
+// and yass-containers/engine). The world-controller is deliberately not listed,
+// so it survives a Destroy to publish the offline state. Returns nil if the
+// annotations are absent (e.g. a pod created by an older operator) so the
+// caller can fall back to its own list.
+func (p *Publisher) KillTargetContainerNames(ctx context.Context) []string {
+	pod, err := p.findOwnPod(ctx)
+	if err != nil {
+		slog.Warn("resources: cannot find own pod for kill targets", "error", err)
+		return nil
+	}
+	var names []string
+	for _, key := range []string{yassv1.AnnotationAgentContainers, yassv1.AnnotationEngineContainers} {
+		for _, n := range strings.Split(pod.Annotations[key], ",") {
+			if n = strings.TrimSpace(n); n != "" {
+				names = append(names, n)
+			}
+		}
+	}
+	return names
+}
+
 func stripContainerIDPrefix(id string) string {
 	if i := strings.Index(id, "://"); i >= 0 {
 		return id[i+3:]

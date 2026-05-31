@@ -347,7 +347,12 @@ func main() {
 			K8sClient:  app.k8sClient,
 			Networking: networkingHandler,
 			KillTargets: func() []int {
-				return resPublisher.PIDsByContainerNames(ctx, killTargetContainerNames(&fsn))
+				names := resPublisher.KillTargetContainerNames(ctx)
+				if len(names) == 0 {
+					// Older operator without the yass-containers/* annotations.
+					names = killTargetContainerNames(&fsn)
+				}
+				return resPublisher.PIDsByContainerNames(ctx, names)
 			},
 			PublishOffln: func() error { return app.publishOnlineState(false) },
 		})
@@ -379,10 +384,11 @@ func main() {
 	slog.Info("Terminated")
 }
 
-// killTargetContainerNames returns the container names whose PIDs the
-// hardware-event injector may SIGKILL on Destroy — i.e. every engine
-// container plus the agent. The world-controller and any system
-// containers are excluded.
+// killTargetContainerNames is the fallback kill-target list for pods that lack
+// the yass-containers/* annotations (created by an older operator): every
+// engine container plus the literal "agent". The world-controller and any
+// system containers are excluded. The preferred source is the pod annotations
+// — see resources.Publisher.KillTargetContainerNames.
 func killTargetContainerNames(fsn *yassv1.FsNode) []string {
 	out := []string{"agent"}
 	for _, c := range fsn.Spec.EngineContainers {

@@ -49,6 +49,7 @@ const (
 	agentTMPVolumeName              = "agent-tmp-volume"
 	sharedVolumeName                = "fs-node-shared-volume"
 	removeFsNodeComponentsFinalizer = "fsnode-controller/cleanup"
+	agentContainerName              = "agent"
 )
 
 var engineOpenPorts = map[int]v1.Protocol{
@@ -278,6 +279,17 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		modEnvsAppend(globalEnvs)(pod, &allContainers[i])
 	}
 	pod.Spec.Containers = allContainers
+	// Declare which containers are the agent and which are engines so the
+	// world-controller knows what to SIGKILL on a Destroy event.
+	engineContainerNames := make([]string, 0, len(fsNode.Spec.EngineContainers))
+	for _, ec := range fsNode.Spec.EngineContainers {
+		engineContainerNames = append(engineContainerNames, ec.Name)
+	}
+	if pod.Annotations == nil {
+		pod.Annotations = map[string]string{}
+	}
+	pod.Annotations[yassv1.AnnotationAgentContainers] = agentContainerName
+	pod.Annotations[yassv1.AnnotationEngineContainers] = strings.Join(engineContainerNames, ",")
 	pod.Spec.AutomountServiceAccountToken = &True
 	for _, volume := range fsNode.Spec.EngineVolumes {
 		if volume.ConfigMap != nil || volume.Secret != nil {
@@ -326,7 +338,7 @@ func (r *FsNodeReconciler) getSystemContainers(fsNode *yassv1.FsNode, pod *v1.Po
 			},
 		},
 		{
-			name:  "agent",
+			name:  agentContainerName,
 			image: fsNode.Spec.Agent.Image,
 			ports: nil,
 			mods: []modFunc{

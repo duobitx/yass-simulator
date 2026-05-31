@@ -34,6 +34,17 @@ const (
 	FsNodeTypeGroundStation FsNodeType = "groundStation"
 )
 
+const (
+	// AnnotationAgentContainers / AnnotationEngineContainers are pod
+	// annotations set by the fs-node controller listing (comma-separated) the
+	// agent and engine container names. The world-controller reads them to know
+	// which siblings to SIGKILL on a Destroy hardware event, instead of
+	// assuming the agent container is literally named "agent". (Annotations,
+	// not labels: label values cannot contain commas or exceed 63 chars.)
+	AnnotationAgentContainers  = "yass-containers/agent"
+	AnnotationEngineContainers = "yass-containers/engine"
+)
+
 // FsNodeSpec is the desired state of a single simulated node — one satellite or
 // ground station. The fs-node controller reconciles it into a Pod composed of
 // three logical pieces:
