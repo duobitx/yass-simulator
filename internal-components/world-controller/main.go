@@ -130,6 +130,9 @@ func (a *appType) updateListOfExperimentNodes(_ context.Context, data []byte) er
 	if err != nil {
 		return err
 	}
+	if msg.FsNodeId == nil {
+		return nil // malformed/foreign message without an FsNode id
+	}
 	if msg.FsNodeId.Experiment != a.experiment {
 		return nil // ignore as this is not our experiment
 	}
