@@ -1,7 +1,6 @@
 package geocalc
 
 import (
-	"math"
 	"time"
 
 	geocalcproto "github.com/duobitx/yass-simulator/internal-components/go-common/proto/go"
@@ -43,7 +42,10 @@ func Convert(input *geocalcproto.GeoCommon) (*GlobalGeoCalcUpdate, error) {
 	}
 
 	for distIndex, d := range input.GetDistances() {
-		if !d.GetLos() || d.GetDistance() <= 0 {
+		// `los` is the single source of truth for reachability; the producer
+		// always emits a positive distance magnitude (blocked pairs are flagged
+		// via los=false, not a negative distance).
+		if !d.GetLos() {
 			continue
 		}
 		a := int(d.GetItemIdA()) - 1
@@ -79,7 +81,7 @@ func appendDistance(to *[]*FsNodeInfo, refIndex int, aIndex int, dist float32) {
 		}
 	}
 	distances = append(distances, DistanceInfo{
-		Distance: float32(math.Abs(float64(dist))),
+		Distance: dist,
 		NameTo:   toName,
 	})
 	(*to)[refIndex].ReachableFsNodes = distances
