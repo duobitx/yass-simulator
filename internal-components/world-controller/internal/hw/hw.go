@@ -71,7 +71,9 @@ func (s *NodeHwState) Update(tStats []*proto.TrafficStats) ([]byte, string, erro
 			s.batteryLevel = 0
 		}
 	}
-	lowPowerMode := s.batteryLevel <= s.hw.LowPowerThresholdWh
+	// Guard on capacity > 0 to match Power(): a node with no battery model
+	// (e.g. a ground station, capacity 0) is never in low-power mode.
+	lowPowerMode := s.hw.BatteryCapacityWh > 0 && s.batteryLevel <= s.hw.LowPowerThresholdWh
 	slog.Info("NodeHwState.Update.battery", "change", change, "newLevel", s.batteryLevel, "drain", drain, "gain", gain, "lowPowerMode", lowPowerMode)
 	if lowPowerMode {
 		s.energyConsumption = s.hw.EnergyConsumption.LowPowerBaseW
