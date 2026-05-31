@@ -247,10 +247,18 @@ func main() {
 	err = facade.Subscribe("#", app.message)
 	goutils.ExitOnError(err, 8)
 
-	err = http.ListenAndServe(listenOn, nil)
-	goutils.ExitOnError(err, 8)
+	server := &http.Server{Addr: listenOn}
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			goutils.ExitOnErrorf(err, 8, "http server failed")
+		}
+	}()
 
 	<-ctx.Done()
-	time.Sleep(1 * time.Second)
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		slog.Error("HTTP server shutdown error", "error", err)
+	}
 	slog.Info("Terminated")
 }
