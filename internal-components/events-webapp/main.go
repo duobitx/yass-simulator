@@ -72,6 +72,29 @@ func (t *appType) eventsSSE(w http.ResponseWriter, request *http.Request) {
 	slog.Info("Incoming connection", "clientID", clientID)
 	// Subscribe FIRST so concurrent live events aren't lost between replay and live.
 	ch := t.ps.NewSubscriber(request.Context())
+	// pubsub.push() does a blocking send on an unbuffered subscriber channel,
+	// so a slow client (or one stalled mid-replay/flush) would stall delivery
+	// to every other subscriber and to the file saver. Insulate the shared
+	// dispatcher: drain into a buffered queue and drop events for THIS client
+	// when it falls behind.
+	buffered := make(chan any, 1024)
+	go func() {
+		for {
+			select {
+			case <-request.Context().Done():
+				return
+			case evt, ok := <-ch:
+				if !ok {
+					return
+				}
+				select {
+				case buffered <- evt:
+				default:
+					// client too slow; drop to protect the shared dispatcher
+				}
+			}
+		}
+	}()
 	// Replay agent-event history so new clients see PUT/RECEIVED/DELETE that
 	// landed before they connected. crud-events MQTT is retained but only the
 	// last message per topic, so the broker alone doesn't cover this.
@@ -88,7 +111,7 @@ func (t *appType) eventsSSE(w http.ResponseWriter, request *http.Request) {
 	flusher.Flush()
 	for {
 		select {
-		case evt := <-ch:
+		case evt := <-buffered:
 			if evt == nil {
 				continue
 			}
