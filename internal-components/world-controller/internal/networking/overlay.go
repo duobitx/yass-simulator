@@ -44,6 +44,11 @@ func (h *Handler) ClearFaultOverlay() error {
 // its orbital values: first a multiplicative bandwidth reduction
 // (reductionPct), then an absolute cap (externalCapBps, applied as a min), then
 // a full black-hole. Caller must hold h.lock.
+//
+// Bandwidth == 0 means "no link" everywhere (isFullyBlocking treats it as
+// blocked); it is never "unlimited". A cap or reduction therefore only ever
+// throttles an existing positive-bandwidth link — it cannot resurrect a
+// zero-bandwidth one.
 func (h *Handler) applyOverlayLocked(p *NetworkParam) {
 	if h.reductionPct > 0 && p.Bandwidth > 0 {
 		p.Bandwidth = p.Bandwidth * int64(100-h.reductionPct) / 100
@@ -51,7 +56,7 @@ func (h *Handler) applyOverlayLocked(p *NetworkParam) {
 			p.Bandwidth = 1 // a reduction throttles; it must not fully block
 		}
 	}
-	if h.externalCapBps > 0 && (p.Bandwidth == 0 || h.externalCapBps < p.Bandwidth) {
+	if h.externalCapBps > 0 && p.Bandwidth > 0 && h.externalCapBps < p.Bandwidth {
 		p.Bandwidth = h.externalCapBps
 	}
 	if h.blackHole {
