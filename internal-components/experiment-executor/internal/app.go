@@ -395,6 +395,7 @@ const (
 	bandwidthMaxBps      = 100 * 1024 * 1024       // 100 Mbit/s at or below dRefKm
 	bandwidthMinBps      = 100 * 1024              // 100 kbit/s floor
 	bandwidthRefDistance = 1000.0                  // km — distance at which we still get full bandwidth
+	lossRefDistance      = 1000.0                  // km — reference distance for the quadratic loss model
 	transmitterDelayMs   = 1.0                     // fixed transmitter delay in ms
 	speedOfLightKmPerMs  = 299.792458              // km per millisecond
 	packageLossBase      = 0.001                   // 0.1% baseline loss
@@ -412,7 +413,7 @@ func (t *AppType) calculateNetworkParam(fsNodeMain *geocalc.FsNodeInfo, dstName 
 		return
 	}
 	// Loss grows quadratically with distance to mimic worse SNR over longer hops.
-	distRatio := float64(dst.Distance) / float64(bandwidthRefDistance)
+	distRatio := float64(dst.Distance) / float64(lossRefDistance)
 	loss := packageLossBase + packageLossSlope*distRatio*distRatio
 	if loss > packageLossMax {
 		loss = packageLossMax
