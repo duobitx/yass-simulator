@@ -368,7 +368,7 @@ func (r *FsNodeReconciler) getEngineContainers(fsNode *yassv1.FsNode) []v1.Conta
 				ecResourceRequirements.Limits[v1.ResourceCPU] = *cpu
 			}
 			mem := divideQuantityByInt(fsNode.Spec.HardwareSpec.Memory, int64(divider))
-			if cpu != nil {
+			if mem != nil {
 				ecResourceRequirements.Limits[v1.ResourceMemory] = *mem
 			}
 		}
