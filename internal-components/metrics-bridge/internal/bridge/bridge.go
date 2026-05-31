@@ -382,6 +382,18 @@ func (b *Bridge) onOnlineState(data []byte) {
 		"ip":       s.Ip,
 		"online":   s.Online,
 	})
+
+	// A node that went offline stops publishing los/<fsNode>, so its
+	// los_active{fsNode,peer} series would stay stuck at their last value.
+	// Zero them out explicitly. The reverse direction (peers that see this
+	// node) is handled by the online gate on their next los tick.
+	if !s.Online {
+		if prev, ok := b.prevLosPeers.Load(s.FsNodeId.Name); ok {
+			for peer := range prev.(map[string]struct{}) {
+				b.m.LosActive.WithLabelValues(s.FsNodeId.Name, peer).Set(0)
+			}
+		}
+	}
 }
 
 func (b *Bridge) detectPowerTransition(fsNode, nodeType string, inShadow, lowPower bool, batteryWh float32) {
@@ -559,6 +571,17 @@ func (b *Bridge) onEdfsCids(topic string, data []byte) {
 // derived from geo-calc visibility. We toggle yass_los_active{fsNode,
 // peer} to 1 for every peer currently in the roster, and to 0 for
 // peers that were visible last tick but aren't now.
+// isOnline reports the last known online state of a node. Unknown (no
+// online-state seen yet) defaults to true so LOS is not suppressed before the
+// first online-state propagates.
+func (b *Bridge) isOnline(fsNode string) bool {
+	v, ok := b.prevOnline.Load(fsNode)
+	if !ok {
+		return true
+	}
+	return v.(bool)
+}
+
 func (b *Bridge) onLos(topic string, data []byte) {
 	parts := strings.Split(topic, "/")
 	if len(parts) < 2 {
@@ -574,13 +597,22 @@ func (b *Bridge) onLos(topic string, data []byte) {
 		slog.Warn("metrics-bridge: cannot decode los message", "topic", topic, "error", err)
 		return
 	}
+	// A geometric LOS link is only "active" if both endpoints are actually
+	// up. The roster comes from geo-calc visibility, which is unaware of
+	// online state, so a destroyed/offline peer would otherwise keep
+	// los_active=1 during large-scale failures (UC4/UC5).
+	srcUp := b.isOnline(fsNode)
 	now := map[string]struct{}{}
 	for _, p := range msg.Peers {
 		if p.Name == "" {
 			continue
 		}
 		now[p.Name] = struct{}{}
-		b.m.LosActive.WithLabelValues(fsNode, p.Name).Set(1)
+		active := 0.0
+		if srcUp && b.isOnline(p.Name) {
+			active = 1
+		}
+		b.m.LosActive.WithLabelValues(fsNode, p.Name).Set(active)
 	}
 	if prev, ok := b.prevLosPeers.Load(fsNode); ok {
 		for peer := range prev.(map[string]struct{}) {
