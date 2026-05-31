@@ -56,9 +56,13 @@ type Handler struct {
 	defEthLink netlink.Link
 	disabled   bool
 	// cidByIP assigns a stable per-IP HTB minor (>= cidFirst, skipping
-	// reserved 0x900 / 0x9999). Caller holds h.lock.
-	cidByIP map[string]uint16
-	nextCID uint16
+	// reserved 0x900 / 0x9999). Caller holds h.lock. The minor stays stable
+	// across LOS gain/loss cycles; freeCIDs collects minors of peers that
+	// have left view for good so they can be reused (the 16-bit minor space
+	// would otherwise leak over a long, churny experiment).
+	cidByIP  map[string]uint16
+	nextCID  uint16
+	freeCIDs []uint16
 	// Fault-overlay state — driven by the hardware-event injector
 	// (see overlay.go and yass-docs/hardware-events-spec.md §9.1/§9.2).
 	externalCapBps int64
@@ -162,6 +166,10 @@ func (h *Handler) Update(networkParams []NetworkParam) error {
 				jeh.Append(errors.Wrapf(err, "error removing ipProfile for %s as it's not visible anymore", ip))
 			} else {
 				delete(h.state, ip)
+				if c, ok := h.cidByIP[ip]; ok {
+					delete(h.cidByIP, ip)
+					h.freeCIDs = append(h.freeCIDs, c)
+				}
 				slog.Default().Info("ipProfile removed as the IP is not visible anymore", "ip", ip)
 			}
 		}
@@ -435,6 +443,12 @@ func (h *Handler) getCID(ip string) (uint16, error) {
 		return 0, fmt.Errorf("invalid IPv4 address %q", ip)
 	}
 	if c, ok := h.cidByIP[ip]; ok {
+		return c, nil
+	}
+	if n := len(h.freeCIDs); n > 0 {
+		c := h.freeCIDs[n-1]
+		h.freeCIDs = h.freeCIDs[:n-1]
+		h.cidByIP[ip] = c
 		return c, nil
 	}
 	for h.nextCID < cidFirst || h.nextCID == cidDrop || h.nextCID == cidDefault {
