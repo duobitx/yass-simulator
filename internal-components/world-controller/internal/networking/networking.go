@@ -207,6 +207,12 @@ func (h *Handler) replaceIPProfile(param *NetworkParam) error {
 	}
 
 	// Netem under the class for delay/loss
+	latencyUs := float64(param.PackageDelay) * 1000 // ms -> us
+	if latencyUs < 0 {
+		latencyUs = 0
+	} else if latencyUs > math.MaxUint32 {
+		latencyUs = math.MaxUint32
+	}
 	netemE := netlink.NewNetem(
 		netlink.QdiscAttrs{
 			LinkIndex: h.defEthLink.Attrs().Index,
@@ -214,7 +220,7 @@ func (h *Handler) replaceIPProfile(param *NetworkParam) error {
 			Handle:    netlink.MakeHandle(cid, 0),
 		},
 		netlink.NetemQdiscAttrs{
-			Latency: uint32(param.PackageDelay * 1000), // ms -> us
+			Latency: uint32(latencyUs),
 			Loss:    param.PackageLoss,
 		},
 	)
