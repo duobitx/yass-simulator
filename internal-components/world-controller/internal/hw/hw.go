@@ -30,8 +30,10 @@ func (s *NodeHwState) Update(tStats []*proto.TrafficStats) ([]byte, string, erro
 		if ts != nil {
 			prevBytesOut, ok := s.totalByteOutPerIP[ts.Ip]
 			if !ok {
+				// First time we see this IP: seed the baseline only. Counting
+				// its whole counter-to-date as "sent this turn" would charge
+				// the node for traffic that predates this observation.
 				s.totalByteOutPerIP[ts.Ip] = ts.TotalBytesSent
-				sumBytesOutThisTurn += ts.TotalBytesSent
 			} else {
 				diff := ts.TotalBytesSent - prevBytesOut
 				s.totalByteOutPerIP[ts.Ip] = ts.TotalBytesSent
