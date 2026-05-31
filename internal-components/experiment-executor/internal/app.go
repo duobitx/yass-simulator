@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"math"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/duobitx/yass-simulator/internal-components/experiment-executor/internal/geocalc"
@@ -39,8 +40,8 @@ type AppType struct {
 	nodeTypes           map[string]yassv1.FsNodeType
 	nodesLock           sync.Mutex
 	namespace           string
-	experimentStartedAt *time.Time
-	experimentTime      *time.Time
+	experimentStartedAt atomic.Pointer[time.Time]
+	experimentTime      atomic.Pointer[time.Time]
 }
 
 func (t *AppType) handleOnlineUpdate(_ context.Context, data []byte) error {
@@ -125,7 +126,7 @@ func NewApp(ctx context.Context, facade com.Facade) (*AppType, error) {
 }
 
 func (t *AppType) Start(ctxParent context.Context) error {
-	if t.experimentStartedAt != nil {
+	if t.experimentStartedAt.Load() != nil {
 		slog.Default().Info("Start() called but experiment already started; treating as no-op")
 		return nil
 	}
@@ -173,7 +174,8 @@ func (t *AppType) Start(ctxParent context.Context) error {
 				}
 			case upd := <-dataCh:
 				lastTime = upd.CurrentTime
-				t.experimentTime = &lastTime
+				lt := lastTime
+				t.experimentTime.Store(&lt)
 				if !experimentEndAt.IsZero() && !experimentEndAt.After(lastTime) {
 					if err := t.sendTimeUpdate(lastTime, false); err != nil {
 						slog.Default().Error("cannot send time update", "error", err)
@@ -216,7 +218,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 	if t.ExperimentDefData.StartTime != nil {
 		startAt = *t.ExperimentDefData.StartTime
 	}
-	t.experimentStartedAt = &startAt
+	t.experimentStartedAt.Store(&startAt)
 	if t.ExperimentDefData.MaxDuration != nil {
 		experimentEndAt = startAt.Add(*t.ExperimentDefData.MaxDuration)
 	}
@@ -236,7 +238,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 		}
 	}()
 	slog.Default().Info("starting experiment", "startTime", startAt, "maxDuration", t.ExperimentDefData.MaxDuration)
-	t.experimentStartedAt = &startAt
+	t.experimentStartedAt.Store(&startAt)
 	t.publishLifecycle("started", "", "")
 	return nil
 }
@@ -259,10 +261,10 @@ func (t *AppType) publishLifecycle(state, reason, comment string) {
 		"state": state,
 		"when":  time.Now().UTC(),
 	}
-	if t.experimentTime != nil {
-		body["expTime"] = t.experimentTime.UTC()
-	} else if t.experimentStartedAt != nil {
-		body["expTime"] = t.experimentStartedAt.UTC()
+	if et := t.experimentTime.Load(); et != nil {
+		body["expTime"] = et.UTC()
+	} else if sa := t.experimentStartedAt.Load(); sa != nil {
+		body["expTime"] = sa.UTC()
 	}
 	if reason != "" {
 		body["reason"] = reason
@@ -489,7 +491,8 @@ func greatCircleDistanceKm(lat1, lng1, lat2, lng2 float32) float32 {
 }
 
 func (t *AppType) updateK8sResource() error {
-	if t.experimentTime == nil {
+	et := t.experimentTime.Load()
+	if et == nil {
 		return nil
 	}
 	exp := &yassv1.Experiment{}
@@ -500,6 +503,6 @@ func (t *AppType) updateK8sResource() error {
 	if err != nil {
 		return err
 	}
-	exp.Status.ExperimentTime = v1.Time{Time: *t.experimentTime}
+	exp.Status.ExperimentTime = v1.Time{Time: *et}
 	return t.k8sClient.Status().Update(t.mainCtx, exp)
 }
