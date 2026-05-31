@@ -150,6 +150,16 @@ func (h *Handler) Update(networkParams []NetworkParam) error {
 				jeh.Append(errors.Wrapf(err, "error removing ipProfile for %s", param.ToIP))
 			} else {
 				slog.Default().Debug("ipProfile removed", "ip", param.ToIP)
+				// Egress now falls to the drop class. Under a NetworkFailure
+				// (black-hole) also drop ingress, which otherwise has no
+				// default drop and would keep delivering inbound traffic.
+				if h.blackHole {
+					if dst := net.ParseIP(param.ToIP); dst != nil {
+						if err := h.addIngressFilters(dst, true); err != nil {
+							jeh.Append(errors.Wrapf(err, "ingress drop for %s", param.ToIP))
+						}
+					}
+				}
 			}
 		} else {
 			if err := h.replaceIPProfile(&effective); err != nil {
@@ -283,17 +293,27 @@ func (h *Handler) replaceIPProfile(param *NetworkParam) error {
 	}
 
 	// Add ingress filters for incoming traffic stats
-	if err := h.addIngressFilters(dst); err != nil {
+	if err := h.addIngressFilters(dst, false); err != nil {
 		return errors.Wrap(err, "failed to add ingress filters")
 	}
 
 	return nil
 }
 
-func (h *Handler) addIngressFilters(srcIP net.IP) error {
+// addIngressFilters installs per-source-IP ingress flower filters. With
+// drop=false the action is TC_ACT_PIPE (stats only, traffic continues); with
+// drop=true it is TC_ACT_SHOT so incoming traffic from that peer is dropped —
+// used by a NetworkFailure fault, which otherwise blocks egress only (egress
+// falls through to the drop class, but ingress has no default drop).
+func (h *Handler) addIngressFilters(srcIP net.IP, drop bool) error {
 	// Clean existing ingress filters for this IP first — FilterReplace on
 	// flower filters without a stable Handle returns EEXIST on some kernels.
 	_ = h.removeIngressFilters(srcIP.String())
+
+	action := netlink.TC_ACT_PIPE
+	if drop {
+		action = netlink.TC_ACT_SHOT
+	}
 
 	protoTCP := nl.IPProto(unix.IPPROTO_TCP)
 	protoUDP := nl.IPProto(unix.IPPROTO_UDP)
@@ -318,7 +338,7 @@ func (h *Handler) addIngressFilters(srcIP net.IP) error {
 		fl.Actions = []netlink.Action{
 			&netlink.GenericAction{
 				ActionAttrs: netlink.ActionAttrs{
-					Action: netlink.TC_ACT_PIPE,
+					Action: action,
 				},
 			},
 		}
@@ -342,7 +362,7 @@ func (h *Handler) addIngressFilters(srcIP net.IP) error {
 	flICMP.Actions = []netlink.Action{
 		&netlink.GenericAction{
 			ActionAttrs: netlink.ActionAttrs{
-				Action: netlink.TC_ACT_PIPE,
+				Action: action,
 			},
 		},
 	}

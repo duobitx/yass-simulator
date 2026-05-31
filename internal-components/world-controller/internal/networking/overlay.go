@@ -2,6 +2,7 @@ package networking
 
 import (
 	"log/slog"
+	"net"
 
 	"github.com/pkg/errors"
 )
@@ -66,6 +67,15 @@ func (h *Handler) reapplyAllLocked() error {
 		if effective.isFullyBlocking() {
 			if err := h.removeIPProfile(ip); err != nil {
 				return errors.Wrapf(err, "overlay remove %s", ip)
+			}
+			// Egress drops via the default class; under a NetworkFailure also
+			// drop ingress (no default ingress drop exists).
+			if h.blackHole {
+				if dst := net.ParseIP(ip); dst != nil {
+					if err := h.addIngressFilters(dst, true); err != nil {
+						return errors.Wrapf(err, "overlay ingress drop %s", ip)
+					}
+				}
 			}
 			continue
 		}
