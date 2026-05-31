@@ -22,6 +22,7 @@ import (
 const (
 	defaultFlushInterval = 2 * time.Second
 	defaultBatchSize     = 256
+	maxStreamBacklog     = 8192
 	pushPath             = "/loki/api/v1/push"
 )
 
@@ -155,13 +156,36 @@ func (p *Pusher) Flush(ctx context.Context) error {
 	}
 	resp, err := p.httpClient.Do(req)
 	if err != nil {
+		p.requeue(pending)
 		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode/100 != 2 {
+		p.requeue(pending)
 		return fmt.Errorf("loki push: status %d", resp.StatusCode)
 	}
 	return nil
+}
+
+// requeue puts entries that failed to push back into the buffer so a later
+// Flush retries them, preserving order (older pending entries before newer
+// ones). The per-stream backlog is bounded so a prolonged Loki outage drops
+// the oldest entries instead of growing memory without limit.
+func (p *Pusher) requeue(pending map[string]*stream) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for key, s := range pending {
+		if cur, ok := p.streams[key]; ok {
+			cur.entries = append(s.entries, cur.entries...)
+		} else {
+			p.streams[key] = s
+		}
+		cur := p.streams[key]
+		if over := len(cur.entries) - maxStreamBacklog; over > 0 {
+			cur.entries = cur.entries[over:]
+			slog.Warn("loki backlog overflow, dropping oldest entries", "stream", key, "dropped", over)
+		}
+	}
 }
 
 func canonicalize(labels map[string]string) string {
