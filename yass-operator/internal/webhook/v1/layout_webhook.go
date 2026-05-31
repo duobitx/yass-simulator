@@ -55,6 +55,9 @@ func (v *LayoutWebhook) validate(_ context.Context, newObj runtime.Object) (admi
 		return nil, fmt.Errorf("expected a Layout object for the newObj but got %T", newObj)
 	}
 	jeh := goutils.NewJoinErrorHelper()
+	if len(layout.Spec) > MaxFsNodes {
+		jeh.Append(fmt.Errorf("layout has %d fsNodes, exceeding the maximum of %d (geo-calculator MAXSAT)", len(layout.Spec), MaxFsNodes))
+	}
 	for elementIndex, node := range layout.Spec {
 		if node.Orbit != nil {
 			validateTLE(node.Orbit.TLE, elementIndex, jeh)

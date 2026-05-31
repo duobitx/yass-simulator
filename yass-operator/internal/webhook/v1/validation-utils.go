@@ -8,6 +8,11 @@ import (
 	"github.com/m-szalik/goutils"
 )
 
+// MaxFsNodes is the maximum number of FsNodes (satellites + ground stations)
+// a Layout may declare. It mirrors the geo-calculator's compile-time MAXSAT
+// limit (V6/geo_calc.cc); exceeding it would overflow its position array.
+const MaxFsNodes = 256
+
 var validNodeTypes = []string{string(yassv1.FsNodeTypeSatellite), string(yassv1.FsNodeTypeGroundStation)}
 
 func isValidNodeType(nodeType string) bool {
