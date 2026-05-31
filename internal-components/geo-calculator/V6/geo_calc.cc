@@ -43,6 +43,10 @@ const double radiusearthkm = 6378.137;
 const double PI = 3.141592653589;
 const double DEG2RAD = PI / 180.0;
 const double RAD2DEG = 180.0 / PI;
+// Minimum antenna elevation for a satellite<->ground-station link. A real
+// ground antenna cannot work at the horizon (atmospheric attenuation, terrain
+// masking, mechanical limits), so links below this angle are treated as blocked.
+const double MIN_GS_ELEVATION_DEG = 10.0;
 
 
 char (*tmp)[MAXSAT][3][70];
@@ -178,6 +182,23 @@ static double dist(int s1, int s2)
 { double t, dx, dy, dz, d2, xp, yp, zp;
 
   dx=sat[s2].x - sat[s1].x; dy=sat[s2].y - sat[s1].y; dz=sat[s2].z - sat[s1].z; d2 = dx*dx + dy*dy + dz*dz;
+
+  // For a satellite<->ground-station link (exactly one endpoint is a base
+  // station, index >= n_sat) require the satellite to be at least
+  // MIN_GS_ELEVATION_DEG above the ground station's horizon. This subsumes the
+  // Earth-occlusion test (elevation >= 0 already means the line clears Earth).
+  int gs1 = s1 >= n_sat, gs2 = s2 >= n_sat;
+  if( gs1 != gs2 ) {
+    int g = gs1 ? s1 : s2, s = gs1 ? s2 : s1;
+    double gmag = sqrt(sat[g].x*sat[g].x + sat[g].y*sat[g].y + sat[g].z*sat[g].z);
+    double lx=sat[s].x-sat[g].x, ly=sat[s].y-sat[g].y, lz=sat[s].z-sat[g].z;
+    double lmag = sqrt(lx*lx + ly*ly + lz*lz);
+    if( gmag <= 0.0 || lmag <= 0.0 ) return -sqrt(d2);
+    // sin(elevation) = (look vector . local up) / |look|, local up = G/|G|.
+    double sinElev = (lx*sat[g].x + ly*sat[g].y + lz*sat[g].z) / (lmag*gmag);
+    if( sinElev < sin(MIN_GS_ELEVATION_DEG * DEG2RAD) ) return -sqrt(d2);
+    return sqrt(d2);
+  }
 
   t=( -sat[s1].x*dx + -sat[s1].y*dy + -sat[s1].z*dz ) / d2;
 

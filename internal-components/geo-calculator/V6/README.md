@@ -88,3 +88,23 @@ Ze stacji bazowych  widaæ równoczeœnie 4 do 12 satelitów.
 
 
 
+
+## Line-of-sight model (supersedes the note above)
+
+Visibility is no longer identical for sat-sat and sat-GS pairs:
+
+- **sat <-> sat**: a link is clear when the straight segment between the two
+  satellites does not pass below the Earth sphere (`radiusearthkm`).
+- **sat <-> ground station**: the satellite must additionally be at least
+  `MIN_GS_ELEVATION_DEG` (10 deg) above the ground station's local horizon.
+  A real ground antenna cannot work at the limb (atmospheric attenuation,
+  terrain masking, mechanical limits), so links below 10 deg of elevation are
+  treated as blocked. This subsumes the Earth-occlusion test (elevation >= 0
+  already means the line clears the Earth).
+
+Note on the Earth model: ground-station positions come from libsgp4's WGS72
+**ellipsoid** (with flattening), while the sat-sat occlusion test uses a single
+**spherical** radius equal to the equatorial radius (6378.137 km). Near the
+poles the real surface is ~21 km closer to the centre, so the two models are
+inconsistent by ~0.3% in the worst case. This is accepted as negligible for the
+coarse occlusion test and is not corrected.
