@@ -597,7 +597,7 @@ func (h *Handler) setupIngressQdisc() error {
 
 	if err := netlink.QdiscAdd(ingress); err != nil {
 		// Check if already exists
-		if err.Error() == "file exists" {
+		if isEEXIST(err) {
 			slog.Default().Debug("Ingress qdisc already exists")
 			return nil
 		}
