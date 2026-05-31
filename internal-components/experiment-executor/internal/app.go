@@ -311,14 +311,23 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GlobalGeoCalcU
 	for _, data := range upd.FsNodeInfos {
 		networkParams := make([]*proto.FsNodeUpdateNetworkParamEntry, 0, len(data.ReachableFsNodes))
 		for _, peer := range data.ReachableFsNodes {
-			ipFsState, ok := t.nodes[peer.NameTo]
+			var ip string
+			var ok bool
+			func() {
+				t.nodesLock.Lock()
+				defer t.nodesLock.Unlock()
+				if st, found := t.nodes[peer.NameTo]; found {
+					ip = st.IP
+					ok = true
+				}
+			}()
 			if !ok {
 				// Peer hasn't published its online-state on MQTT yet; skip until it does.
 				slog.Default().Warn("cannot resolve IP for fsNode", "fsNode", peer.NameTo, "processingFsNode", data.Name)
 				continue
 			}
 			np := &proto.FsNodeUpdateNetworkParamEntry{
-				Ip:       ipFsState.IP,
+				Ip:       ip,
 				Distance: peer.Distance,
 			}
 			t.calculateNetworkParam(data, peer.NameTo, np)

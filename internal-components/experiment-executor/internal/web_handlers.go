@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/duobitx/yass-simulator/internal-components/experiment-executor/consts"
+	"github.com/duobitx/yass-simulator/internal-components/experiment-executor/internal/model"
 	"github.com/gorilla/mux"
 	"k8s.io/apimachinery/pkg/util/json"
 )
@@ -40,11 +41,16 @@ func (t *AppType) handleStartExperiment(w http.ResponseWriter, r *http.Request) 
 func (t *AppType) handleGetFsNodeData(w http.ResponseWriter, r *http.Request) {
 	match := mux.Vars(r)
 	fsNode := match["fsNode"]
-	for nodeName, nodeData := range t.nodes {
-		if nodeName == fsNode {
-			output(w, nodeData)
-			return
-		}
+	t.nodesLock.Lock()
+	nodeData, ok := t.nodes[fsNode]
+	var snapshot model.FsNodeState
+	if ok {
+		snapshot = *nodeData
+	}
+	t.nodesLock.Unlock()
+	if ok {
+		output(w, snapshot)
+		return
 	}
 	w.WriteHeader(http.StatusNotFound)
 }
