@@ -9,26 +9,28 @@ import (
 func TestClassify(t *testing.T) {
 	cases := []struct {
 		kind, eventType string
+		payload         map[string]any
 		want            string
 	}{
-		{"lifecycle", "started", corev1.EventTypeNormal},
-		{"lifecycle", "Failure", corev1.EventTypeWarning},
-		{"lifecycle", "Errored", corev1.EventTypeWarning},
-		{"lifecycle", "TimedOut", corev1.EventTypeWarning},
-		{"online_state", "online", corev1.EventTypeNormal},
-		{"online_state", "offline", corev1.EventTypeWarning},
-		{"power", "enter_shadow", corev1.EventTypeNormal},
-		{"power", "enter_low_power", corev1.EventTypeWarning},
-		{"power", "exit_low_power", corev1.EventTypeNormal},
-		{"hardware", "antenna-deploy", corev1.EventTypeNormal},
-		{"hardware", "antenna-failure", corev1.EventTypeWarning},
-		{"hardware", "sensor_error", corev1.EventTypeWarning},
-		{"crud", "PUT", corev1.EventTypeNormal},
-		{"crud", "DELETE", corev1.EventTypeNormal},
+		{"lifecycle", "started", nil, corev1.EventTypeNormal},
+		{"lifecycle", "ended", map[string]any{"reason": "scenario-success"}, corev1.EventTypeNormal},
+		{"lifecycle", "ended", map[string]any{"reason": "scenario-failure"}, corev1.EventTypeWarning},
+		{"lifecycle", "ended", map[string]any{"reason": "scenario-timeout"}, corev1.EventTypeWarning},
+		{"lifecycle", "ended", map[string]any{"reason": "unexpected-error"}, corev1.EventTypeWarning},
+		{"online_state", "online", nil, corev1.EventTypeNormal},
+		{"online_state", "offline", nil, corev1.EventTypeWarning},
+		{"power", "enter_shadow", nil, corev1.EventTypeNormal},
+		{"power", "enter_low_power", nil, corev1.EventTypeWarning},
+		{"power", "exit_low_power", nil, corev1.EventTypeNormal},
+		{"hardware", "antenna-deploy", nil, corev1.EventTypeNormal},
+		{"hardware", "antenna-failure", nil, corev1.EventTypeWarning},
+		{"hardware", "sensor_error", nil, corev1.EventTypeWarning},
+		{"crud", "PUT", nil, corev1.EventTypeNormal},
+		{"crud", "DELETE", nil, corev1.EventTypeNormal},
 	}
 	for _, c := range cases {
-		if got := classify(c.kind, c.eventType); got != c.want {
-			t.Errorf("classify(%q,%q) = %q, want %q", c.kind, c.eventType, got, c.want)
+		if got := classify(c.kind, c.eventType, c.payload); got != c.want {
+			t.Errorf("classify(%q,%q,%v) = %q, want %q", c.kind, c.eventType, c.payload, got, c.want)
 		}
 	}
 }

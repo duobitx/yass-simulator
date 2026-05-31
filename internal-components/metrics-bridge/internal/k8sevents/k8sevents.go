@@ -120,7 +120,7 @@ func (e *recorderEmitter) Emit(kind, eventType string, payload map[string]any) {
 	if _, skip := e.skipKinds[kind]; skip {
 		return
 	}
-	severity := classify(kind, eventType)
+	severity := classify(kind, eventType, payload)
 	reason := buildReason(kind, eventType)
 	msg := buildMessage(kind, eventType, payload)
 
@@ -143,13 +143,17 @@ func (e *recorderEmitter) Emit(kind, eventType string, payload map[string]any) {
 // classify maps (kind, eventType) to corev1.EventTypeNormal or
 // corev1.EventTypeWarning. Adverse transitions become Warning so they stand
 // out in `kubectl describe experiment`.
-func classify(kind, eventType string) string {
+func classify(kind, eventType string, payload map[string]any) string {
 	t := strings.ToLower(eventType)
 	switch kind {
 	case "lifecycle":
-		switch eventType {
-		case "Failure", "Errored", "TimedOut":
-			return corev1.EventTypeWarning
+		// Lifecycle eventType is the state ("started"/"ended"); the adverse
+		// outcome is carried in the reason ("scenario-failure", "scenario-timeout", ...).
+		reason := strings.ToLower(fmt.Sprint(payload["reason"]))
+		for _, kw := range []string{"fail", "timeout", "error"} {
+			if strings.Contains(reason, kw) {
+				return corev1.EventTypeWarning
+			}
 		}
 	case "online_state":
 		if t == "offline" {
