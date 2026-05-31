@@ -42,7 +42,13 @@ func (s *NodeHwState) Update(tStats []*proto.TrafficStats) ([]byte, string, erro
 		}
 	}
 	defer s.lock.Unlock()
-	t := now.Sub(s.lastUpdate).Seconds()
+	// First update only establishes the baseline timestamp; with a zero
+	// lastUpdate the elapsed interval would be ~decades, producing a garbage
+	// drain/gain on the very first sample.
+	t := 0.0
+	if !s.lastUpdate.IsZero() {
+		t = now.Sub(s.lastUpdate).Seconds()
+	}
 	drain := float64(s.hw.EnergyConsumption.NormalPowerBaseW)*t + float64(float32(sumBytesOutThisTurn)*s.hw.EnergyConsumption.PerkByteTXWh)
 	gain := 0.0
 	if !s.InShadow {
