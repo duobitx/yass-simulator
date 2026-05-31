@@ -62,7 +62,15 @@ type Bridge struct {
 	timeMu            sync.RWMutex
 	lastExpTime       time.Time
 	lastExpTimeAtWall time.Time
+
+	// exportOnce ensures the post-experiment export runs at most once even
+	// if the executor publishes the "ended" lifecycle event more than once.
+	exportOnce sync.Once
 }
+
+// exportTimeout bounds the events-exporter subprocess so a hung export does
+// not run forever or outlive shutdown.
+const exportTimeout = 5 * time.Minute
 
 func New(cfg *config.Config, m *metrics.Metrics, loki *lokipush.Pusher, events k8sevents.Emitter) *Bridge {
 	if events == nil {
@@ -423,7 +431,7 @@ func (b *Bridge) onLifecycle(data []byte) {
 	}
 
 	if e.State == "ended" {
-		go b.runExportAfterGrace()
+		b.exportOnce.Do(func() { go b.runExportAfterGrace() })
 	}
 }
 
@@ -465,7 +473,9 @@ func (b *Bridge) runExportAfterGrace() {
 		args = append(args, "--out", strings.TrimRight(b.cfg.ExportDir, "/")+"/"+b.cfg.ExperimentName+"-"+b.cfg.RunID+".ods")
 	}
 	slog.Info("running events-exporter", "bin", b.cfg.ExporterBin, "args", args)
-	cmd := exec.Command(b.cfg.ExporterBin, args...)
+	ctx, cancel := context.WithTimeout(context.Background(), exportTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, b.cfg.ExporterBin, args...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		slog.Error("events-exporter failed", "error", err, "output", string(out))
