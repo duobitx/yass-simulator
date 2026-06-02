@@ -17,7 +17,7 @@ tasks:
       - '**/*.go'
       - go.mod
     cmds:
-      - go build -o main -a main.go
+      - go build -o main -a .
 
   default:
     cmds:
