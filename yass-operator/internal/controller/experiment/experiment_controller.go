@@ -215,7 +215,7 @@ func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx c
 		{"experiment-executor-service.yaml", "experiment-executor", "", &v1.Service{}, nil},
 		{"events-webapp-deployment.yaml", "events-webapp", "", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
 		{"events-webapp-service.yaml", "events-webapp", "", &v1.Service{}, nil},
-		{"metrics-bridge-deployment.yaml", "metrics-bridge", "", &appsv1.Deployment{}, modMetricsBridge(experiment)},
+		{"metrics-bridge-deployment.yaml", "metrics-bridge", "", &appsv1.Deployment{}, modMetricsBridge(experiment, deliveryDeadlineFor(exDef.Spec.MaxDuration))},
 		{"mqtt2prom-deployment.yaml", "mqtt2prom", "", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},
 		{"mqtt2prom-service.yaml", "mqtt2prom", "", &v1.Service{}, nil},
 		{"web-ui-deployment.yaml", "web-ui", "", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},

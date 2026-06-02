@@ -20,9 +20,12 @@ const (
 )
 
 // modMetricsBridge stamps experiment context (name/engine/run-id) as pod
-// labels and env vars on the metrics-bridge Deployment. The bridge reads
-// its own runtime knobs (deadline, etc.) from its container defaults.
-func modMetricsBridge(experiment *yassv1.Experiment) func(client.Object) {
+// labels and env vars on the metrics-bridge Deployment. It also injects
+// DELIVERY_DEADLINE (when non-empty) so the bridge's PUT->RECEIVED pairing
+// window tracks this experiment's maxDuration instead of the container
+// default — otherwise slow (e.g. EDFS relay) deliveries are evicted before
+// they can be paired and their delivery_seconds is never recorded.
+func modMetricsBridge(experiment *yassv1.Experiment, deliveryDeadline string) func(client.Object) {
 	engine := deriveEngine(experiment)
 	runID := deriveRunID(experiment)
 
@@ -48,6 +51,9 @@ func modMetricsBridge(experiment *yassv1.Experiment) func(client.Object) {
 			{Name: "RUN_ID", Value: runID},
 			{Name: "LAYOUT", Value: experiment.Spec.LayoutDefRef},
 		}
+		if deliveryDeadline != "" {
+			envs = append(envs, v1.EnvVar{Name: "DELIVERY_DEADLINE", Value: deliveryDeadline})
+		}
 		for i := range dep.Spec.Template.Spec.Containers {
 			c := &dep.Spec.Template.Spec.Containers[i]
 			if c.Name != "metrics-bridge" {
@@ -56,6 +62,23 @@ func modMetricsBridge(experiment *yassv1.Experiment) func(client.Object) {
 			c.Env = mergeEnvs(c.Env, envs)
 		}
 	}
+}
+
+// deliveryDeadlineFor returns the metrics-bridge DELIVERY_DEADLINE for an
+// experiment: its maxDuration plus a 10% margin, in Go-duration format.
+// A delivery can only occur while the experiment is alive (<= maxDuration),
+// so the margin guarantees no in-run delivery is evicted before pairing.
+// Returns "" when maxDuration is empty or unparseable, so the bridge keeps
+// its own container default.
+func deliveryDeadlineFor(maxDuration string) string {
+	if maxDuration == "" {
+		return ""
+	}
+	d, err := time.ParseDuration(maxDuration)
+	if err != nil || d <= 0 {
+		return ""
+	}
+	return (d + d/10).String()
 }
 
 func deriveEngine(experiment *yassv1.Experiment) string {

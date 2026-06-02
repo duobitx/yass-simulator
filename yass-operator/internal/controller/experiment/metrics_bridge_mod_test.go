@@ -41,7 +41,7 @@ func TestModMetricsBridgeStampsLabelsAndEnv(t *testing.T) {
 		},
 	}
 	dep := newBridgeDep()
-	modMetricsBridge(exp)(dep)
+	modMetricsBridge(exp, "4h24m0s")(dep)
 
 	if got := dep.Spec.Template.Labels[controller.LabelExperiment]; got != "forever-experiment" {
 		t.Errorf("yass-experiment label=%q, want forever-experiment", got)
@@ -63,6 +63,18 @@ func TestModMetricsBridgeStampsLabelsAndEnv(t *testing.T) {
 	}
 	if envByName(c, "RUN_ID") != wantRunID {
 		t.Errorf("RUN_ID=%q", envByName(c, "RUN_ID"))
+	}
+	if envByName(c, "DELIVERY_DEADLINE") != "4h24m0s" {
+		t.Errorf("DELIVERY_DEADLINE=%q", envByName(c, "DELIVERY_DEADLINE"))
+	}
+}
+
+func TestDeliveryDeadlineFor(t *testing.T) {
+	cases := map[string]string{"4h": "4h24m0s", "6h": "6h36m0s", "": "", "bogus": ""}
+	for in, want := range cases {
+		if got := deliveryDeadlineFor(in); got != want {
+			t.Errorf("deliveryDeadlineFor(%q)=%q want %q", in, got, want)
+		}
 	}
 }
 
