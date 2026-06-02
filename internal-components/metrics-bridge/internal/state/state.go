@@ -10,12 +10,14 @@ type PendingPut struct {
 	Source    string
 	SizeBytes int64
 	When      time.Time
+	Name      string
 	received  map[string]struct{} // receivers already counted (dedup)
 }
 
 type Tracker struct {
 	mu          sync.Mutex
 	pending     map[string]*PendingPut
+	byName      map[string]string // file name -> pending key, for md5-less receives
 	deadline    time.Duration
 	maxSize     int
 	insertOrder []string
@@ -24,45 +26,65 @@ type Tracker struct {
 func NewTracker(deadline time.Duration, maxSize int) *Tracker {
 	return &Tracker{
 		pending:  make(map[string]*PendingPut),
+		byName:   make(map[string]string),
 		deadline: deadline,
 		maxSize:  maxSize,
 	}
 }
 
-// RecordPut stores a pending PUT keyed by md5sum. If md5sum is empty the
-// record is dropped — without it, delivery cannot be joined back.
-func (t *Tracker) RecordPut(md5sum, source string, size int64, when time.Time) {
-	if md5sum == "" || source == "" {
+// RecordPut stores a pending PUT keyed by md5sum, with a secondary index on the
+// file name. The name index lets a later RECEIVED that carries no md5sum (the
+// EDFS engine emits an empty md5 on receive) still be joined back to its PUT.
+// If both md5sum and name are empty the record is dropped — without a join key,
+// delivery cannot be reconstructed.
+func (t *Tracker) RecordPut(md5sum, name, source string, size int64, when time.Time) {
+	if source == "" {
+		return
+	}
+	key := md5sum
+	if key == "" {
+		key = name
+	}
+	if key == "" {
 		return
 	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if _, exists := t.pending[md5sum]; exists {
+	if _, exists := t.pending[key]; exists {
 		return
 	}
-	t.pending[md5sum] = &PendingPut{Source: source, SizeBytes: size, When: when}
-	t.insertOrder = append(t.insertOrder, md5sum)
+	t.pending[key] = &PendingPut{Source: source, SizeBytes: size, When: when, Name: name}
+	if name != "" {
+		t.byName[name] = key
+	}
+	t.insertOrder = append(t.insertOrder, key)
 	if len(t.pending) > t.maxSize {
 		t.dropOldestLocked()
 	}
 }
 
-// MatchReceive looks up a pending PUT for the given md5sum and records that
-// `receiver` got it. It does NOT remove the entry — a single file may be
-// received by multiple distinct peers, each a separate delivery. It returns
-// (nil, true) when this exact (md5sum, receiver) pair has already been seen
-// (a duplicate receipt — engine restart, re-pin, idempotent re-fetch) so the
-// caller can skip double-counting, and (nil, false) when the md5sum is
-// unknown. The dedup set lives inside the PendingPut, so it is bounded by the
+// MatchReceive looks up a pending PUT for the given md5sum (falling back to the
+// file name when md5sum is empty or unknown) and records that `receiver` got
+// it. It does NOT remove the entry — a single file may be received by multiple
+// distinct peers, each a separate delivery. It returns (nil, true) when this
+// exact (file, receiver) pair has already been seen (a duplicate receipt —
+// engine restart, re-pin, idempotent re-fetch) so the caller can skip
+// double-counting, and (nil, false) when neither md5sum nor name resolves to a
+// known PUT. The dedup set lives inside the PendingPut, so it is bounded by the
 // pending map and freed when the PUT is evicted.
-func (t *Tracker) MatchReceive(md5sum, receiver string) (*PendingPut, bool) {
-	if md5sum == "" {
-		return nil, false
-	}
+func (t *Tracker) MatchReceive(md5sum, name, receiver string) (*PendingPut, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	p, ok := t.pending[md5sum]
-	if !ok {
+	var p *PendingPut
+	if md5sum != "" {
+		p = t.pending[md5sum]
+	}
+	if p == nil && name != "" {
+		if key, ok := t.byName[name]; ok {
+			p = t.pending[key]
+		}
+	}
+	if p == nil {
 		return nil, false
 	}
 	if p.received == nil {
@@ -96,6 +118,9 @@ func (t *Tracker) EvictExpired(now time.Time) map[string]int {
 		}
 		if p.When.Before(threshold) {
 			lost[p.Source]++
+			if p.Name != "" {
+				delete(t.byName, p.Name)
+			}
 			delete(t.pending, k)
 			continue
 		}
@@ -111,6 +136,9 @@ func (t *Tracker) dropOldestLocked() {
 	}
 	k := t.insertOrder[0]
 	t.insertOrder = t.insertOrder[1:]
+	if p, ok := t.pending[k]; ok && p.Name != "" {
+		delete(t.byName, p.Name)
+	}
 	delete(t.pending, k)
 }
 

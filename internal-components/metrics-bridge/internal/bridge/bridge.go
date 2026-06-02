@@ -223,9 +223,9 @@ func (b *Bridge) onCrudEvent(data []byte) {
 	case "PUT":
 		b.m.FileProducedTotal.WithLabelValues(e.FsNodeName).Inc()
 		b.m.FileProducedBytesTotal.WithLabelValues(e.FsNodeName).Add(float64(e.ContentSizeBytes))
-		b.tracker.RecordPut(e.Md5Sum, e.FsNodeName, e.ContentSizeBytes, when)
+		b.tracker.RecordPut(e.Md5Sum, e.Name, e.FsNodeName, e.ContentSizeBytes, when)
 	case "RECEIVED":
-		put, dup := b.tracker.MatchReceive(e.Md5Sum, e.FsNodeName)
+		put, dup := b.tracker.MatchReceive(e.Md5Sum, e.Name, e.FsNodeName)
 		if dup {
 			break // already counted this (file, receiver); avoid double-count
 		}
