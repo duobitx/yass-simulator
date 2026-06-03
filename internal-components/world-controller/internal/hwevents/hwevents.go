@@ -488,6 +488,21 @@ func (m *Manager) unmountErrorFS() error {
 	return runAll(cmds...)
 }
 
+// UnmountAllErrorFS best-effort unmounts every fuse-errorfs mount this node may
+// still have active. Call it on shutdown: if a pod is deleted while a DiskFailure
+// fuse-errorfs is mounted, kubelet cannot unmount the emptyDir and the pod hangs
+// Terminating forever (see NOTES.md §3). Safe when nothing is mounted —
+// fusermount -u then just errors, which we ignore.
+func UnmountAllErrorFS() {
+	for _, path := range diskFaultHostPaths {
+		if out, err := exec.Command("fusermount", "-u", path).CombinedOutput(); err != nil {
+			slog.Debug("hwevents: unmount on shutdown (ignored)", "path", path, "error", err, "out", string(out))
+		} else {
+			slog.Info("hwevents: unmounted errorfs on shutdown", "path", path)
+		}
+	}
+}
+
 func (m *Manager) destroy(ctx context.Context) error {
 	pids := []int{}
 	if m.killTargets != nil {

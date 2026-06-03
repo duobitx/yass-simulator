@@ -380,6 +380,9 @@ func main() {
 	startup.HttpProbe(ctx, 8801)
 	slog.Info("StartupCompleted")
 	<-ctx.Done()
+	// Release any DiskFailure fuse-errorfs mounts so a deleted pod doesn't hang
+	// Terminating with a live FUSE mount kubelet can't clean up (NOTES.md §3).
+	hwevents.UnmountAllErrorFS()
 	time.Sleep(1 * time.Second)
 	slog.Info("Terminated")
 }
