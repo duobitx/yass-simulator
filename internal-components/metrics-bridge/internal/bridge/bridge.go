@@ -38,6 +38,11 @@ type Bridge struct {
 	loki    *lokipush.Pusher
 	events  k8sevents.Emitter
 
+	// peerToNode maps a libp2p peer ID (published retained on edfs-peers/<node>
+	// by each edfs engine) to its fsNode name, so block-receive provenance from
+	// the kubo bitswap tracer (block-recv/<node>) can name the sender.
+	peerToNode sync.Map // peerID(string) -> fsNode(string)
+
 	prevBattery sync.Map // fsNode -> float32
 
 	// Network counters are absolute snapshots in MQTT payload; we expose
@@ -172,6 +177,10 @@ func (b *Bridge) Handle(_ context.Context, topic string, _ bool, data []byte) {
 		b.onLos(topic, data)
 	case strings.HasPrefix(topic, "edfs-cids/") && !strings.HasSuffix(topic, "_"):
 		b.onEdfsCids(topic, data)
+	case strings.HasPrefix(topic, "edfs-peers/") && !strings.HasSuffix(topic, "_"):
+		b.onEdfsPeers(data)
+	case strings.HasPrefix(topic, "block-recv/") && !strings.HasSuffix(topic, "_"):
+		b.onEdfsBlockRecv(topic, data)
 	case topic == "updates/_time_":
 		b.onTimeUpdate(data)
 	}
@@ -564,6 +573,66 @@ func (b *Bridge) onEdfsCids(topic string, data []byte) {
 			completeness = float64(c.PresentBlocks) / float64(c.TotalBlocks)
 		}
 		b.m.EdfsReplicaCompleteness.WithLabelValues(c.CID, fsNode).Set(completeness)
+	}
+}
+
+// onEdfsPeers records the peerID->fsNode mapping each edfs engine publishes
+// (retained) on edfs-peers/<node>. Used to name the sender in block-receive
+// provenance.
+func (b *Bridge) onEdfsPeers(data []byte) {
+	var pi struct {
+		NodeName string `json:"nodeName"`
+		PeerID   string `json:"peerID"`
+	}
+	if err := json.Unmarshal(data, &pi); err != nil || pi.PeerID == "" || pi.NodeName == "" {
+		return
+	}
+	b.peerToNode.Store(pi.PeerID, pi.NodeName)
+}
+
+// onEdfsBlockRecv turns the kubo bitswap tracer's per-block reception reports
+// (block-recv/<toFsNode>, payload {from:peerID, t:unixMs, blocks:[{cid,size}]})
+// into one Loki event per block, resolving the sender peerID to its fsNode.
+// Each event is the authoritative edge "from_fsNode -> to_fsNode" for one block,
+// which the report aggregates into a per-file propagation graph. See
+// yass-docs/observability-v2-spec.md §G4.
+func (b *Bridge) onEdfsBlockRecv(topic string, data []byte) {
+	parts := strings.Split(topic, "/")
+	if len(parts) < 2 || parts[1] == "" {
+		return
+	}
+	to := parts[1]
+	var msg struct {
+		From   string `json:"from"`
+		When   int64  `json:"t"`
+		Blocks []struct {
+			Cid  string `json:"cid"`
+			Size int64  `json:"size"`
+		} `json:"blocks"`
+	}
+	if err := json.Unmarshal(data, &msg); err != nil {
+		slog.Warn("metrics-bridge: cannot decode block-recv", "topic", topic, "error", err)
+		return
+	}
+	from := msg.From // fall back to the raw peerID if the mapping isn't known yet
+	if n, ok := b.peerToNode.Load(msg.From); ok {
+		from = n.(string)
+	}
+	when := time.Now()
+	if msg.When > 0 {
+		when = time.UnixMilli(msg.When)
+	}
+	for _, blk := range msg.Blocks {
+		if blk.Cid == "" {
+			continue
+		}
+		b.pushEvent("edfs_block_recv", to, "RECV", when, map[string]any{
+			"from_fsNode": from,
+			"to_fsNode":   to,
+			"from_peer":   msg.From,
+			"block_cid":   blk.Cid,
+			"size":        blk.Size,
+		})
 	}
 }
 
