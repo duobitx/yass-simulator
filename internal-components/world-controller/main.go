@@ -71,6 +71,16 @@ type appType struct {
 	networkingHandler *networking.Handler
 	hw                *hw.NodeHwState
 	updates           *updates
+	// started is closed on the first position update from the experiment-executor,
+	// which only arrives once the experiment has actually started (post /start).
+	// Hardware-event injection is gated on it so faults never fire during startup.
+	started     chan struct{}
+	startedOnce sync.Once
+}
+
+// signalStarted marks the experiment as started (first sim update received).
+func (a *appType) signalStarted() {
+	a.startedOnce.Do(func() { close(a.started) })
 }
 
 func (a *appType) handleUpdate(_ context.Context, data []byte) error {
@@ -82,6 +92,7 @@ func (a *appType) handleUpdate(_ context.Context, data []byte) error {
 	}
 	a.hw.SetInShadow(dataObj.InShadow)
 	a.updates.setPos(dataObj.PosStr)
+	a.signalStarted() // first sim update ⇒ experiment has started ⇒ faults may begin
 	jeh := goutils.JoinErrorHelper{}
 	networkParams := goutils.SliceMap[*proto.FsNodeUpdateNetworkParamEntry, networking.NetworkParam](
 		dataObj.NetworkParams,
@@ -251,6 +262,7 @@ func main() {
 			posStr:     "unspecified",
 			batteryStr: "unspecified",
 		},
+		started: make(chan struct{}),
 	}
 
 	err = facade.Connect()
@@ -429,6 +441,14 @@ func main() {
 			},
 			PublishOffln: func() error { return app.publishOnlineState(false) },
 		})
+		// Gate fault injection on the experiment actually starting (first sim
+		// update). Otherwise DiskFailure/DiskFull etc. could fire during pod
+		// startup, crash the agent/engine and wrongly mark the experiment Errored.
+		select {
+		case <-app.started:
+		case <-ctx.Done():
+			return
+		}
 		mgr.Start(ctx, time.Now())
 	}()
 
