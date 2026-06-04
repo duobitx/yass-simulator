@@ -11,6 +11,7 @@ resources:
 - service_account.yaml
 - experiment-role.yaml
 - experiment-role_binding.yaml
+- experiment-sa-all_binding.yaml
 - leader_election_role.yaml
 - leader_election_role_binding.yaml
 # The following RBAC configurations are used to protect
