@@ -180,7 +180,7 @@ func (b *Bridge) Handle(_ context.Context, topic string, _ bool, data []byte) {
 	case strings.HasPrefix(topic, "edfs-peers/") && !strings.HasSuffix(topic, "_"):
 		b.onEdfsPeers(data)
 	case strings.HasPrefix(topic, "block-recv/") && !strings.HasSuffix(topic, "_"):
-		b.onEdfsBlockRecv(topic, data)
+		b.onBlockRecv(topic, data)
 	case topic == "updates/_time_":
 		b.onTimeUpdate(data)
 	}
@@ -590,13 +590,13 @@ func (b *Bridge) onEdfsPeers(data []byte) {
 	b.peerToNode.Store(pi.PeerID, pi.NodeName)
 }
 
-// onEdfsBlockRecv turns the kubo bitswap tracer's per-block reception reports
+// onBlockRecv turns the kubo bitswap tracer's per-block reception reports
 // (block-recv/<toFsNode>, payload {from:peerID, t:unixMs, blocks:[{cid,size}]})
 // into one Loki event per block, resolving the sender peerID to its fsNode.
 // Each event is the authoritative edge "from_fsNode -> to_fsNode" for one block,
 // which the report aggregates into a per-file propagation graph. See
 // yass-docs/observability-v2-spec.md §G4.
-func (b *Bridge) onEdfsBlockRecv(topic string, data []byte) {
+func (b *Bridge) onBlockRecv(topic string, data []byte) {
 	parts := strings.Split(topic, "/")
 	if len(parts) < 2 || parts[1] == "" {
 		return
@@ -626,7 +626,7 @@ func (b *Bridge) onEdfsBlockRecv(topic string, data []byte) {
 		if blk.Cid == "" {
 			continue
 		}
-		b.pushEvent("edfs_block_recv", to, "RECV", when, map[string]any{
+		b.pushEvent("block_recv", to, "RECV", when, map[string]any{
 			"from_fsNode": from,
 			"to_fsNode":   to,
 			"from_peer":   msg.From,
