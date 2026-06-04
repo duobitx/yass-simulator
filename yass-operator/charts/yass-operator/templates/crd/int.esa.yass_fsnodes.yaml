@@ -26,6 +26,9 @@ spec:
     - jsonPath: .spec.nodeType
       name: NodeType
       type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
     - jsonPath: .status.ready
       name: Ready
       type: string
@@ -3928,7 +3931,7 @@ spec:
               phase:
                 description: |-
                   Phase is the lifecycle phase of the node (Pending|Creating|Running|
-                  CompletedSuccessfully|CompletedFailure|Errored). See FsNodePhase.
+                  MissionCompleted|MissionFail|Errored). See FsNodePhase.
                 type: string
               posStr:
                 description: |-
