@@ -167,6 +167,7 @@ type FsNodeStatus struct {
 // +kubebuilder:resource:shortName=fsns
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="NodeType",type=string,JSONPath=`.spec.nodeType`
+// +kubebuilder:printcolumn:name="Phase",type=string,JSONPath=`.status.phase`
 // +kubebuilder:printcolumn:name="Ready",type=string,JSONPath=`.status.ready`
 // +kubebuilder:printcolumn:name="Bat",type=string,JSONPath=`.status.batteryStr`
 // +kubebuilder:printcolumn:name="PosOverEarth",type=string,JSONPath=`.status.posStr`

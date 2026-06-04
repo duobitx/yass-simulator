@@ -20,6 +20,9 @@ spec:
     - jsonPath: .spec.nodeType
       name: NodeType
       type: string
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
     - jsonPath: .status.ready
       name: Ready
       type: string
