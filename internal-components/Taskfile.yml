@@ -28,7 +28,6 @@ tasks:
       - task -d mqtt2prom default
       - task -d events-exporter default
       - task -d fuse-errorfs default
-      - task -d geo-calculator build
 
   docker-build:
     desc: Build root Docker image tagged with TAG and latest
