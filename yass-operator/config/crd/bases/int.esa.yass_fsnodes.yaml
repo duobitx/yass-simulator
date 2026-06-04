@@ -3919,6 +3919,11 @@ spec:
                 x-kubernetes-list-map-keys:
                 - type
                 x-kubernetes-list-type: map
+              phase:
+                description: |-
+                  Phase is the lifecycle phase of the node (Pending|Creating|Running|
+                  CompletedSuccessfully|CompletedFailure|Errored). See FsNodePhase.
+                type: string
               posStr:
                 description: |-
                   PosStr is a short human-readable summary of the node's current position

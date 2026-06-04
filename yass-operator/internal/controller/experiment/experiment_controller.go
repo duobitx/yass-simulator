@@ -139,7 +139,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitRet c
 	if err != nil {
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, err
 	}
-	if err := r.evaluateAgentExitCodes(recon, ctx, &experiment); err != nil {
+	if err := r.evaluateExperimentOutcome(recon, ctx, &experiment); err != nil {
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, err
 	}
 	if experiment.Status.ExperimentState == yassv1.ExperimentStateInit {
@@ -630,44 +630,44 @@ func (r *Reconciler) experimentRestartTotal(ctx context.Context, namespace strin
 	return total, details, nil
 }
 
-// evaluateAgentExitCodes transitions the experiment to Success/Failure once every agent container has terminated.
-func (r *Reconciler) evaluateAgentExitCodes(recon *reconciliationStatus, ctx context.Context, experiment *yassv1.Experiment) error {
+// evaluateExperimentOutcome transitions an Ongoing/TimedOut experiment to a
+// terminal state by aggregating the FsNode phases (set by the world-controller
+// from each agent's sentinel file, and by the fs-node controller for crashes):
+// any Errored ⇒ Errored; else any CompletedFailure ⇒ Failure; else (all
+// CompletedSuccessfully) ⇒ Success. Acts only once EVERY FsNode is terminal.
+func (r *Reconciler) evaluateExperimentOutcome(recon *reconciliationStatus, ctx context.Context, experiment *yassv1.Experiment) error {
 	state := experiment.Status.ExperimentState
 	if state != yassv1.ExperimentStateOngoing && state != yassv1.ExperimentStateTimedOut {
 		return nil
 	}
-	podList := &v1.PodList{}
-	err := r.List(ctx, podList,
+	fsNodes := &yassv1.FsNodeList{}
+	if err := r.List(ctx, fsNodes,
 		client.InNamespace(experiment.Namespace),
-		client.MatchingLabels(map[string]string{controller.LabelExperiment: experiment.Name}))
-	if err != nil {
+		client.MatchingLabels(map[string]string{controller.LabelExperiment: experiment.Name})); err != nil {
 		return err
 	}
-	if len(podList.Items) == 0 {
+	if len(fsNodes.Items) == 0 {
 		return nil
 	}
-	anyFailure := false
-	for _, pod := range podList.Items {
-		var agent *v1.ContainerStatus
-		for i := range pod.Status.ContainerStatuses {
-			if pod.Status.ContainerStatuses[i].Name == "agent" {
-				agent = &pod.Status.ContainerStatuses[i]
-				break
-			}
+	anyErrored, anyFailure := false, false
+	for i := range fsNodes.Items {
+		ph := fsNodes.Items[i].Status.Phase
+		if !ph.IsTerminal() {
+			return nil // at least one node still running — wait
 		}
-		if agent == nil {
-			continue
-		}
-		if agent.State.Terminated == nil {
-			return nil
-		}
-		if agent.State.Terminated.ExitCode != 0 {
+		switch ph {
+		case yassv1.FsNodePhaseErrored:
+			anyErrored = true
+		case yassv1.FsNodePhaseCompletedFailure:
 			anyFailure = true
 		}
 	}
-	if anyFailure {
+	switch {
+	case anyErrored:
+		r.updateExperimentState(recon, experiment, yassv1.ExperimentStateErrored)
+	case anyFailure:
 		r.updateExperimentState(recon, experiment, yassv1.ExperimentStateFailure)
-	} else {
+	default:
 		r.updateExperimentState(recon, experiment, yassv1.ExperimentStateSuccess)
 	}
 	return nil

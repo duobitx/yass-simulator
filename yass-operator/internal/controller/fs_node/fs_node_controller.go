@@ -132,6 +132,13 @@ func (r *FsNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		fsNode.Status.Ready = goutils.AllMatch(fsNode.Status.Conditions, func(element *metav1.Condition) bool {
 			return element.Status == metav1.ConditionTrue
 		})
+		// Operator owns the pre-terminal phases (Pending/Creating/Running) and the
+		// crash case (Errored). The terminal success/expected-failure phases are set
+		// by the world-controller from the agent's sentinel file, so never overwrite
+		// an already-terminal phase here.
+		if !fsNode.Status.Phase.IsTerminal() {
+			fsNode.Status.Phase = r.computeFsNodePhase(ctx, &fsNode)
+		}
 		err := r.Status().Update(ctx, &fsNode)
 		if err != nil {
 			logger.Error(err, "error updating fsNode status")
@@ -166,6 +173,44 @@ func (r *FsNodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Named("fsNode-controller").
 		Owns(&v1.Pod{}).
 		Complete(r)
+}
+
+// computeFsNodePhase derives the pre-terminal FsNode phase from the Pod state:
+// Pending / Creating / Running, or Errored when the agent container terminated
+// with a non-zero exit (a crash, with no sentinel file). The terminal success /
+// expected-failure phases are set by the world-controller from the agent's
+// sentinel file, so this is only consulted while the phase is not yet terminal.
+func (r *FsNodeReconciler) computeFsNodePhase(ctx context.Context, fsNode *yassv1.FsNode) yassv1.FsNodePhase {
+	pod := &v1.Pod{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: fsNode.Namespace, Name: fsNode.Name}, pod); err != nil {
+		return yassv1.FsNodePhasePending // not created yet / transient
+	}
+	for i := range pod.Status.ContainerStatuses {
+		cs := &pod.Status.ContainerStatuses[i]
+		if cs.Name == "agent" && cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
+			return yassv1.FsNodePhaseErrored // crash, no sentinel
+		}
+	}
+	switch pod.Status.Phase {
+	case v1.PodRunning:
+		return yassv1.FsNodePhaseRunning
+	case v1.PodFailed:
+		return yassv1.FsNodePhaseErrored
+	case v1.PodPending:
+		for i := range pod.Status.InitContainerStatuses {
+			if s := pod.Status.InitContainerStatuses[i].State; s.Running != nil || s.Waiting != nil {
+				return yassv1.FsNodePhaseCreating
+			}
+		}
+		for i := range pod.Status.ContainerStatuses {
+			if pod.Status.ContainerStatuses[i].State.Waiting != nil {
+				return yassv1.FsNodePhaseCreating
+			}
+		}
+		return yassv1.FsNodePhasePending
+	default:
+		return yassv1.FsNodePhasePending
+	}
 }
 
 func (r *FsNodeReconciler) removeFsNode(ctx context.Context, req ctrl.Request) error {
@@ -321,6 +366,10 @@ func (r *FsNodeReconciler) getSystemContainers(fsNode *yassv1.FsNode, pod *v1.Po
 				modEnvFromField("NAMESPACE", "metadata.namespace"),
 				modEnvsAppend(map[string]string{
 					"DISABLE_NETWORKING_MANIPULATION": strconv.FormatBool(r.Configuration.DisableNetworkingManipulation),
+					// Agent writes its exit sentinel to /tmp (agentTMPVolumeName);
+					// the world-controller mounts that same volume at
+					// /var/yass/agent-tmp, so point its reader there.
+					"AGENT_EXIT_DIR": "/var/yass/agent-tmp",
 				}),
 				modMountSharedVolume(false),
 				// Read-write + Bidirectional propagation so the

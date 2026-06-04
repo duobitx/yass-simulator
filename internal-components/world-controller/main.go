@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -22,6 +24,8 @@ import (
 	com "github.com/m-szalik/com-facade"
 	"github.com/m-szalik/com-facade/mqtt"
 	"github.com/m-szalik/goutils"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -155,6 +159,62 @@ func (a *appType) updateListOfExperimentNodes(_ context.Context, data []byte) er
 		return internal.SaveInShared("nodes.json", content)
 	}
 	return nil
+}
+
+// readAgentSentinel checks the shared dir for the agent's exit sentinel file.
+// ok=true → /tmp/agent.exit.ok (success), ok=false → /tmp/agent.exit.fail
+// (deliberate, expected failure); text is the optional reason from the file.
+func readAgentSentinel(dir string) (ok bool, text string, found bool) {
+	if b, err := os.ReadFile(dir + "/agent.exit.ok"); err == nil {
+		return true, strings.TrimSpace(string(b)), true
+	}
+	if b, err := os.ReadFile(dir + "/agent.exit.fail"); err == nil {
+		return false, strings.TrimSpace(string(b)), true
+	}
+	return false, "", false
+}
+
+// applyAgentOutcome sets the FsNode terminal phase from the agent sentinel and
+// emits a Kubernetes event on the FsNode (with the sentinel's reason text).
+func (a *appType) applyAgentOutcome(ctx context.Context, ok bool, text string) {
+	phase := yassv1.FsNodePhaseCompletedFailure
+	reason, etype := "AgentFailed", corev1.EventTypeWarning
+	if ok {
+		phase, reason, etype = yassv1.FsNodePhaseCompletedSuccessfully, "AgentCompleted", corev1.EventTypeNormal
+	}
+	var fsNode yassv1.FsNode
+	if err := a.k8sClient.Get(ctx, a.fsNodeObjKey, &fsNode); err != nil {
+		slog.Error("cannot get own FsNode to set terminal phase", "error", err)
+		return
+	}
+	fsNode.Status.Phase = phase
+	if err := a.k8sClient.Status().Update(ctx, &fsNode); err != nil {
+		slog.Error("cannot update FsNode terminal phase", "error", err, "phase", string(phase))
+	} else {
+		slog.Info("FsNode terminal phase set", "phase", string(phase), "detail", text)
+	}
+	msg := string(phase)
+	if text != "" {
+		msg = fmt.Sprintf("%s: %s", phase, text)
+	}
+	now := metav1.Now()
+	ev := &corev1.Event{
+		ObjectMeta: metav1.ObjectMeta{GenerateName: fsNode.Name + ".", Namespace: fsNode.Namespace},
+		InvolvedObject: corev1.ObjectReference{
+			APIVersion: yassv1.GroupVersion.String(), Kind: "FsNode",
+			Namespace: fsNode.Namespace, Name: fsNode.Name, UID: fsNode.UID,
+		},
+		Reason:         reason,
+		Message:        msg,
+		Type:           etype,
+		Source:         corev1.EventSource{Component: "world-controller"},
+		FirstTimestamp: now,
+		LastTimestamp:  now,
+		Count:          1,
+	}
+	if err := a.k8sClient.Create(ctx, ev); err != nil {
+		slog.Error("cannot create FsNode event", "error", err)
+	}
 }
 
 func main() {
@@ -325,6 +385,19 @@ func main() {
 			slog.Error("cannot publish to topic", "error", err, "topic", topic)
 		}
 	})
+
+	// Reflect the agent's terminal outcome into the FsNode status + a Kubernetes
+	// event. Language-agnostic contract: the agent writes /tmp/agent.exit.ok or
+	// /tmp/agent.exit.fail (optional reason text) just before it exits.
+	{
+		sentinelDir := goutils.Env("AGENT_EXIT_DIR", "/tmp")
+		var once sync.Once
+		internal.BackgroundPeriodicTask(ctx, 2*time.Second, func() {
+			if ok, text, found := readAgentSentinel(sentinelDir); found {
+				once.Do(func() { app.applyAgentOutcome(ctx, ok, text) })
+			}
+		})
+	}
 
 	// Hardware-event injector. Reads scheduled faults from the FsNode CR
 	// (populated by the experiment-controller from Behaviour.hardwareEvents)

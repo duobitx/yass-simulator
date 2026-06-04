@@ -3504,6 +3504,15 @@ spec:
                   LayoutDefRef is the name of the cluster-scoped [Layout] that supplies the
                   constellation topology. Required.
                 type: string
+              runId:
+                description: |-
+                  RunID, when set, overrides the auto-generated run identifier
+                  `<experimentName>@<creationTimestamp>` that the operator stamps on
+                  every metric and event. Authors can use it to bake engine params
+                  into the identifier (e.g. `forever-edfs-K3N5-par-on`) so dashboards
+                  can multi-select on `run_id` to compare parameter sweeps.
+                  See yass-docs/observability-v2-spec.md §G2.
+                type: string
               simulationStartTime:
                 description: |-
                   SimulationStartTime sets the "epoch" of the simulated clock — the point in
