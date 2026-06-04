@@ -109,29 +109,29 @@ type FsNodeSpec struct {
 // frequency gracefully.
 // FsNodePhase is the lifecycle phase of an FsNode, covering the whole life of
 // its Pod (Pending → Creating → Running) through to a terminal outcome derived
-// from the agent: CompletedSuccessfully / CompletedFailure (deliberate, expected
+// from the agent: MissionCompleted / MissionFail (deliberate, expected
 // failure) / Errored (unexpected crash). The operator sets the pre-terminal
 // phases from the Pod status; the world-controller sets Running and the terminal
 // phases (from the agent's sentinel file).
 type FsNodePhase string
 
 const (
-	FsNodePhasePending              FsNodePhase = "Pending"
-	FsNodePhaseCreating             FsNodePhase = "Creating"
-	FsNodePhaseRunning              FsNodePhase = "Running"
-	FsNodePhaseCompletedSuccessfully FsNodePhase = "CompletedSuccessfully"
-	FsNodePhaseCompletedFailure     FsNodePhase = "CompletedFailure"
-	FsNodePhaseErrored              FsNodePhase = "Errored"
+	FsNodePhasePending          FsNodePhase = "Pending"
+	FsNodePhaseCreating         FsNodePhase = "Creating"
+	FsNodePhaseRunning          FsNodePhase = "Running"
+	FsNodePhaseMissionCompleted FsNodePhase = "MissionCompleted"
+	FsNodePhaseMissionFail      FsNodePhase = "MissionFail"
+	FsNodePhaseErrored          FsNodePhase = "Errored"
 )
 
 // IsTerminal reports whether the phase is a terminal outcome.
 func (p FsNodePhase) IsTerminal() bool {
-	return p == FsNodePhaseCompletedSuccessfully || p == FsNodePhaseCompletedFailure || p == FsNodePhaseErrored
+	return p == FsNodePhaseMissionCompleted || p == FsNodePhaseMissionFail || p == FsNodePhaseErrored
 }
 
 type FsNodeStatus struct {
 	// Phase is the lifecycle phase of the node (Pending|Creating|Running|
-	// CompletedSuccessfully|CompletedFailure|Errored). See FsNodePhase.
+	// MissionCompleted|MissionFail|Errored). See FsNodePhase.
 	// +optional
 	Phase FsNodePhase `json:"phase,omitempty"`
 	// Conditions captures the standard set of Kubernetes condition entries

@@ -633,8 +633,8 @@ func (r *Reconciler) experimentRestartTotal(ctx context.Context, namespace strin
 // evaluateExperimentOutcome transitions an Ongoing/TimedOut experiment to a
 // terminal state by aggregating the FsNode phases (set by the world-controller
 // from each agent's sentinel file, and by the fs-node controller for crashes):
-// any Errored ⇒ Errored; else any CompletedFailure ⇒ Failure; else (all
-// CompletedSuccessfully) ⇒ Success. Acts only once EVERY FsNode is terminal.
+// any Errored ⇒ Errored; else any MissionFail ⇒ Failure; else (all
+// MissionCompleted) ⇒ Success. Acts only once EVERY FsNode is terminal.
 func (r *Reconciler) evaluateExperimentOutcome(recon *reconciliationStatus, ctx context.Context, experiment *yassv1.Experiment) error {
 	state := experiment.Status.ExperimentState
 	if state != yassv1.ExperimentStateOngoing && state != yassv1.ExperimentStateTimedOut {
@@ -658,7 +658,7 @@ func (r *Reconciler) evaluateExperimentOutcome(recon *reconciliationStatus, ctx 
 		switch ph {
 		case yassv1.FsNodePhaseErrored:
 			anyErrored = true
-		case yassv1.FsNodePhaseCompletedFailure:
+		case yassv1.FsNodePhaseMissionFail:
 			anyFailure = true
 		}
 	}

@@ -177,10 +177,10 @@ func readAgentSentinel(dir string) (ok bool, text string, found bool) {
 // applyAgentOutcome sets the FsNode terminal phase from the agent sentinel and
 // emits a Kubernetes event on the FsNode (with the sentinel's reason text).
 func (a *appType) applyAgentOutcome(ctx context.Context, ok bool, text string) {
-	phase := yassv1.FsNodePhaseCompletedFailure
+	phase := yassv1.FsNodePhaseMissionFail
 	reason, etype := "AgentFailed", corev1.EventTypeWarning
 	if ok {
-		phase, reason, etype = yassv1.FsNodePhaseCompletedSuccessfully, "AgentCompleted", corev1.EventTypeNormal
+		phase, reason, etype = yassv1.FsNodePhaseMissionCompleted, "AgentCompleted", corev1.EventTypeNormal
 	}
 	var fsNode yassv1.FsNode
 	if err := a.k8sClient.Get(ctx, a.fsNodeObjKey, &fsNode); err != nil {

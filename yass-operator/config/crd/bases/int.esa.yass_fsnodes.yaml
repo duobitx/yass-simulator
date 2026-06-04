@@ -3925,7 +3925,7 @@ spec:
               phase:
                 description: |-
                   Phase is the lifecycle phase of the node (Pending|Creating|Running|
-                  CompletedSuccessfully|CompletedFailure|Errored). See FsNodePhase.
+                  MissionCompleted|MissionFail|Errored). See FsNodePhase.
                 type: string
               posStr:
                 description: |-
