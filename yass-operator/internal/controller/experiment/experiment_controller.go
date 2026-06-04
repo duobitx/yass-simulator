@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -268,6 +269,28 @@ func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx c
 			return errors.Wrap(err, "cannot start experiment")
 		}
 	}
+	// If any experiment component restarts *after* the run reaches Ongoing
+	if experiment.Status.ExperimentState == yassv1.ExperimentStateOngoing {
+		total, details, rErr := r.experimentRestartTotal(ctx, req.Namespace)
+		if rErr != nil {
+			return errors.Wrap(rErr, "cannot read experiment pod restart counts")
+		}
+		baseline, ok := restartBaseline(experiment)
+		if !ok {
+			if experiment.Annotations == nil {
+				experiment.Annotations = map[string]string{}
+			}
+			experiment.Annotations[restartBaselineAnnotation] = strconv.Itoa(int(total))
+			if err := r.Update(ctx, experiment); err != nil {
+				return errors.Wrap(err, "cannot record restart baseline")
+			}
+		} else if total > baseline {
+			r.updateExperimentState(recon, experiment, yassv1.ExperimentStateErrored)
+			msg := fmt.Sprintf("component(s) restarted after start (baseline %d, now %d): %s; simulation state lost, run cannot resume",
+				baseline, total, strings.Join(details, ", "))
+			r.recorder.Eventf(experiment, v1.EventTypeWarning, "ComponentRestarted", msg)
+		}
+	}
 	if experiment.Status.ExperimentState == yassv1.ExperimentStateReady && experiment.Spec.Start {
 		err = r.httpExperimentExecutor(ctx, recon, "start", nil, experiment)
 		if err != nil {
@@ -351,12 +374,12 @@ func (r *Reconciler) createExperimentComponentIfRequired(recon *reconciliationSt
 		return errors.Wrap(err, fmt.Sprintf("cannot read file %s", fn))
 	}
 	values := map[string]any{
-		"templateFile":              fName,
-		"experiment":                experiment,
-		"namespace":                 namespace,
-		"experimentName":            experiment.Name,
-		"internalComponentImage":    r.Configuration.InternalComponentImage,
-		"imagePullPolicy":           string(r.Configuration.InternalComponentImagePullPolicy),
+		"templateFile":           fName,
+		"experiment":             experiment,
+		"namespace":              namespace,
+		"experimentName":         experiment.Name,
+		"internalComponentImage": r.Configuration.InternalComponentImage,
+		"imagePullPolicy":        string(r.Configuration.InternalComponentImagePullPolicy),
 	}
 	buff, err = processTemplate(buff, values)
 	if err != nil {
@@ -559,6 +582,52 @@ func (r *Reconciler) httpExperimentExecutor(ctx context.Context, recon *reconcil
 		r.updateExperimentState(recon, experiment, yassv1.ExperimentStateOngoing)
 	}
 	return nil
+}
+
+// restartBaselineAnnotation stores the total container-restart count across all
+// of an experiment's pods observed when the run first reached Ongoing. Restarts
+// up to this value happened during startup (before the run was driving) and are
+// acceptable; any increase afterwards means a component lost its state.
+const restartBaselineAnnotation = "experiment-controller/restart-baseline"
+
+// restartBaseline reads the stored baseline; ok is false when none has been
+// recorded yet (or it is unparseable).
+func restartBaseline(exp *yassv1.Experiment) (int32, bool) {
+	v, ok := exp.Annotations[restartBaselineAnnotation]
+	if !ok {
+		return 0, false
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return 0, false
+	}
+	return int32(n), true
+}
+
+// experimentRestartTotal sums container RestartCount across every pod in the
+// experiment's namespace and lists the containers that have restarted (for the
+// failure event). An experiment owns its namespace, so this covers all
+// components: the experiment-executor, every FsNode pod (world-controller,
+// agent, engine) and the shared internal-components (messaging, metrics-bridge,
+// ...). A restart of any of them loses in-memory state and breaks the run.
+func (r *Reconciler) experimentRestartTotal(ctx context.Context, namespace string) (int32, []string, error) {
+	podList := &v1.PodList{}
+	if err := r.List(ctx, podList, client.InNamespace(namespace)); err != nil {
+		return 0, nil, err
+	}
+	var total int32
+	var details []string
+	for i := range podList.Items {
+		pod := &podList.Items[i]
+		for j := range pod.Status.ContainerStatuses {
+			cs := &pod.Status.ContainerStatuses[j]
+			total += cs.RestartCount
+			if cs.RestartCount > 0 {
+				details = append(details, fmt.Sprintf("%s/%s=%d", pod.Name, cs.Name, cs.RestartCount))
+			}
+		}
+	}
+	return total, details, nil
 }
 
 // evaluateAgentExitCodes transitions the experiment to Success/Failure once every agent container has terminated.
