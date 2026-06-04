@@ -591,10 +591,11 @@ func (b *Bridge) onEdfsPeers(data []byte) {
 }
 
 // onBlockRecv turns the kubo bitswap tracer's per-block reception reports
-// (block-recv/<toFsNode>, payload {from:peerID, t:unixMs, blocks:[{cid,size}]})
-// into one Loki event per block, resolving the sender peerID to its fsNode.
-// Each event is the authoritative edge "from_fsNode -> to_fsNode" for one block,
-// which the report aggregates into a per-file propagation graph. See
+// (block-recv/<toFsNode>, payload {from:peerID, t:unixMs, blocks:[{file,size}]};
+// file is the tracer-resolved name, or the CID if unresolved) into one Loki
+// event per block, resolving the sender peerID to its fsNode. Each event is the
+// authoritative edge "from_fsNode -> to_fsNode" for one block of a file, which
+// the report aggregates into a per-file propagation graph. See
 // yass-docs/observability-v2-spec.md §G4.
 func (b *Bridge) onBlockRecv(topic string, data []byte) {
 	parts := strings.Split(topic, "/")
@@ -606,7 +607,7 @@ func (b *Bridge) onBlockRecv(topic string, data []byte) {
 		From   string `json:"from"`
 		When   int64  `json:"t"`
 		Blocks []struct {
-			Cid  string `json:"cid"`
+			File string `json:"file"` // file name (tracer-resolved; CID if unresolved)
 			Size int64  `json:"size"`
 		} `json:"blocks"`
 	}
@@ -623,14 +624,14 @@ func (b *Bridge) onBlockRecv(topic string, data []byte) {
 		when = time.UnixMilli(msg.When)
 	}
 	for _, blk := range msg.Blocks {
-		if blk.Cid == "" {
+		if blk.File == "" {
 			continue
 		}
 		b.pushEvent("block_recv", to, "RECV", when, map[string]any{
 			"from_fsNode": from,
 			"to_fsNode":   to,
 			"from_peer":   msg.From,
-			"block_cid":   blk.Cid,
+			"file":        blk.File,
 			"size":        blk.Size,
 		})
 	}
