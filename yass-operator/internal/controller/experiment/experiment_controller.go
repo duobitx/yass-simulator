@@ -42,10 +42,10 @@ const (
 	experimentKind = "Experiment"
 
 	// MaxFsNodes is the maximum total FsNode count an Experiment Layout may
-	// reference. Must stay in sync with the MAXSAT compile-time constant in
+	// reference. Must stay in sync with the MAX_FSNODES cap in
 	// internal-components/geo-calculator/V6/geo_calc.cc — exceeding it makes
-	// geo_calc exit immediately and the experiment cannot run.
-	MaxFsNodes = 256
+	// geo_calc reject the input and the experiment cannot run.
+	MaxFsNodes = 1024
 )
 
 // Reconciler reconciles an Experiment object
