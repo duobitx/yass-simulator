@@ -23,10 +23,11 @@
 struct common *pcom;
 
 // The per-node working arrays (sat[], tmp[]) are sized dynamically from the
-// FsNodes count in the input JSON (see parse_json), so there is no
-// compile-time satellite cap. MAX_FSNODES is only a sanity bound that guards
-// against a corrupt/absurd input file.
-#define MAX_FSNODES 1000000
+// FsNodes count in the input JSON (see parse_json). MAX_FSNODES caps how many
+// FsNodes a single experiment may declare. The bound is kept well below what
+// the rest of the stack can sustain: the world-controller maps one 16-bit HTB
+// classid per peer (~65k max), and the distance matrix here is O(N^2).
+#define MAX_FSNODES 1024
 struct sun_pos_dscr { double lat, lon, vx, vy, vz; } sun;
 struct sat_pos_dscr { double x, y, z; } *sat = nullptr;
 

@@ -9,7 +9,7 @@ Monorepo with the two components that together implement the YASS simulator:
 
 ## Limits
 
-- A single experiment may declare at most **1,000,000 FsNodes** (satellites + ground stations combined). The geo-calculator (`internal-components/geo-calculator`) sizes its per-node arrays dynamically from the FsNode count in the experiment input and rejects inputs above this sanity bound.
+- A single experiment may declare at most **1024 FsNodes** (satellites + ground stations combined).
 
 ## Build
 
