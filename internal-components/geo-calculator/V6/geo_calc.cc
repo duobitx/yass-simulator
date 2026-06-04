@@ -155,6 +155,9 @@ static int parse_json(char *fname)
     if( !tle || json_is_null(tle) ) { if( parse_bs(sat) ) return 1; }
    }
 
+  std::cout << "  detected from JSON: " << r_sat << " satellites, " << n_bs
+            << " ground stations (" << n << " FsNodes total)\n";
+
   json_decref(root);
   return 0;
 }
