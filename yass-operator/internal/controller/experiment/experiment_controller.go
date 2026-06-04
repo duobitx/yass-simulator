@@ -44,7 +44,7 @@ const (
 	// reference. Must stay in sync with the MAXSAT compile-time constant in
 	// internal-components/geo-calculator/V6/geo_calc.cc — exceeding it makes
 	// geo_calc exit immediately and the experiment cannot run.
-	MaxFsNodes = 200
+	MaxFsNodes = 256
 )
 
 // Reconciler reconciles an Experiment object
