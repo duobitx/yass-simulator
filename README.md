@@ -10,6 +10,7 @@ Monorepo with the two components that together implement the YASS simulator:
 ## Limits
 
 - A single experiment may declare at most **1024 FsNodes** (satellites + ground stations combined).
+- For larger experiments — many FsNodes, and/or several experiments running in parallel — the cluster **control plane (API server + etcd), not the worker nodes, is usually the first bottleneck**. Every FsNode is a Pod and the simulation drives a high rate of API operations (status updates, fault-event churn, pod lifecycle), so make sure the control-plane nodes are sized accordingly and limit how many experiments run at once. An undersized control plane can become unresponsive and stall or fail otherwise-healthy runs even when the workers are nearly idle.
 
 ## Build
 
