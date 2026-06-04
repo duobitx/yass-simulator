@@ -22,9 +22,13 @@
 #define SHM_NAME "/geo_calc_shared_memory"
 struct common *pcom;
 
-#define MAXSAT 256
+// The per-node working arrays (sat[], tmp[]) are sized dynamically from the
+// FsNodes count in the input JSON (see parse_json), so there is no
+// compile-time satellite cap. MAX_FSNODES is only a sanity bound that guards
+// against a corrupt/absurd input file.
+#define MAX_FSNODES 1000000
 struct sun_pos_dscr { double lat, lon, vx, vy, vz; } sun;
-struct sat_pos_dscr { double x, y, z; } sat[MAXSAT];
+struct sat_pos_dscr { double x, y, z; } *sat = nullptr;
 
 
 
@@ -49,7 +53,7 @@ const double RAD2DEG = 180.0 / PI;
 const double MIN_GS_ELEVATION_DEG = 10.0;
 
 
-char (*tmp)[MAXSAT][3][70];
+char (*tmp)[3][70] = nullptr;
 struct bs_dscr { char name[32]; double lat,lon,alt; };
 std::vector<struct bs_dscr>  V_bs;
 
@@ -62,14 +66,14 @@ static int parse_sat(json_t *sat)
   json_t *sname = json_object_get(sat, "Name");
    if( !json_is_string(sname) ) { std::cerr << "  satellite name not defined\n"; return 1; }
    //std::cout << "  satelita " << json_string_value(sname) << "\n";
-   str=json_string_value(sname); strcpy((*tmp)[r_sat][0],str.substr(0,63).c_str());
+   str=json_string_value(sname); strcpy(tmp[r_sat][0],str.substr(0,63).c_str());
   json_t *tle = json_object_get(sat, "TLE");
    if( !json_is_array(tle) ) { std::cerr << "  TLE for " << json_string_value(sname) << " is not an array\n"; return 1; }
    if( json_array_size(tle) != 2 ) { std::cerr << "  wrong  TLE for " << json_string_value(sname) << "\n"; return 1; }
   json_array_foreach(tle, index, line) {
     if( !json_is_string(line) ) { std::cerr << "  wrong  TLE for " << json_string_value(sname) << "\n"; return 1;  }
     str=json_string_value(line); if( str.length() > 69 ) { std::cerr << "  too long  TLE lines for " << json_string_value(sname) << "\n"; return 1;  }
-    strcpy((*tmp)[r_sat][index+1],str.c_str());
+    strcpy(tmp[r_sat][index+1],str.c_str());
    }
   r_sat++;
   return 0;
@@ -134,7 +138,13 @@ static int parse_json(char *fname)
 
   json_t *flota = json_object_get(root, "FsNodes");
    if( !json_is_array(flota) ) {  std::cerr << "  'FsNodes' is not a JSON table.\n"; return 1; }
-   if( (n=json_array_size(flota)) > MAXSAT ) {  std::cerr << "  " << n << " exceeds MAXSAT.\n"; return 1; }
+   if( (n=json_array_size(flota)) <= 0 ) {  std::cerr << "  no FsNodes in input.\n"; return 1; }
+   if( n > MAX_FSNODES ) {  std::cerr << "  " << n << " exceeds sanity limit " << MAX_FSNODES << ".\n"; return 1; }
+   // Size tmp[] (used below to stage each satellite's name + TLE lines) to the
+   // FsNode count. sat[] is allocated by the caller once r_sat/n_bs are known
+   // (a local json_t *sat shadows the global here).
+   tmp = (char(*)[3][70]) calloc((size_t)n, sizeof(*tmp));
+   if( !tmp ) {  std::cerr << "  cannot allocate tmp for " << n << " FsNodes\n"; return 1; }
   json_array_foreach(flota, index, sat) {
     json_t *tle = json_object_get(sat, "TLE");
     if( tle && !json_is_null(tle) ) { if( parse_sat(sat) ) return 1; }
@@ -154,9 +164,9 @@ static int init_sgp4()
 
 
   for(k=0;k<r_sat;k++)
-    if( strlen((*tmp)[k][1]) == tlelinelen && strlen((*tmp)[k][2])== tlelinelen ) {
+    if( strlen(tmp[k][1]) == tlelinelen && strlen(tmp[k][2])== tlelinelen ) {
       try {
-          libsgp4::Tle tle = libsgp4::Tle((*tmp)[k][0],(*tmp)[k][1],(*tmp)[k][2]);
+          libsgp4::Tle tle = libsgp4::Tle(tmp[k][0],tmp[k][1],tmp[k][2]);
           libsgp4::SGP4 sgp4(tle);
           libsgp4::Eci eci = sgp4.FindPosition(sgp4dttm);
           n_sat++;
@@ -164,16 +174,16 @@ static int init_sgp4()
           V_sgp4.push_back(sgp4);
        }
       catch (libsgp4::TleException& e) {
-        std::cerr << "  " << (*tmp)[k][0] << ": TLE Error: " << e.what() << std::endl;
+        std::cerr << "  " << tmp[k][0] << ": TLE Error: " << e.what() << std::endl;
        }
       catch (libsgp4::SatelliteException& e) {
-        std::cerr << "  " << (*tmp)[k][0] << ": SGP$ Error: " << e.what() << std::endl;
+        std::cerr << "  " << tmp[k][0] << ": SGP$ Error: " << e.what() << std::endl;
        }
       catch (libsgp4::DecayedException& e) {
-        std::cerr << "  " << (*tmp)[k][0] << ": " << e.what() << std::endl;
+        std::cerr << "  " << tmp[k][0] << ": " << e.what() << std::endl;
        }
      }
-    else std::cerr << " satellite " << (*tmp)[k][0] << " ignored - wrong TLE lines length\n";
+    else std::cerr << " satellite " << tmp[k][0] << " ignored - wrong TLE lines length\n";
 
   return 0;
 }
@@ -393,7 +403,7 @@ int main(int argc, char **argv)
 
 
   if( argc < 2 || argc > 3 ) { std::cerr << "geo_calc <file name> [<UTC timestamp>]\n"; exit(8); }
-  tmp=(char(*)[MAXSAT][3][70])malloc(3*MAXSAT*70); if( !tmp ) { std::cout << "can't allocate memory\n"; exit(8); }
+  // tmp[] and sat[] are allocated in parse_json once the FsNode count is known.
   if( argc == 3 ) {
     std::istringstream ss(argv[2]);
     ss >> std::get_time(&tm, "%Y-%m-%dT%H:%M:%S");
@@ -404,6 +414,11 @@ int main(int argc, char **argv)
   std::cout << "Parsing file: " << argv[1] << "\n";
    if( parse_json(argv[1]) ) exit(8);
    std::cout << "  n_sat: " << std::setw(5) << r_sat << "\n  n_bs:  " << std::setw(5) << n_bs << "\n";
+
+  // sat[] holds positions for every parsed node (satellites then base
+  // stations); it is indexed up to n_sat+n_bs <= r_sat+n_bs.
+  sat = (sat_pos_dscr*) calloc((size_t)(r_sat + n_bs), sizeof(*sat));
+  if( !sat ) { std::cerr << "cannot allocate sat array for " << (r_sat+n_bs) << " nodes\n"; exit(8); }
 
   if( argc == 3 ) {
     tm_start=timegm(&tm);
