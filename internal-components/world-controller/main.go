@@ -172,26 +172,61 @@ func (a *appType) updateListOfExperimentNodes(_ context.Context, data []byte) er
 	return nil
 }
 
-// readAgentSentinel checks the shared dir for the agent's exit sentinel file.
-// ok=true → /tmp/agent.exit.ok (success), ok=false → /tmp/agent.exit.fail
-// (deliberate, expected failure); text is the optional reason from the file.
-func readAgentSentinel(dir string) (ok bool, text string, found bool) {
+const agentContainerName = "agent"
+
+// agentVerdict decides the FsNode terminal phase from the agent's exit signals,
+// honouring this priority (success-criteria spec):
+//  1. agent.exit.ok present        → MissionCompleted (agent may keep running)
+//  2. agent.exit.failure present   → MissionFail      (agent may keep running)
+//  3. no sentinel, agent exited 0  → MissionCompleted
+//  4. no sentinel, agent exited ≠0 → Errored
+//  5. no sentinel, agent running   → no verdict yet (decided=false)
+//
+// The sentinel always wins over the exit code (an .ok agent that later exits
+// non-zero is still a success). text is the optional reason for the event.
+func (a *appType) agentVerdict(ctx context.Context, dir string) (phase yassv1.FsNodePhase, text string, decided bool) {
 	if b, err := os.ReadFile(dir + "/agent.exit.ok"); err == nil {
-		return true, strings.TrimSpace(string(b)), true
+		return yassv1.FsNodePhaseMissionCompleted, strings.TrimSpace(string(b)), true
 	}
-	if b, err := os.ReadFile(dir + "/agent.exit.fail"); err == nil {
-		return false, strings.TrimSpace(string(b)), true
+	for _, n := range []string{"/agent.exit.failure", "/agent.exit.fail"} { // .fail kept for back-compat
+		if b, err := os.ReadFile(dir + n); err == nil {
+			return yassv1.FsNodePhaseMissionFail, strings.TrimSpace(string(b)), true
+		}
 	}
-	return false, "", false
+	if code, terminated := a.agentExitCode(ctx); terminated {
+		if code == 0 {
+			return yassv1.FsNodePhaseMissionCompleted, "agent exited 0 without a sentinel", true
+		}
+		return yassv1.FsNodePhaseErrored, fmt.Sprintf("agent exited %d without a sentinel", code), true
+	}
+	return "", "", false
 }
 
-// applyAgentOutcome sets the FsNode terminal phase from the agent sentinel and
-// emits a Kubernetes event on the FsNode (with the sentinel's reason text).
-func (a *appType) applyAgentOutcome(ctx context.Context, ok bool, text string) {
-	phase := yassv1.FsNodePhaseMissionFail
-	reason, etype := "AgentFailed", corev1.EventTypeWarning
-	if ok {
-		phase, reason, etype = yassv1.FsNodePhaseMissionCompleted, "AgentCompleted", corev1.EventTypeNormal
+// agentExitCode returns the agent container's terminated exit code from the own
+// Pod (named after the FsNode), and whether the agent container has terminated.
+func (a *appType) agentExitCode(ctx context.Context) (int32, bool) {
+	var pod corev1.Pod
+	if err := a.k8sClient.Get(ctx, a.fsNodeObjKey, &pod); err != nil {
+		return 0, false
+	}
+	for i := range pod.Status.ContainerStatuses {
+		cs := &pod.Status.ContainerStatuses[i]
+		if cs.Name == agentContainerName && cs.State.Terminated != nil {
+			return cs.State.Terminated.ExitCode, true
+		}
+	}
+	return 0, false
+}
+
+// applyAgentPhase sets the FsNode terminal phase and emits a Kubernetes event
+// on the FsNode (with the optional reason text).
+func (a *appType) applyAgentPhase(ctx context.Context, phase yassv1.FsNodePhase, text string) {
+	reason, etype := "AgentCompleted", corev1.EventTypeNormal
+	switch phase {
+	case yassv1.FsNodePhaseMissionFail:
+		reason, etype = "AgentFailed", corev1.EventTypeWarning
+	case yassv1.FsNodePhaseErrored:
+		reason, etype = "AgentErrored", corev1.EventTypeWarning
 	}
 	var fsNode yassv1.FsNode
 	if err := a.k8sClient.Get(ctx, a.fsNodeObjKey, &fsNode); err != nil {
@@ -398,15 +433,18 @@ func main() {
 		}
 	})
 
-	// Reflect the agent's terminal outcome into the FsNode status + a Kubernetes
-	// event. Language-agnostic contract: the agent writes /tmp/agent.exit.ok or
-	// /tmp/agent.exit.fail (optional reason text) just before it exits.
+	// Reflect the agent's outcome into the FsNode status + a Kubernetes event.
+	// Language-agnostic contract (success-criteria spec): the agent writes
+	// agent.exit.ok (success) or agent.exit.failure (deliberate failure) into
+	// AGENT_EXIT_DIR — it may keep running afterwards. Absent any sentinel, the
+	// verdict falls back to the agent container's exit code (0 → success, ≠0 →
+	// Errored). See agentVerdict / applyAgentPhase.
 	{
 		sentinelDir := goutils.Env("AGENT_EXIT_DIR", "/tmp")
 		var once sync.Once
 		internal.BackgroundPeriodicTask(ctx, 2*time.Second, func() {
-			if ok, text, found := readAgentSentinel(sentinelDir); found {
-				once.Do(func() { app.applyAgentOutcome(ctx, ok, text) })
+			if phase, text, decided := app.agentVerdict(ctx, sentinelDir); decided {
+				once.Do(func() { app.applyAgentPhase(ctx, phase, text) })
 			}
 		})
 	}

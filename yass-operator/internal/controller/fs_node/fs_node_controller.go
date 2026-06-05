@@ -176,20 +176,15 @@ func (r *FsNodeReconciler) SetupWithManager(mgr ctrl.Manager) error {
 }
 
 // computeFsNodePhase derives the pre-terminal FsNode phase from the Pod state:
-// Pending / Creating / Running, or Errored when the agent container terminated
-// with a non-zero exit (a crash, with no sentinel file). The terminal success /
-// expected-failure phases are set by the world-controller from the agent's
-// sentinel file, so this is only consulted while the phase is not yet terminal.
+// Pending / Creating / Running, or Errored when the whole Pod failed. The
+// terminal agent-outcome phases (MissionCompleted / MissionFail / Errored) are
+// derived by the world-controller from the agent's exit sentinel and, absent a
+// sentinel, the agent container's exit code — so this is only consulted while
+// the phase is not yet terminal.
 func (r *FsNodeReconciler) computeFsNodePhase(ctx context.Context, fsNode *yassv1.FsNode) yassv1.FsNodePhase {
 	pod := &v1.Pod{}
 	if err := r.Get(ctx, types.NamespacedName{Namespace: fsNode.Namespace, Name: fsNode.Name}, pod); err != nil {
 		return yassv1.FsNodePhasePending // not created yet / transient
-	}
-	for i := range pod.Status.ContainerStatuses {
-		cs := &pod.Status.ContainerStatuses[i]
-		if cs.Name == "agent" && cs.State.Terminated != nil && cs.State.Terminated.ExitCode != 0 {
-			return yassv1.FsNodePhaseErrored // crash, no sentinel
-		}
 	}
 	switch pod.Status.Phase {
 	case v1.PodRunning:
