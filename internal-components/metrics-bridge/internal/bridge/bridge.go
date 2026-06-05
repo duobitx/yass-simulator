@@ -135,7 +135,13 @@ func (b *Bridge) dispatch(kind, fsNode, eventType string, expTs, wallTs time.Tim
 	payload["experimentTime"] = expTs.UTC().Format(time.RFC3339Nano)
 	payload["wallTime"] = wallTs.UTC().Format(time.RFC3339Nano)
 
-	b.events.Emit(kind, eventType, payload)
+	// block_recv is high-volume (one per Bitswap block — thousands for a large
+	// file) and would flood the API server with Kubernetes Events. It is only
+	// needed for the propagation graph, which the exporter reads from Loki, so
+	// emit it to Loki only and skip the Kubernetes Event sink for this kind.
+	if kind != "block_recv" {
+		b.events.Emit(kind, eventType, payload)
+	}
 
 	// Loki's storage assumes timestamps live near wall-clock — old samples
 	// (simulation start far in the past) are silently dropped even with
