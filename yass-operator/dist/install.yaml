@@ -8638,7 +8638,7 @@ spec:
         - /manager
         env:
         - name: INTERNAL_COMPONENTS_VERSION
-          value: latest
+          value: b927975c
         - name: EXPERIMENT_LOG_LEVEL
           value: INFO
         - name: DISABLE_NETWORKING_MANIPULATION
