@@ -1,0 +1,103 @@
+{
+  "title": "YASS — TUS vs EDFS",
+  "uid": "yass-compare",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "tags": ["yass", "compare"],
+  "templating": {
+    "list": [
+      {
+        "name": "experiment", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_file_produced_total, experiment)", "refresh": 1
+      },
+      {
+        "name": "tus_run_id", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_file_produced_total{experiment=\"$experiment\",engine=\"tus\"}, run_id)", "refresh": 1
+      },
+      {
+        "name": "edfs_run_id", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_file_produced_total{experiment=\"$experiment\",engine=\"edfs\"}, run_id)", "refresh": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "stat", "title": "Delivery p50 to target GS (s)",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(yass_file_delivery_seconds_bucket{is_target_gs=\"true\",experiment=\"$experiment\",engine=\"tus\",run_id=\"$tus_run_id\"}[$__range])))", "legendFormat": "TUS" },
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(yass_file_delivery_seconds_bucket{is_target_gs=\"true\",experiment=\"$experiment\",engine=\"edfs\",run_id=\"$edfs_run_id\"}[$__range])))", "legendFormat": "EDFS" }
+      ]
+    },
+    {
+      "type": "stat", "title": "Delivery p95 to target GS (s)",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(yass_file_delivery_seconds_bucket{is_target_gs=\"true\",experiment=\"$experiment\",engine=\"tus\",run_id=\"$tus_run_id\"}[$__range])))", "legendFormat": "TUS" },
+        { "expr": "histogram_quantile(0.95, sum by (le) (rate(yass_file_delivery_seconds_bucket{is_target_gs=\"true\",experiment=\"$experiment\",engine=\"edfs\",run_id=\"$edfs_run_id\"}[$__range])))", "legendFormat": "EDFS" }
+      ]
+    },
+    {
+      "type": "stat", "title": "Total energy consumed by satellites (Wh)",
+      "gridPos": { "h": 6, "w": 8, "x": 0, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(increase(yass_battery_consumed_wh_total{node_type=\"satellite\",experiment=\"$experiment\",engine=\"tus\",run_id=\"$tus_run_id\"}[$__range]))", "legendFormat": "TUS" },
+        { "expr": "sum(increase(yass_battery_consumed_wh_total{node_type=\"satellite\",experiment=\"$experiment\",engine=\"edfs\",run_id=\"$edfs_run_id\"}[$__range]))", "legendFormat": "EDFS" }
+      ]
+    },
+    {
+      "type": "stat", "title": "Total network TX (bytes)",
+      "gridPos": { "h": 6, "w": 8, "x": 8, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(increase(yass_network_tx_bytes_total{experiment=\"$experiment\",engine=\"tus\",run_id=\"$tus_run_id\"}[$__range]))", "legendFormat": "TUS" },
+        { "expr": "sum(increase(yass_network_tx_bytes_total{experiment=\"$experiment\",engine=\"edfs\",run_id=\"$edfs_run_id\"}[$__range]))", "legendFormat": "EDFS" }
+      ]
+    },
+    {
+      "type": "stat", "title": "File loss rate",
+      "gridPos": { "h": 6, "w": 8, "x": 16, "y": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(increase(yass_file_lost_total{experiment=\"$experiment\",engine=\"tus\",run_id=\"$tus_run_id\"}[$__range])) / clamp_min(sum(increase(yass_file_produced_total{experiment=\"$experiment\",engine=\"tus\",run_id=\"$tus_run_id\"}[$__range])), 1)", "legendFormat": "TUS" },
+        { "expr": "sum(increase(yass_file_lost_total{experiment=\"$experiment\",engine=\"edfs\",run_id=\"$edfs_run_id\"}[$__range])) / clamp_min(sum(increase(yass_file_produced_total{experiment=\"$experiment\",engine=\"edfs\",run_id=\"$edfs_run_id\"}[$__range])), 1)", "legendFormat": "EDFS" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percentunit" } }
+    },
+    {
+      "type": "timeseries", "title": "Delivery time histogram heatmap-style (p50 over time)",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(yass_file_delivery_seconds_bucket{is_target_gs=\"true\",experiment=\"$experiment\",engine=\"tus\",run_id=\"$tus_run_id\"}[5m])))", "legendFormat": "TUS p50" },
+        { "expr": "histogram_quantile(0.50, sum by (le) (rate(yass_file_delivery_seconds_bucket{is_target_gs=\"true\",experiment=\"$experiment\",engine=\"edfs\",run_id=\"$edfs_run_id\"}[5m])))", "legendFormat": "EDFS p50" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "Cumulative bytes delivered",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(rate(yass_file_received_bytes_total{experiment=\"$experiment\",engine=\"tus\",run_id=\"$tus_run_id\"}[5m]))", "legendFormat": "TUS bytes/s" },
+        { "expr": "sum(rate(yass_file_received_bytes_total{experiment=\"$experiment\",engine=\"edfs\",run_id=\"$edfs_run_id\"}[5m]))", "legendFormat": "EDFS bytes/s" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "Satellite battery total (Wh) across constellation",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum(yass_battery_wh{node_type=\"satellite\",experiment=\"$experiment\",engine=\"tus\",run_id=\"$tus_run_id\"})", "legendFormat": "TUS" },
+        { "expr": "sum(yass_battery_wh{node_type=\"satellite\",experiment=\"$experiment\",engine=\"edfs\",run_id=\"$edfs_run_id\"})", "legendFormat": "EDFS" }
+      ]
+    }
+  ]
+}

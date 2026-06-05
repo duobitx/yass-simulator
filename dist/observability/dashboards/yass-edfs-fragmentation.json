@@ -1,0 +1,61 @@
+{
+  "title": "YASS — EDFS file fragmentation",
+  "uid": "yass-edfs-fragmentation",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["yass", "edfs"],
+  "templating": {
+    "list": [
+      {
+        "name": "experiment", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_edfs_blocks_total, experiment)", "refresh": 1
+      },
+      {
+        "name": "run_id", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_edfs_blocks_total{experiment=\"$experiment\"}, run_id)", "refresh": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "heatmap",
+      "title": "Replica completeness — CID × fsNode (1.0 = full replica)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 10 },
+      "targets": [
+        { "expr": "yass_edfs_replica_completeness{experiment=\"$experiment\",run_id=\"$run_id\"}", "refId": "A", "legendFormat": "{{cid}} / {{fsNode}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Full replica count over time (per CID)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 10, "w": 24, "h": 8 },
+      "targets": [
+        { "expr": "count by (cid) (yass_edfs_replica_completeness{experiment=\"$experiment\",run_id=\"$run_id\"} > 0.99)", "refId": "A", "legendFormat": "{{cid}}" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Total CIDs in flight",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 18, "w": 8, "h": 4 },
+      "targets": [
+        { "expr": "count(yass_edfs_blocks_total{experiment=\"$experiment\",run_id=\"$run_id\"})", "refId": "A" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Fully replicated CIDs (≥1 full copy)",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 8, "y": 18, "w": 8, "h": 4 },
+      "targets": [
+        { "expr": "count(max by (cid) (yass_edfs_replica_completeness{experiment=\"$experiment\",run_id=\"$run_id\"}) > 0.99)", "refId": "A" }
+      ]
+    }
+  ]
+}

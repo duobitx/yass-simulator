@@ -1,0 +1,32 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: yass-system
+resources:
+  - prometheus-rbac.yaml
+  - prometheus.yaml
+  - loki.yaml
+  - grafana.yaml
+  - grafana-ingress.yaml
+configMapGenerator:
+  - name: prometheus-config
+    files:
+      - prometheus.yml=prometheus.yml
+  - name: loki-config
+    files:
+      - loki.yaml=loki.yml
+  - name: grafana-datasources
+    files:
+      - datasources.yaml=grafana-datasources.yaml
+  - name: grafana-dashboards-provisioning
+    files:
+      - dashboards.yaml=grafana-dashboards-provisioning.yaml
+  - name: grafana-dashboards
+    files:
+      - yass-overview.json=dashboards/yass-overview.json
+      - yass-fsnode.json=dashboards/yass-fsnode.json
+      - yass-compare.json=dashboards/yass-compare.json
+      - yass-events.json=dashboards/yass-events.json
+      - yass-timeline.json=dashboards/yass-timeline.json
+      - yass-edfs-fragmentation.json=dashboards/yass-edfs-fragmentation.json
+generatorOptions:
+  disableNameSuffixHash: true

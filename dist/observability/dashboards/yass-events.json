@@ -1,0 +1,113 @@
+{
+  "title": "YASS — Events",
+  "uid": "yass-events",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-6h", "to": "now" },
+  "tags": ["yass", "events"],
+  "templating": {
+    "list": [
+      {
+        "name": "experiment",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values(experiment)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": false
+      },
+      {
+        "name": "engine",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({experiment=~\"$experiment\"}, engine)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true
+      },
+      {
+        "name": "kind",
+        "type": "custom",
+        "query": "All,crud,online_state,power,lifecycle,hardware",
+        "current": { "text": "All", "value": "$__all" },
+        "options": [
+          { "text": "All",          "value": "$__all",       "selected": true  },
+          { "text": "crud",         "value": "crud",         "selected": false },
+          { "text": "online_state", "value": "online_state", "selected": false },
+          { "text": "power",        "value": "power",        "selected": false },
+          { "text": "lifecycle",    "value": "lifecycle",    "selected": false },
+          { "text": "hardware",     "value": "hardware",     "selected": false }
+        ],
+        "includeAll": true,
+        "multi": true
+      },
+      {
+        "name": "fsNode",
+        "type": "query",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values({experiment=~\"$experiment\",engine=~\"$engine\"}, fsNode)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "logs",
+      "title": "All events (newest first)",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 18 },
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": true,
+        "sortOrder": "Descending",
+        "dedupStrategy": "none"
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{experiment=~\"$experiment\",engine=~\"$engine\",kind=~\"$kind\",fsNode=~\"$fsNode\"}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Events table",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 0, "y": 18, "w": 24, "h": 14 },
+      "transformations": [
+        {
+          "id": "extractFields",
+          "options": { "source": "Line", "format": "json" }
+        },
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": { "labels": true, "tsNs": true, "id": true, "Line": true, "Time": true },
+            "indexByName": {
+              "experimentTime": 0, "wallTime": 1, "kind": 2, "type": 3, "fsNode": 4,
+              "source": 5, "name": 6, "size": 7, "deliverySeconds": 8,
+              "state": 9, "reason": 10, "comment": 11
+            }
+          }
+        }
+      ],
+      "options": {
+        "sortBy": [{ "displayName": "experimentTime", "desc": true }]
+      },
+      "targets": [
+        {
+          "datasource": { "type": "loki", "uid": "loki" },
+          "expr": "{experiment=~\"$experiment\",engine=~\"$engine\",kind=~\"$kind\",fsNode=~\"$fsNode\"}",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

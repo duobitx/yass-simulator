@@ -1,0 +1,110 @@
+{
+  "title": "YASS — Experiment Timeline",
+  "uid": "yass-timeline",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-30m", "to": "now" },
+  "tags": ["yass", "timeline"],
+  "templating": {
+    "list": [
+      {
+        "name": "experiment", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_hardware_event_active, experiment)", "refresh": 1
+      },
+      {
+        "name": "engine", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_hardware_event_active{experiment=\"$experiment\"}, engine)", "refresh": 1, "includeAll": true
+      },
+      {
+        "name": "run_id", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_hardware_event_active{experiment=\"$experiment\",engine=\"$engine\"}, run_id)", "refresh": 1
+      },
+      {
+        "name": "fsNode", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_hardware_event_active{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\"}, fsNode)", "refresh": 1, "includeAll": true, "multi": true
+      },
+      {
+        "name": "file", "type": "textbox",
+        "label": "file md5 (optional, for crud filter)", "current": { "text": "", "value": "" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "$fsNode",
+      "id": 1000,
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 },
+      "repeat": "fsNode"
+    },
+    {
+      "type": "state-timeline",
+      "title": "Hardware events — $fsNode",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 1, "w": 24, "h": 4 },
+      "targets": [
+        {
+          "expr": "yass_hardware_event_active{experiment=\"$experiment\",run_id=\"$run_id\",fsNode=\"$fsNode\"}",
+          "legendFormat": "{{type}}", "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{ "type": "value", "options": { "1": { "text": "active", "color": "red" }, "0": { "text": "", "color": "transparent" } } }]
+        }
+      }
+    },
+    {
+      "type": "state-timeline",
+      "title": "LOS windows — $fsNode",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "x": 0, "y": 5, "w": 24, "h": 4 },
+      "targets": [
+        {
+          "expr": "yass_los_active{experiment=\"$experiment\",run_id=\"$run_id\",fsNode=\"$fsNode\"}",
+          "legendFormat": "↔ {{peer}}", "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [{ "type": "value", "options": { "1": { "text": "visible", "color": "green" }, "0": { "text": "", "color": "transparent" } } }]
+        }
+      }
+    },
+    {
+      "type": "logs",
+      "title": "File events (PUT/RECEIVED) — $fsNode",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 0, "y": 9, "w": 24, "h": 6 },
+      "targets": [
+        {
+          "expr": "{experiment=\"$experiment\",run_id=\"$run_id\",fsNode=\"$fsNode\",kind=\"crud\"}",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showTime": true,
+        "sortOrder": "Ascending",
+        "wrapLogMessage": true
+      }
+    },
+    {
+      "type": "logs",
+      "title": "Power transitions / online state — $fsNode",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "x": 0, "y": 15, "w": 24, "h": 4 },
+      "targets": [
+        {
+          "expr": "{experiment=\"$experiment\",run_id=\"$run_id\",fsNode=\"$fsNode\",kind=~\"power|online_state\"}",
+          "refId": "A"
+        }
+      ],
+      "options": { "showTime": true, "sortOrder": "Ascending" }
+    }
+  ]
+}

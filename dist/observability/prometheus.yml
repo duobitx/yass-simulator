@@ -1,0 +1,34 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: yass
+
+# Phase v2 (per-namespace variant): each experiment ns runs its own
+# mqtt2prom alongside metrics-bridge. Prometheus discovers them
+# cluster-wide via the standard yass.observability/role label.
+# See yass-docs/observability-v2-spec.md §6 + the cf-test follow-up
+# decision (mqtt2prom per-namespace, not central in yass-system).
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: yass-mqtt2prom
+    kubernetes_sd_configs:
+      - role: pod
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_pod_label_yass_observability_role]
+        action: keep
+        regex: mqtt2prom
+      - source_labels: [__meta_kubernetes_pod_container_port_name]
+        action: keep
+        regex: metrics
+      - source_labels: [__meta_kubernetes_namespace]
+        target_label: namespace
+      - source_labels: [__meta_kubernetes_pod_name]
+        target_label: pod
+      # experiment / engine / run_id / layout are joined into the
+      # metric labels by mqtt2prom itself (from the _meta_ MQTT topic)
+      # so we do NOT relabel them here. Relabeling them would clash
+      # with the labels mqtt2prom already attaches.

@@ -1,0 +1,99 @@
+{
+  "title": "YASS — fsNode drill-down",
+  "uid": "yass-fsnode",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["yass"],
+  "templating": {
+    "list": [
+      {
+        "name": "experiment", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_battery_wh, experiment)", "refresh": 1
+      },
+      {
+        "name": "engine", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_battery_wh{experiment=\"$experiment\"}, engine)", "refresh": 1
+      },
+      {
+        "name": "run_id", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_battery_wh{experiment=\"$experiment\",engine=\"$engine\"}, run_id)", "refresh": 1
+      },
+      {
+        "name": "fsNode", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_battery_wh{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\"}, fsNode)", "refresh": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "timeseries", "title": "Battery level — %",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "targets": [
+        { "expr": "100 * yass_battery_wh{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\",fsNode=\"$fsNode\"} / yass_battery_capacity_wh{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\",fsNode=\"$fsNode\"}", "legendFormat": "battery_level" }
+      ]
+    },
+    {
+      "type": "state-timeline", "title": "In shadow",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "shadow", "color": "dark-blue" }, "0": { "text": "sun", "color": "yellow" } } }
+          ]
+        }
+      },
+      "options": { "mergeValues": true, "showValue": "never", "rowHeight": 0.9 },
+      "targets": [
+        { "expr": "yass_in_shadow{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\",fsNode=\"$fsNode\"}", "legendFormat": "in_shadow" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "Volume usage — % of capacity",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "targets": [{ "expr": "100 * yass_volume_used_bytes{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\",fsNode=\"$fsNode\"} / yass_volume_capacity_bytes{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\",fsNode=\"$fsNode\"}", "legendFormat": "{{volume}}" }]
+    },
+    {
+      "type": "timeseries", "title": "Network bytes/s",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "sum by (peer_node) (rate(yass_network_tx_bytes_total{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\",fsNode=\"$fsNode\"}[5m]))", "legendFormat": "tx → {{peer_node}}" },
+        { "expr": "sum by (peer_node) (rate(yass_network_rx_bytes_total{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\",fsNode=\"$fsNode\"}[5m]))", "legendFormat": "rx ← {{peer_node}}" }
+      ]
+    },
+    {
+      "type": "timeseries", "title": "Container CPU — % of limit",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "targets": [{ "expr": "100 * yass_container_cpu_millicores{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\",fsNode=\"$fsNode\"} / yass_container_cpu_millicores_limit{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\",fsNode=\"$fsNode\"}", "legendFormat": "{{container}}" }]
+    },
+    {
+      "type": "timeseries", "title": "Container memory — % of limit",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100 } },
+      "targets": [{ "expr": "100 * yass_container_memory_bytes{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\",fsNode=\"$fsNode\"} / yass_container_memory_bytes_limit{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\",fsNode=\"$fsNode\"}", "legendFormat": "{{container}}" }]
+    },
+    {
+      "type": "timeseries", "title": "Files produced / received on this node",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        { "expr": "rate(yass_file_produced_total{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\",fsNode=\"$fsNode\"}[5m])", "legendFormat": "produced/s" },
+        { "expr": "sum(rate(yass_file_received_total{experiment=\"$experiment\",engine=\"$engine\",run_id=\"$run_id\",fsNode=\"$fsNode\"}[5m]))", "legendFormat": "received/s" }
+      ]
+    }
+  ]
+}

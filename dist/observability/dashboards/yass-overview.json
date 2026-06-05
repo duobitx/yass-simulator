@@ -1,0 +1,90 @@
+{
+  "title": "YASS — Overview",
+  "uid": "yass-overview",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "tags": ["yass"],
+  "templating": {
+    "list": [
+      {
+        "name": "experiment",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_file_produced_total, experiment)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": false
+      },
+      {
+        "name": "engine",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_file_produced_total{experiment=~\"$experiment\"}, engine)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true
+      },
+      {
+        "name": "run_id",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": "label_values(yass_file_produced_total{experiment=~\"$experiment\",engine=~\"$engine\"}, run_id)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true
+      }
+    ]
+  },
+  "panels": [
+    {
+      "type": "timeseries", "title": "Files produced / s",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum by (engine) (rate(yass_file_produced_total{experiment=~\"$experiment\",engine=~\"$engine\",run_id=~\"$run_id\"}[5m]))", "legendFormat": "{{engine}}" }]
+    },
+    {
+      "type": "timeseries", "title": "Files received / s",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum by (engine) (rate(yass_file_received_total{experiment=~\"$experiment\",engine=~\"$engine\",run_id=~\"$run_id\"}[5m]))", "legendFormat": "{{engine}}" }]
+    },
+    {
+      "type": "timeseries", "title": "Delivery time to target GS — p50 (s)",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "histogram_quantile(0.50, sum by (engine, le) (rate(yass_file_delivery_seconds_bucket{is_target_gs=\"true\",experiment=~\"$experiment\",engine=~\"$engine\",run_id=~\"$run_id\"}[5m])))", "legendFormat": "{{engine}}" }]
+    },
+    {
+      "type": "timeseries", "title": "Delivery time to target GS — p95 (s)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "histogram_quantile(0.95, sum by (engine, le) (rate(yass_file_delivery_seconds_bucket{is_target_gs=\"true\",experiment=~\"$experiment\",engine=~\"$engine\",run_id=~\"$run_id\"}[5m])))", "legendFormat": "{{engine}}" }]
+    },
+    {
+      "type": "timeseries", "title": "Satellite battery — Wh",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "yass_battery_wh{node_type=\"satellite\",experiment=~\"$experiment\",engine=~\"$engine\",run_id=~\"$run_id\"}", "legendFormat": "{{fsNode}} ({{engine}})" }]
+    },
+    {
+      "type": "timeseries", "title": "Network TX — bytes/s per fsNode",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum by (fsNode, engine) (rate(yass_network_tx_bytes_total{experiment=~\"$experiment\",engine=~\"$engine\",run_id=~\"$run_id\"}[5m]))", "legendFormat": "{{fsNode}} ({{engine}})" }]
+    },
+    {
+      "type": "timeseries", "title": "Volume used — bytes per fsNode/volume",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "yass_volume_used_bytes{experiment=~\"$experiment\",engine=~\"$engine\",run_id=~\"$run_id\"}", "legendFormat": "{{fsNode}}/{{volume}} ({{engine}})" }]
+    },
+    {
+      "type": "stat", "title": "Files lost (total)",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "expr": "sum by (engine) (yass_file_lost_total{experiment=~\"$experiment\",engine=~\"$engine\",run_id=~\"$run_id\"})", "legendFormat": "{{engine}}" }]
+    }
+  ]
+}

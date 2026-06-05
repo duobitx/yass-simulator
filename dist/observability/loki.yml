@@ -1,0 +1,69 @@
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9095
+  log_level: info
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+storage_config:
+  tsdb_shipper:
+    active_index_directory: /loki/tsdb-index
+    cache_location: /loki/tsdb-cache
+  filesystem:
+    directory: /loki/chunks
+
+limits_config:
+  retention_period: 30d
+  max_streams_per_user: 10000
+  ingestion_rate_mb: 8
+  ingestion_burst_size_mb: 16
+  # Experiment time may legitimately predate wall-clock by years
+  # (e.g. simulationStartTime set to a historical TLE epoch). We use
+  # experiment time as the Loki sample timestamp, so reject_old_samples
+  # has to be off — otherwise every event would be dropped.
+  reject_old_samples: false
+  reject_old_samples_max_age: 8760h
+  allow_structured_metadata: true
+  volume_enabled: true
+
+compactor:
+  working_directory: /loki/compactor
+  delete_request_store: filesystem
+  retention_enabled: true
+  retention_delete_delay: 2h
+  retention_delete_worker_count: 50
+
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /loki/rules
+  rule_path: /loki/rules-tmp
+  ring:
+    kvstore:
+      store: inmemory
+
+analytics:
+  reporting_enabled: false
