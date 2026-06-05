@@ -1,11 +1,9 @@
 {{- if .Values.rbac.enable }}
----
 # Grants the per-experiment service accounts (yass-experiment-sa, created in
-# every experiment namespace) read/write access to the int.esa.yass resources
-# they manage. The experiment-executor and FsNode init containers read their
-# own Experiment/FsNode CRs; without this they fail with "forbidden" and the
-# experiment never leaves Init. Bound to the system:serviceaccounts group
-# because the SAs are created dynamically per experiment namespace.
+# every experiment namespace) access to the int.esa.yass resources they manage.
+# Without this the executor and FsNode init containers fail "forbidden" and the
+# experiment never leaves Init. Bound to system:serviceaccounts because the SAs
+# are created dynamically per experiment namespace.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
