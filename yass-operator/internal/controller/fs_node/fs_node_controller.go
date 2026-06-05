@@ -286,11 +286,11 @@ func (r *FsNodeReconciler) createOrUpdateFsNodePod(ctx context.Context, fsNode *
 		},
 	}
 	globalEnvs := map[string]string{
-		"FS_NODE_NAME":                fsNode.Name,
-		"FS_NODE_TYPE":                string(fsNode.Spec.NodeType),
-		"EXPERIMENT_NAME":             experimentName,
-		"RESOURCE_NAME":               fsNode.Name,
-		"MESSAGING_BROKER_HOST_PORT":  r.Configuration.MessagingBrokerHostPort,
+		"FS_NODE_NAME":               fsNode.Name,
+		"FS_NODE_TYPE":               string(fsNode.Spec.NodeType),
+		"EXPERIMENT_NAME":            experimentName,
+		"RESOURCE_NAME":              fsNode.Name,
+		"MESSAGING_BROKER_HOST_PORT": r.Configuration.MessagingBrokerHostPort,
 	}
 	for propKey, propVal := range fsNode.Spec.Properties {
 		globalEnvs[strings.ToUpper(strings.ReplaceAll(propKey, "-", "_"))] = propVal
@@ -571,8 +571,25 @@ func (r *FsNodeReconciler) updateStatusConditionForObject(fsNode *yassv1.FsNode,
 		newMessage = ""
 		switch x := obj.(type) {
 		case *v1.Pod:
-			newStatus = x.Status.Phase == v1.PodRunning || x.Status.Phase == v1.PodSucceeded
-			newReason = string(x.Status.Phase)
+			switch x.Status.Phase {
+			case v1.PodSucceeded:
+				newStatus = true
+				newReason = string(x.Status.Phase)
+			case v1.PodRunning:
+				// Require the pod's Ready condition (all containers' readiness
+				ready := false
+				for i := range x.Status.Conditions {
+					if x.Status.Conditions[i].Type == v1.PodReady {
+						ready = x.Status.Conditions[i].Status == v1.ConditionTrue
+						break
+					}
+				}
+				newStatus = ready
+				newReason = goutils.BoolToStr(ready, "Running", "RunningNotReady")
+			default:
+				newStatus = false
+				newReason = string(x.Status.Phase)
+			}
 		default:
 			newStatus = true
 			newReason = "ok"
