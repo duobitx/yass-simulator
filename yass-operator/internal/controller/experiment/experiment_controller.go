@@ -403,7 +403,7 @@ func (r *Reconciler) createExperimentComponentIfRequired(recon *reconciliationSt
 	}
 	annotations["component-source"] = fName
 	obj.SetAnnotations(annotations)
-	obj.SetOwnerReferences([]metav1.OwnerReference{*metav1.NewControllerRef(experiment, v1.SchemeGroupVersion.WithKind(experiment.Kind))})
+	obj.SetOwnerReferences([]metav1.OwnerReference{*metav1.NewControllerRef(experiment, yassv1.GroupVersion.WithKind(experimentKind))})
 	if modifier != nil {
 		modifier(obj)
 	}
@@ -526,7 +526,7 @@ func (r *Reconciler) createFsNodeResource(ctx context.Context, namespace string,
 				controller.LabelExperiment: experiment.Name,
 			},
 			OwnerReferences: []metav1.OwnerReference{
-				*metav1.NewControllerRef(experiment, v1.SchemeGroupVersion.WithKind(experimentKind)),
+				*metav1.NewControllerRef(experiment, yassv1.GroupVersion.WithKind(experimentKind)),
 			},
 		},
 		Spec: yassv1.FsNodeSpec{
