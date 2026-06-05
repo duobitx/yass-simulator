@@ -11,7 +11,7 @@ controllerManager:
       - "--metrics-bind-address=:8443"
       - "--health-probe-bind-address=:8081"
     env:
-      INTERNAL_COMPONENTS_VERSION: b151fff2
+      INTERNAL_COMPONENTS_VERSION: b9b9beb3
       EXPERIMENT_LOG_LEVEL: INFO
       DISABLE_NETWORKING_MANIPULATION: "false"
       ENABLE_WEBHOOKS: "true"
