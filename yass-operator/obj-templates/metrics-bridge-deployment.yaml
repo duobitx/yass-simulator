@@ -45,10 +45,15 @@ spec:
           resources:
             requests:
               cpu: "50m"
-              memory: "64Mi"
+              memory: "256Mi"
             limits:
               cpu: "500m"
-              memory: "256Mi"
+              # 2Gi (not 256Mi): with EDFS the edfstracer plugin publishes per-block
+              # provenance (block-recv/<node>) on MQTT — thousands of messages for a
+              # large file (a 2G file is ~8k blocks). At 256Mi metrics-bridge is
+              # OOMKilled processing them; the restart drops MetricsBridge readiness
+              # to 0 replicas, which Errors an already-delivered experiment.
+              memory: "2Gi"
       volumes:
         - name: exports
           hostPath:
