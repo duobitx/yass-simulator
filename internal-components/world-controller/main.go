@@ -30,6 +30,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/apimachinery/pkg/util/rand"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -219,8 +220,9 @@ func (a *appType) agentExitCode(ctx context.Context) (int32, bool) {
 }
 
 // applyAgentPhase sets the FsNode terminal phase and emits a Kubernetes event
-// on the FsNode (with the optional reason text).
-func (a *appType) applyAgentPhase(ctx context.Context, phase yassv1.FsNodePhase, text string) {
+// on the FsNode (with the optional reason text). Returns an error if the phase
+// could not be persisted (the caller retries on the next tick).
+func (a *appType) applyAgentPhase(ctx context.Context, phase yassv1.FsNodePhase, text string) error {
 	reason, etype := "AgentCompleted", corev1.EventTypeNormal
 	switch phase {
 	case yassv1.FsNodePhaseMissionFail:
@@ -229,16 +231,21 @@ func (a *appType) applyAgentPhase(ctx context.Context, phase yassv1.FsNodePhase,
 		reason, etype = "AgentErrored", corev1.EventTypeWarning
 	}
 	var fsNode yassv1.FsNode
-	if err := a.k8sClient.Get(ctx, a.fsNodeObjKey, &fsNode); err != nil {
-		slog.Error("cannot get own FsNode to set terminal phase", "error", err)
-		return
-	}
-	fsNode.Status.Phase = phase
-	if err := a.k8sClient.Status().Update(ctx, &fsNode); err != nil {
+	// Re-Get + Update under optimistic-concurrency retry: at n100/n200 scale the
+	// operator reconciles the same FsNode concurrently, so a single Status Update
+	// frequently hits a resourceVersion conflict — without retry the terminal
+	// phase is silently lost and the experiment never completes.
+	if err := retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		if err := a.k8sClient.Get(ctx, a.fsNodeObjKey, &fsNode); err != nil {
+			return err
+		}
+		fsNode.Status.Phase = phase
+		return a.k8sClient.Status().Update(ctx, &fsNode)
+	}); err != nil {
 		slog.Error("cannot update FsNode terminal phase", "error", err, "phase", string(phase))
-	} else {
-		slog.Info("FsNode terminal phase set", "phase", string(phase), "detail", text)
+		return err
 	}
+	slog.Info("FsNode terminal phase set", "phase", string(phase), "detail", text)
 	msg := string(phase)
 	if text != "" {
 		msg = fmt.Sprintf("%s: %s", phase, text)
@@ -261,6 +268,7 @@ func (a *appType) applyAgentPhase(ctx context.Context, phase yassv1.FsNodePhase,
 	if err := a.k8sClient.Create(ctx, ev); err != nil {
 		slog.Error("cannot create FsNode event", "error", err)
 	}
+	return nil
 }
 
 func main() {
@@ -441,10 +449,15 @@ func main() {
 	// Errored). See agentVerdict / applyAgentPhase.
 	{
 		sentinelDir := goutils.Env("AGENT_EXIT_DIR", "/tmp")
-		var once sync.Once
+		applied := false
 		internal.BackgroundPeriodicTask(ctx, 2*time.Second, func() {
+			if applied {
+				return
+			}
 			if phase, text, decided := app.agentVerdict(ctx, sentinelDir); decided {
-				once.Do(func() { app.applyAgentPhase(ctx, phase, text) })
+				if err := app.applyAgentPhase(ctx, phase, text); err == nil {
+					applied = true // stop only once the phase actually persisted
+				}
 			}
 		})
 	}
