@@ -576,13 +576,25 @@ func (r *FsNodeReconciler) updateStatusConditionForObject(fsNode *yassv1.FsNode,
 				newStatus = true
 				newReason = string(x.Status.Phase)
 			case v1.PodRunning:
-				// Require the pod's Ready condition (all containers' readiness
-				ready := false
-				for i := range x.Status.Conditions {
-					if x.Status.Conditions[i].Type == v1.PodReady {
-						ready = x.Status.Conditions[i].Status == v1.ConditionTrue
-						break
+				// Require every container to be ready (its readiness probe passes)
+				// rather than just Running — so an FsNode is not reported Ready until
+				// its engines (EDFS kubo+cluster / TUS) are actually up; the experiment
+				// only POSTs /start once every FsNode is Ready, which stops producers
+				// from making files before the engine can ingest them.
+				// Exception: a producer agent legitimately *completes* after writing
+				// its file(s) (MAX_PHOTOS); its successful termination (exit 0) must NOT
+				// flip the node to not-ready and Error an already-running experiment.
+				ready := true
+				for i := range x.Status.ContainerStatuses {
+					cs := &x.Status.ContainerStatuses[i]
+					if cs.Ready {
+						continue
 					}
+					if cs.Name == agentContainerName && cs.State.Terminated != nil && cs.State.Terminated.ExitCode == 0 {
+						continue
+					}
+					ready = false
+					break
 				}
 				newStatus = ready
 				newReason = goutils.BoolToStr(ready, "Running", "RunningNotReady")
