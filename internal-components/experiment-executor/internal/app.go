@@ -148,13 +148,24 @@ func (t *AppType) Start(ctxParent context.Context) error {
 				return
 			}
 			var endErr *ExperimentEndError
+			var endState yassv1.ExperimentState
 			switch req.Status {
 			case proto.Status_EXPERIMENT_END_REQUEST_FAILURE:
 				endErr = NewExperimentEndErrorWithComment(ExperimentEndDueToScenarioFailure, req.Comment)
+				endState = yassv1.ExperimentStateFailure
 			case proto.Status_EXPERIMENT_END_REQUEST_SUCCESS:
 				endErr = NewExperimentEndErrorWithComment(ExperimentEndDueToScenarioSuccess, req.Comment)
+				endState = yassv1.ExperimentStateSuccess
 			default:
 				endErr = NewExperimentEndErrorWithCause(ExperimentEndDueToUnexpectedError, fmt.Errorf("unsupported value fro req.Status - %d", req.Status))
+			}
+			// Persist the terminal state BEFORE cancelling: cancellation stops the
+			// geocalc loop (freezing simulation time, so the maxDuration timeout can
+			// never fire again), so this is the only chance to record Success/Failure.
+			if endState != "" {
+				if err := t.setExperimentTerminalState(endState); err != nil {
+					slog.Default().Error("cannot write experiment terminal state", "state", endState, "error", err)
+				}
 			}
 			if endErr != nil {
 				cancel(endErr)
@@ -289,6 +300,17 @@ func (t *AppType) sendTimeUpdate(now time.Time, ongoing bool) error {
 }
 
 func (t *AppType) experimentTimedOutUpdateExperimentResource() error {
+	return t.setExperimentTerminalState(yassv1.ExperimentStateTimedOut)
+}
+
+// setExperimentTerminalState writes a terminal experimentState onto the Experiment
+// resource when it is still Ongoing. The timeout path uses it for TimedOut; the
+// agent end-signal handler uses it for Success/Failure. Without this, an agent
+// SUCCESS/FAILURE message only cancels the executor's loop (freezing simulation
+// time) and never writes a terminal state, leaving the Experiment stuck Ongoing
+// forever — the operator's fallback only transitions once EVERY FsNode is terminal,
+// which never happens when a ground station or relay stays Running.
+func (t *AppType) setExperimentTerminalState(state yassv1.ExperimentState) error {
 	if t.namespace == "" {
 		slog.Default().Warn("namespace not set, experiment resource will not be updated")
 		return nil
@@ -302,8 +324,8 @@ func (t *AppType) experimentTimedOutUpdateExperimentResource() error {
 		return err
 	}
 	if exp.Status.ExperimentState == yassv1.ExperimentStateOngoing {
-		slog.Default().Info("Experiment timed out")
-		exp.Status.ExperimentState = yassv1.ExperimentStateTimedOut
+		slog.Default().Info("experiment reached terminal state", "state", state)
+		exp.Status.ExperimentState = state
 		return t.k8sClient.Status().Update(t.mainCtx, exp)
 	}
 	return nil
