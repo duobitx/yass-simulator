@@ -142,7 +142,8 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitRet c
 	if err := r.evaluateExperimentOutcome(recon, ctx, &experiment); err != nil {
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, err
 	}
-	if experiment.Status.ExperimentState == yassv1.ExperimentStateInit {
+	if experiment.Status.ExperimentState == yassv1.ExperimentStateInit ||
+		experiment.Status.ExperimentState == yassv1.ExperimentStateInsufficientResources {
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
 	}
 	// Spec.Start=true asks the operator to POST /start once the
@@ -257,6 +258,19 @@ func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx c
 		}
 		return element.Status == metav1.ConditionTrue
 	})
+	// Surface a lack of cluster capacity instead of hanging silently in Init: while
+	// still coming up, if any pod is unschedulable flag InsufficientResources; when
+	// capacity returns, recover to Init so the normal Init->Ready->Ongoing path runs.
+	if s := experiment.Status.ExperimentState; s == yassv1.ExperimentStateInit || s == yassv1.ExperimentStateInsufficientResources {
+		if unsched, detail, perr := r.hasUnschedulablePods(ctx, req.Namespace, experiment.Name); perr == nil {
+			if unsched && s != yassv1.ExperimentStateInsufficientResources {
+				r.updateExperimentState(recon, experiment, yassv1.ExperimentStateInsufficientResources)
+				r.recorder.Eventf(experiment, v1.EventTypeWarning, "InsufficientResources", "pod(s) unschedulable: %s", detail)
+			} else if !unsched && s == yassv1.ExperimentStateInsufficientResources {
+				r.updateExperimentState(recon, experiment, yassv1.ExperimentStateInit)
+			}
+		}
+	}
 	if experiment.Status.ExperimentState == yassv1.ExperimentStateInit && ready {
 		r.updateExperimentState(recon, experiment, yassv1.ExperimentStateReady)
 	}
@@ -628,6 +642,31 @@ func (r *Reconciler) experimentRestartTotal(ctx context.Context, namespace strin
 		}
 	}
 	return total, details, nil
+}
+
+// hasUnschedulablePods reports whether any pod of the experiment is currently
+// unschedulable (PodScheduled=False, reason Unschedulable) — i.e. the cluster
+// lacks the CPU/memory to place it. Used to surface ExperimentStateInsufficientResources.
+func (r *Reconciler) hasUnschedulablePods(ctx context.Context, namespace, experimentName string) (bool, string, error) {
+	podList := &v1.PodList{}
+	if err := r.List(ctx, podList,
+		client.InNamespace(namespace),
+		client.MatchingLabels(map[string]string{controller.LabelExperiment: experimentName})); err != nil {
+		return false, "", err
+	}
+	for i := range podList.Items {
+		pod := &podList.Items[i]
+		if pod.Status.Phase != v1.PodPending {
+			continue
+		}
+		for j := range pod.Status.Conditions {
+			c := &pod.Status.Conditions[j]
+			if c.Type == v1.PodScheduled && c.Status == v1.ConditionFalse && c.Reason == v1.PodReasonUnschedulable {
+				return true, fmt.Sprintf("%s: %s", pod.Name, c.Message), nil
+			}
+		}
+	}
+	return false, "", nil
 }
 
 // evaluateExperimentOutcome transitions an Ongoing/TimedOut experiment to a

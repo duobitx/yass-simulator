@@ -14,6 +14,7 @@ func init() {
 // strictly forward-moving:
 //
 //	Init  --> Ready  --> Ongoing  --> Success | Failure | TimedOut
+//	  |<-> InsufficientResources (no cluster capacity; recovers to Init when freed)
 //	  \-> Errored (from any state on irrecoverable controller error)
 type ExperimentState string
 
@@ -24,6 +25,13 @@ const (
 	// ExperimentStateReady — all FsNodes are Ready and the experiment-executor is
 	// up; waiting either for `spec.start = true` or for an explicit POST /start.
 	ExperimentStateReady = "Ready"
+	// ExperimentStateInsufficientResources — one or more pods cannot be scheduled
+	// because the cluster lacks capacity (CPU/memory). No simulated time has
+	// elapsed. NON-terminal and recoverable: when capacity appears the experiment
+	// returns to Init and proceeds (Ready -> Ongoing). Lets an operator (or the
+	// sweep driver) see "this experiment is too big for this cluster right now"
+	// instead of a silent, never-ending Init.
+	ExperimentStateInsufficientResources = "InsufficientResources"
 	// ExperimentStateErrored — the operator could not bring the experiment up
 	// (missing Layout, mismatched node names, ...). Terminal.
 	ExperimentStateErrored = "Errored"
