@@ -150,6 +150,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitRet c
 		experiment.Status.ApiServerURL = url
 		recon.statusUpdated = true
 	}
+	// Once resources have been evicted (see Spec.EvictResourcesAfter) the
+	// experiment is a kept-but-emptied shell: do not recreate its workloads or
+	// FsNodes, leave the (terminal) status as-is.
+	if resourcesEvicted(&experiment) {
+		return ctrl.Result{}, nil
+	}
 	err = r.createOrUpdateExperiment(recon, ctx, req, &experiment)
 
 	if err != nil {
@@ -169,6 +175,12 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitRet c
 	// quickly without involving exponential backoff.
 	if experiment.Status.ExperimentState == yassv1.ExperimentStateReady && experiment.Spec.Start {
 		return ctrl.Result{RequeueAfter: 5 * time.Second}, nil
+	}
+
+	if requeueAfter, evErr := r.maybeEvictResources(ctx, &experiment); evErr != nil {
+		return ctrl.Result{RequeueAfter: 10 * time.Second}, evErr
+	} else if requeueAfter > 0 {
+		return ctrl.Result{RequeueAfter: requeueAfter}, nil
 	}
 
 	return ctrl.Result{}, nil
@@ -637,6 +649,133 @@ func restartBaseline(exp *yassv1.Experiment) (int32, bool) {
 		return 0, false
 	}
 	return int32(n), true
+}
+
+const (
+	// evictResourcesAtAnnotation stores the RFC3339 wall-clock deadline at which
+	// the experiment's compute resources are evicted. It is stamped once, when the
+	// experiment first reaches a terminal state with Spec.EvictResourcesAfter set.
+	evictResourcesAtAnnotation = "experiment-controller/evict-resources-at"
+	// resourcesEvictedAnnotation marks that the eviction has happened, so the
+	// reconciler neither recreates the workloads nor evicts again.
+	resourcesEvictedAnnotation = "experiment-controller/resources-evicted"
+)
+
+// resourcesEvicted reports whether the experiment's compute resources have
+// already been evicted (see Spec.EvictResourcesAfter).
+func resourcesEvicted(exp *yassv1.Experiment) bool {
+	return exp.Annotations[resourcesEvictedAnnotation] == "true"
+}
+
+func isTerminalExperimentState(s yassv1.ExperimentState) bool {
+	switch s {
+	case yassv1.ExperimentStateSuccess, yassv1.ExperimentStateFailure,
+		yassv1.ExperimentStateTimedOut, yassv1.ExperimentStateErrored:
+		return true
+	}
+	return false
+}
+
+// maybeEvictResources implements Spec.EvictResourcesAfter: once the experiment
+// is terminal it schedules (on first observation) and later performs the
+// deletion of all CPU/RAM-consuming resources, keeping the Experiment object so
+// cluster capacity is freed without deleting the experiment. It returns a
+// non-zero requeue delay while waiting for the deadline.
+func (r *Reconciler) maybeEvictResources(ctx context.Context, experiment *yassv1.Experiment) (time.Duration, error) {
+	if experiment.Spec.EvictResourcesAfter == nil || experiment.Spec.EvictResourcesAfter.Duration <= 0 {
+		return 0, nil
+	}
+	if !isTerminalExperimentState(experiment.Status.ExperimentState) || resourcesEvicted(experiment) {
+		return 0, nil
+	}
+
+	deadlineStr, ok := experiment.Annotations[evictResourcesAtAnnotation]
+	if !ok {
+		deadline := time.Now().Add(experiment.Spec.EvictResourcesAfter.Duration)
+		if err := r.setExperimentAnnotation(ctx, experiment, evictResourcesAtAnnotation, deadline.UTC().Format(time.RFC3339)); err != nil {
+			return 0, err
+		}
+		r.recorder.Eventf(experiment, v1.EventTypeNormal, "ResourcesEvictionScheduled",
+			"experiment terminal (%s); compute resources will be evicted at %s (evictResourcesAfter=%s)",
+			experiment.Status.ExperimentState, deadline.UTC().Format(time.RFC3339), experiment.Spec.EvictResourcesAfter.Duration)
+		return requeueUntil(deadline), nil
+	}
+
+	deadline, err := time.Parse(time.RFC3339, deadlineStr)
+	if err != nil {
+		// Corrupt annotation — re-stamp from now.
+		return 0, r.setExperimentAnnotation(ctx, experiment, evictResourcesAtAnnotation,
+			time.Now().Add(experiment.Spec.EvictResourcesAfter.Duration).UTC().Format(time.RFC3339))
+	}
+	if time.Until(deadline) > 0 {
+		return requeueUntil(deadline), nil
+	}
+
+	count, err := r.evictExperimentResources(ctx, experiment.Namespace, experiment.Name)
+	if err != nil {
+		return 10 * time.Second, errors.Wrap(err, "cannot evict experiment resources")
+	}
+	if err := r.setExperimentAnnotation(ctx, experiment, resourcesEvictedAnnotation, "true"); err != nil {
+		return 0, err
+	}
+	r.recorder.Eventf(experiment, v1.EventTypeNormal, "ResourcesEvicted",
+		"evicted %d compute resource(s) (FsNodes, StatefulSets, Deployments); Experiment kept, cluster capacity freed", count)
+	return 0, nil
+}
+
+// requeueUntil returns how long to wait before re-checking the eviction
+// deadline, capped at one minute so a restarted operator stays responsive.
+func requeueUntil(deadline time.Time) time.Duration {
+	d := time.Until(deadline)
+	if d < time.Second {
+		d = time.Second
+	}
+	if d > time.Minute {
+		d = time.Minute
+	}
+	return d
+}
+
+// evictExperimentResources deletes every CPU/RAM-consuming object of the
+// experiment — FsNodes (their pods cascade) and the StatefulSets/Deployments of
+// the executor, messaging and the shared engine/observability components.
+// Services, ConfigMaps, ServiceAccounts and the Experiment itself are kept.
+func (r *Reconciler) evictExperimentResources(ctx context.Context, namespace, experimentName string) (int, error) {
+	sel := client.MatchingLabels{controller.LabelExperiment: experimentName}
+	lists := []client.ObjectList{&yassv1.FsNodeList{}, &appsv1.StatefulSetList{}, &appsv1.DeploymentList{}}
+	count := 0
+	for _, list := range lists {
+		if err := r.List(ctx, list, client.InNamespace(namespace), sel); err != nil {
+			return count, err
+		}
+		items, err := meta.ExtractList(list)
+		if err != nil {
+			return count, err
+		}
+		for _, item := range items {
+			obj, ok := item.(client.Object)
+			if !ok {
+				continue
+			}
+			if err := r.Delete(ctx, obj); err != nil && !apierrors.IsNotFound(err) {
+				return count, err
+			}
+			count++
+		}
+	}
+	return count, nil
+}
+
+// setExperimentAnnotation sets one annotation on the Experiment and persists it.
+func (r *Reconciler) setExperimentAnnotation(ctx context.Context, experiment *yassv1.Experiment, key, value string) error {
+	if experiment.Annotations == nil {
+		experiment.Annotations = map[string]string{}
+	}
+	if experiment.Annotations[key] == value {
+		return nil
+	}
+	experiment.Annotations[key] = value
+	return r.Update(ctx, experiment)
 }
 
 // experimentRestartTotal sums container RestartCount across every pod in the

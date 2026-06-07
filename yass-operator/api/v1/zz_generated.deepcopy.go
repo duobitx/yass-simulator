@@ -260,6 +260,11 @@ func (in *ExperimentSpec) DeepCopyInto(out *ExperimentSpec) {
 		in, out := &in.SimulationStartTime, &out.SimulationStartTime
 		*out = (*in).DeepCopy()
 	}
+	if in.EvictResourcesAfter != nil {
+		in, out := &in.EvictResourcesAfter, &out.EvictResourcesAfter
+		*out = new(metav1.Duration)
+		**out = **in
+	}
 	if in.FsNodeProperties != nil {
 		in, out := &in.FsNodeProperties, &out.FsNodeProperties
 		*out = make(map[string]string, len(*in))

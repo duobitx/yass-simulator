@@ -3482,6 +3482,23 @@ spec:
                   - name
                   type: object
                 type: array
+              evictResourcesAfter:
+                description: |-
+                  EvictResourcesAfter, when set, is the duration to wait AFTER the experiment
+                  reaches a terminal state (Success/Failure/TimedOut/Errored) before the
+                  operator deletes every CPU/RAM-consuming resource of the experiment — the
+                  FsNode pods, the experiment-executor and the shared engine/observability
+                  workloads. The Experiment object itself is kept, so cluster capacity is
+                  freed WITHOUT having to delete the experiment. The eviction is recorded as
+                  a `ResourcesEvicted` event on the Experiment.
+
+                  To avoid losing data, values below 10m are NOT recommended: the final
+                  metrics and events still need time to be scraped and exported before the
+                  pods disappear. The documented hard minimum for data collection is 5m;
+                  10m leaves a safety margin.
+
+                  Unset (default) means resources are never auto-evicted.
+                type: string
               experimentDefRef:
                 description: |-
                   ExperimentDefRef is the name of the cluster-scoped [ExperimentDefinition]

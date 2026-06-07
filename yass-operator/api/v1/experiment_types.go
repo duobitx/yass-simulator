@@ -117,6 +117,23 @@ type ExperimentSpec struct {
 	// manual experiments where the operator wants to attach observers first.
 	Start bool `json:"start"`
 
+	// EvictResourcesAfter, when set, is the duration to wait AFTER the experiment
+	// reaches a terminal state (Success/Failure/TimedOut/Errored) before the
+	// operator deletes every CPU/RAM-consuming resource of the experiment — the
+	// FsNode pods, the experiment-executor and the shared engine/observability
+	// workloads. The Experiment object itself is kept, so cluster capacity is
+	// freed WITHOUT having to delete the experiment. The eviction is recorded as
+	// a `ResourcesEvicted` event on the Experiment.
+	//
+	// To avoid losing data, values below 10m are NOT recommended: the final
+	// metrics and events still need time to be scraped and exported before the
+	// pods disappear. The documented hard minimum for data collection is 5m;
+	// 10m leaves a safety margin.
+	//
+	// Unset (default) means resources are never auto-evicted.
+	// +optional
+	EvictResourcesAfter *metav1.Duration `json:"evictResourcesAfter,omitempty"`
+
 	// FsNodeProperties is a key/value map merged into the environment of every
 	// FsNode in this experiment (both agent and engine containers). It overrides
 	// per-node `properties` set on the Layout entry, and is in turn overridden by
