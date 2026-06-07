@@ -1,0 +1,187 @@
+package internal
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httputil"
+	"net/url"
+	"time"
+
+	yassv1 "github.com/duobitx/yass-simulator/yass-operator/api/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+)
+
+// labelExperiment is the label the operator stamps on every FsNode of an
+// experiment. Must stay in sync with yass-operator controller.LabelExperiment.
+const labelExperiment = "yass-experiment"
+
+// Backend resolves runtime data for the aggregated API. It does NOT run the
+// experiment: it reads the Experiment/FsNode CRs from k8s and proxies the
+// per-namespace experiment-executor and events-webapp Services.
+type Backend struct {
+	client client.Client
+}
+
+func NewBackend() (*Backend, error) {
+	scheme := runtime.NewScheme()
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	if err := yassv1.AddToScheme(scheme); err != nil {
+		return nil, err
+	}
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	c, err := client.New(cfg, client.Options{Scheme: scheme})
+	if err != nil {
+		return nil, err
+	}
+	return &Backend{client: c}, nil
+}
+
+func executorBase(ns string) string {
+	return fmt.Sprintf("http://experiment-executor.%s.svc.cluster.local:8080", ns)
+}
+
+func eventsWebappBase(ns string) string {
+	return fmt.Sprintf("http://events-webapp.%s.svc.cluster.local:8080", ns)
+}
+
+// proxyTo reverse-proxies the current request to base+path. flush=true streams
+// the response immediately (Server-Sent Events).
+func proxyTo(w http.ResponseWriter, req *http.Request, base, path string, flush bool) {
+	u, err := url.Parse(base)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	rp := httputil.NewSingleHostReverseProxy(u)
+	director := rp.Director
+	rp.Director = func(r *http.Request) {
+		director(r)
+		r.URL.Path = path
+		r.Host = u.Host
+	}
+	if flush {
+		rp.FlushInterval = -1
+	}
+	rp.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, e error) {
+		http.Error(w, fmt.Sprintf("upstream unavailable: %v", e), http.StatusServiceUnavailable)
+	}
+	rp.ServeHTTP(w, req)
+}
+
+// handleTime — live experiment time from the executor (subresource /time).
+func (b *Backend) handleTime(_ context.Context, ns, _ string, w http.ResponseWriter, req *http.Request) {
+	proxyTo(w, req, executorBase(ns), "/time", false)
+}
+
+// handleEvents — SSE stream from events-webapp (subresource /events).
+func (b *Backend) handleEvents(_ context.Context, ns, _ string, w http.ResponseWriter, req *http.Request) {
+	proxyTo(w, req, eventsWebappBase(ns), "/events-sse", true)
+}
+
+// handleStart — POST proxied to the executor (subresource /start).
+func (b *Backend) handleStart(_ context.Context, ns, _ string, w http.ResponseWriter, req *http.Request) {
+	proxyTo(w, req, executorBase(ns), "/start", false)
+}
+
+// handleResults — placeholder; results export (parquet) not implemented yet.
+func (b *Backend) handleResults(_ context.Context, _, _ string, w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusNotImplemented)
+	_, _ = w.Write([]byte(`{"error":"results export not implemented yet"}`))
+}
+
+// fsNodeView is the full per-node object returned by subresource /fsnodes:
+// CR-sourced identity/lifecycle merged with the executor's live runtime state.
+type fsNodeView struct {
+	Name     string  `json:"name"`
+	Type     string  `json:"type"`
+	Ready    bool    `json:"ready"`
+	Phase    string  `json:"phase"`
+	Online   bool    `json:"online"`
+	IP       string  `json:"ip,omitempty"`
+	Lat      float32 `json:"lat"`
+	Lng      float32 `json:"lng"`
+	Alt      float32 `json:"alt"`
+	InShadow bool    `json:"inShadow"`
+}
+
+// executorFsNode is the subset of GET /fsNodes?detail=true we consume.
+type executorFsNode struct {
+	Name     string  `json:"name"`
+	Online   bool    `json:"Online"`
+	IP       string  `json:"IP"`
+	Lat      float32 `json:"Lat"`
+	Lng      float32 `json:"Lng"`
+	Alt      float32 `json:"Alt"`
+	InShadow bool    `json:"InShadow"`
+}
+
+// handleFsNodes — full FsNode objects for the experiment (subresource /fsnodes).
+// FsNode CRs give identity/type/lifecycle and are always available; the
+// executor's live state (online/IP/position) enriches them best-effort, so the
+// endpoint still works before the executor is up.
+func (b *Backend) handleFsNodes(ctx context.Context, ns, name string, w http.ResponseWriter, _ *http.Request) {
+	list := &yassv1.FsNodeList{}
+	if err := b.client.List(ctx, list, client.InNamespace(ns), client.MatchingLabels{labelExperiment: name}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	views := make(map[string]*fsNodeView, len(list.Items))
+	order := make([]string, 0, len(list.Items))
+	for i := range list.Items {
+		n := &list.Items[i]
+		views[n.Name] = &fsNodeView{
+			Name:  n.Name,
+			Type:  string(n.Spec.NodeType),
+			Ready: n.Status.Ready,
+			Phase: string(n.Status.Phase),
+		}
+		order = append(order, n.Name)
+	}
+	if live, err := fetchExecutorDetail(ctx, ns); err == nil {
+		for _, d := range live {
+			if v, ok := views[d.Name]; ok {
+				v.Online, v.IP = d.Online, d.IP
+				v.Lat, v.Lng, v.Alt, v.InShadow = d.Lat, d.Lng, d.Alt, d.InShadow
+			}
+		}
+	}
+	out := make([]*fsNodeView, 0, len(order))
+	for _, n := range order {
+		out = append(out, views[n])
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(out)
+}
+
+func fetchExecutorDetail(ctx context.Context, ns string) ([]executorFsNode, error) {
+	reqCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, executorBase(ns)+"/fsNodes?detail=true", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("executor returned %d", resp.StatusCode)
+	}
+	var out []executorFsNode
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}

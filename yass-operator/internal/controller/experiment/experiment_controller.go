@@ -41,6 +41,11 @@ import (
 const (
 	experimentKind = "Experiment"
 
+	// apiServiceGroupVersion is the group/version of the aggregated runtime API
+	// (a kubernetes APIService) that fronts an experiment's runtime functions.
+	// status.apiServerURL points at this experiment's base path under it.
+	apiServiceGroupVersion = "runtime.esa.yass/v1"
+
 	// MaxFsNodes is the maximum total FsNode count an Experiment Layout may
 	// reference. Must stay in sync with the MAX_FSNODES cap in
 	// internal-components/geo-calculator/V6/geo_calc.cc — exceeding it makes
@@ -133,6 +138,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitRet c
 	}()
 	if experiment.Status.ExperimentState == "" {
 		r.updateExperimentState(recon, &experiment, yassv1.ExperimentStateInit)
+	}
+	if url := fmt.Sprintf("/apis/%s/namespaces/%s/experiments/%s", apiServiceGroupVersion, experiment.Namespace, experiment.Name); experiment.Status.ApiServerURL != url {
+		experiment.Status.ApiServerURL = url
+		recon.statusUpdated = true
 	}
 	err = r.createOrUpdateExperiment(recon, ctx, req, &experiment)
 

@@ -24,6 +24,10 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    - jsonPath: .status.apiServerURL
+      name: apiServerURL
+      priority: 1
+      type: string
     name: v1
     schema:
       openAPIV3Schema:
@@ -3531,6 +3535,14 @@ spec:
           status:
             description: ExperimentStatus is the observed state reported by the experiment-controller.
             properties:
+              apiServerURL:
+                description: |-
+                  ApiServerURL is the kube-apiserver-relative base path of this experiment's
+                  aggregated runtime API (group runtime.esa.yass, served by a kubernetes
+                  APIService). Read it with `kubectl get --raw <apiServerURL>`; the runtime
+                  subfunctions hang off it as subresources: <url>/time, <url>/events,
+                  <url>/start, <url>/fsnodes, <url>/results.
+                type: string
               conditions:
                 description: |-
                   Conditions captures the standard set of Kubernetes conditions

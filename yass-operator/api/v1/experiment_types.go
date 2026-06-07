@@ -73,6 +73,7 @@ const (
 // +kubebuilder:printcolumn:name="experimentTime",type=string,JSONPath=`.status.experimentTime`
 // +kubebuilder:printcolumn:name="state",type=string,JSONPath=`.status.experimentState`
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
+// +kubebuilder:printcolumn:name="apiServerURL",type=string,JSONPath=`.status.apiServerURL`,priority=1
 type Experiment struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -156,6 +157,14 @@ type ExperimentStatus struct {
 	// duration of a completed run.
 	// +optional
 	ExperimentTime metav1.Time `json:"experimentTime,omitempty"`
+
+	// ApiServerURL is the kube-apiserver-relative base path of this experiment's
+	// aggregated runtime API (group runtime.esa.yass, served by a kubernetes
+	// APIService). Read it with `kubectl get --raw <apiServerURL>`; the runtime
+	// subfunctions hang off it as subresources: <url>/time, <url>/events,
+	// <url>/start, <url>/fsnodes, <url>/results.
+	// +optional
+	ApiServerURL string `json:"apiServerURL,omitempty"`
 
 	// Conditions captures the standard set of Kubernetes conditions
 	// (`Ready`, `Started`, `Completed`, ...).

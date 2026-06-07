@@ -24,6 +24,7 @@ tasks:
       - task -d world-controller default
       - task -d events-webapp default
       - task -d experiment-executor default
+      - task -d experiment-apiservice default
       - task -d metrics-bridge default
       - task -d mqtt2prom default
       - task -d events-exporter default
