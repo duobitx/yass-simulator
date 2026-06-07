@@ -53,6 +53,9 @@ spec:
             - --storage.tsdb.path=/prometheus
             - --storage.tsdb.retention.time=30d
             - --web.enable-lifecycle
+            # Required for the admin TSDB delete API the operator uses to drop a
+            # deleted experiment's series (POST /api/v1/admin/tsdb/delete_series).
+            - --web.enable-admin-api
           ports:
             - name: http
               containerPort: 9090

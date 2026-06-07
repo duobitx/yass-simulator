@@ -36,6 +36,9 @@ storage_config:
 
 limits_config:
   retention_period: 30d
+  # Allow the per-stream delete API (used by the operator to drop a deleted
+  # experiment's data, filtered by experiment + run_id).
+  deletion_mode: filter-and-delete
   max_streams_per_user: 10000
   ingestion_rate_mb: 8
   ingestion_burst_size_mb: 16
