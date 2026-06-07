@@ -145,6 +145,9 @@ build-installer: manifests generate kustomize ## Generate a consolidated YAML wi
 	mkdir -p dist
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > dist/install.yaml
+	# Append the aggregated APIService backend (kept out of kustomize so the
+	# APIService keeps its exact "<version>.<group>" name, unaffected by namePrefix).
+	cat config/apiservice/apiservice.yaml >> dist/install.yaml
 
 .PHONY: helm-chart
 helm-chart: manifests ## Regenerate the Helm chart at charts/yass-operator from config/ via kubebuilder helm plugin.

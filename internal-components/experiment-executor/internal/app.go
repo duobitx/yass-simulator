@@ -54,6 +54,7 @@ type AppType struct {
 	experimentStartedAt atomic.Pointer[time.Time]
 	experimentTime      atomic.Pointer[time.Time]
 	starting            atomic.Bool
+	ongoing             atomic.Bool
 
 	// Server-side completion. The executor decides Success from the authoritative
 	// `crud-events` stream (the same one metrics-bridge consumes), instead of
@@ -276,6 +277,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 					}
 				}
 			case <-experimentCtx.Done():
+				t.ongoing.Store(false)
 				if err := t.sendTimeUpdate(lastTime, false); err != nil {
 					slog.Default().Error("cannot send time update after experimentCtx canceled", "error", err)
 				}
@@ -320,6 +322,7 @@ func (t *AppType) Start(ctxParent context.Context) error {
 	}()
 	slog.Default().Info("starting experiment", "startTime", startAt, "maxDuration", t.ExperimentDefData.MaxDuration)
 	t.experimentStartedAt.Store(&startAt)
+	t.ongoing.Store(true)
 	t.publishLifecycle("started", "", "")
 	return nil
 }

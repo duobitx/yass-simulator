@@ -55,9 +55,35 @@ func (t *AppType) handleGetFsNodeData(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNotFound)
 }
 
+// fsNodeDetail is the full per-node view returned by GET /fsNodes?detail=true:
+// the node name and type plus the live runtime state (online, IP, position)
+// the executor tracks from MQTT online-state and geo updates.
+type fsNodeDetail struct {
+	Name string `json:"name"`
+	Type string `json:"type"`
+	model.FsNodeState
+}
+
 func (t *AppType) handleGetFsNodesList(w http.ResponseWriter, r *http.Request) {
 	typeFilter := r.URL.Query().Get("type")
+	detail := r.URL.Query().Get("detail") == "true"
 	t.nodesLock.Lock()
+	if detail {
+		list := make([]fsNodeDetail, 0, len(t.nodeTypes))
+		for name, nodeType := range t.nodeTypes {
+			if typeFilter != "" && string(nodeType) != typeFilter {
+				continue
+			}
+			d := fsNodeDetail{Name: name, Type: string(nodeType)}
+			if st, ok := t.nodes[name]; ok {
+				d.FsNodeState = *st
+			}
+			list = append(list, d)
+		}
+		t.nodesLock.Unlock()
+		output(w, list)
+		return
+	}
 	list := make([]string, 0, len(t.nodeTypes))
 	for nodeName, nodeType := range t.nodeTypes {
 		if typeFilter == "" || string(nodeType) == typeFilter {
@@ -68,12 +94,24 @@ func (t *AppType) handleGetFsNodesList(w http.ResponseWriter, r *http.Request) {
 	output(w, list)
 }
 
+// handleGetTime reports the current simulated experiment time and whether the
+// run is still advancing. ongoing is false before start and once the run has
+// reached a terminal state.
+func (t *AppType) handleGetTime(w http.ResponseWriter, r *http.Request) {
+	resp := map[string]any{"ongoing": t.ongoing.Load()}
+	if et := t.experimentTime.Load(); et != nil {
+		resp["experimentTime"] = et.UTC()
+	}
+	output(w, resp)
+}
+
 func (t *AppType) DefineEndpoints(router *mux.Router) {
 	if router == nil {
 		panic("router cannot be nil")
 	}
 	router.HandleFunc("/", t.handleRoot)
 	router.HandleFunc("/info", t.handleInfo).Methods(http.MethodGet)
+	router.HandleFunc("/time", t.handleGetTime).Methods(http.MethodGet)
 	router.HandleFunc("/start", t.handleStartExperiment).Methods(http.MethodPost)
 	router.HandleFunc("/fsNodes/{fsNode}", t.handleGetFsNodeData).Methods(http.MethodGet)
 	router.HandleFunc("/fsNodes", t.handleGetFsNodesList).Methods(http.MethodGet)

@@ -33,6 +33,9 @@ COPY events-webapp/main ./events-webapp
 # Experiment executor
 COPY experiment-executor/main ./experiment-executor
 
+# Experiment API service (aggregated kubernetes APIService backend)
+COPY experiment-apiservice/main ./experiment-apiservice
+
 # Metrics bridge (MQTT -> MQTT metrics aggregator)
 COPY metrics-bridge/main ./metrics-bridge
 

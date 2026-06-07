@@ -325,6 +325,10 @@ spec:
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
+    - jsonPath: .status.apiServerURL
+      name: apiServerURL
+      priority: 1
+      type: string
     name: v1
     schema:
       openAPIV3Schema:
@@ -3832,6 +3836,14 @@ spec:
           status:
             description: ExperimentStatus is the observed state reported by the experiment-controller.
             properties:
+              apiServerURL:
+                description: |-
+                  ApiServerURL is the kube-apiserver-relative base path of this experiment's
+                  aggregated runtime API (group runtime.esa.yass, served by a kubernetes
+                  APIService). Read it with `kubectl get --raw <apiServerURL>`; the runtime
+                  subfunctions hang off it as subresources: <url>/time, <url>/events,
+                  <url>/start, <url>/fsnodes, <url>/results.
+                type: string
               conditions:
                 description: |-
                   Conditions captures the standard set of Kubernetes conditions
@@ -8790,3 +8802,153 @@ webhooks:
     resources:
     - experiments
   sideEffects: None
+---
+# Aggregated kubernetes APIService backend for the Experiment runtime API
+# (group runtime.esa.yass). Cluster-singleton in yass-system: one extension
+# apiserver serves every experiment's runtime subresources (per-namespace data
+# is resolved from the request path). These manifests are intentionally NOT run
+# through the operator kustomize (namePrefix) because the APIService object must
+# be named exactly "<version>.<group>"; they are appended verbatim to
+# dist/install.yaml by `make build-installer`.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: yass-experiment-apiservice
+  namespace: yass-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: yass-experiment-apiservice
+rules:
+  # Read the Experiment / FsNode CRs (CRD group) to back the read-through
+  # resource and the /fsnodes subresource.
+  - apiGroups: ["int.esa.yass"]
+    resources: ["experiments", "fsnodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: yass-experiment-apiservice
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: yass-experiment-apiservice
+subjects:
+  - kind: ServiceAccount
+    name: yass-experiment-apiservice
+    namespace: yass-system
+---
+# Delegated authn/authz: lets the backend create TokenReviews and
+# SubjectAccessReviews against the core apiserver.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: yass-experiment-apiservice-auth-delegator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:auth-delegator
+subjects:
+  - kind: ServiceAccount
+    name: yass-experiment-apiservice
+    namespace: yass-system
+---
+# Lets the backend read the extension-apiserver-authentication configmap so it
+# can validate the aggregator's request-header client certificates.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: yass-experiment-apiservice-extension-apiserver-authentication-reader
+  namespace: kube-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: extension-apiserver-authentication-reader
+subjects:
+  - kind: ServiceAccount
+    name: yass-experiment-apiservice
+    namespace: yass-system
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: yass-experiment-apiservice
+  namespace: yass-system
+spec:
+  selector:
+    app: yass-experiment-apiservice
+  ports:
+    - port: 443
+      targetPort: 6443
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yass-experiment-apiservice
+  namespace: yass-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: yass-experiment-apiservice
+  template:
+    metadata:
+      labels:
+        app: yass-experiment-apiservice
+    spec:
+      serviceAccountName: yass-experiment-apiservice
+      containers:
+        - name: apiservice
+          # Must be a yass-internal-components build that contains the
+          # experiment-apiservice binary; pin to a concrete tag at install time.
+          image: ghcr.io/duobitx/yass-internal-components:latest
+          imagePullPolicy: IfNotPresent
+          command:
+            - "/experiment-apiservice"
+          env:
+            - name: SECURE_PORT
+              value: "6443"
+            - name: ADVERTISE_HOST
+              value: yass-experiment-apiservice.yass-system.svc
+          ports:
+            - containerPort: 6443
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 6443
+              scheme: HTTPS
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /livez
+              port: 6443
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+---
+apiVersion: apiregistration.k8s.io/v1
+kind: APIService
+metadata:
+  name: v1.runtime.esa.yass
+spec:
+  group: runtime.esa.yass
+  version: v1
+  groupPriorityMinimum: 1000
+  versionPriority: 15
+  # Dev default: the kube-apiserver does not verify the backend's self-signed
+  # serving cert. Harden on prod with cert-manager + caBundle (cainjector).
+  insecureSkipTLSVerify: true
+  service:
+    name: yass-experiment-apiservice
+    namespace: yass-system
+    port: 443
