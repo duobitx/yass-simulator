@@ -10,6 +10,7 @@ import (
 	"time"
 
 	yassv1 "github.com/duobitx/yass-simulator/yass-operator/api/v1"
+	"github.com/m-szalik/goutils"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -25,6 +26,8 @@ const labelExperiment = "yass-experiment"
 // per-namespace experiment-executor and events-webapp Services.
 type Backend struct {
 	client client.Client
+	loki   *lokiClient
+	prom   *promClient
 }
 
 func NewBackend() (*Backend, error) {
@@ -43,7 +46,11 @@ func NewBackend() (*Backend, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Backend{client: c}, nil
+	return &Backend{
+		client: c,
+		loki:   newLokiClient(goutils.Env("LOKI_URL", "http://loki.yass-system.svc.cluster.local:3100"), goutils.Env("LOKI_TENANT", "")),
+		prom:   newPromClient(goutils.Env("PROMETHEUS_URL", "http://prometheus.yass-system.svc.cluster.local:9090")),
+	}, nil
 }
 
 func executorBase(ns string) string {
@@ -91,13 +98,6 @@ func (b *Backend) handleEvents(_ context.Context, ns, _ string, w http.ResponseW
 // handleStart — POST proxied to the executor (subresource /start).
 func (b *Backend) handleStart(_ context.Context, ns, _ string, w http.ResponseWriter, req *http.Request) {
 	proxyTo(w, req, executorBase(ns), "/start", false)
-}
-
-// handleResults — placeholder; results export (parquet) not implemented yet.
-func (b *Backend) handleResults(_ context.Context, _, _ string, w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusNotImplemented)
-	_, _ = w.Write([]byte(`{"error":"results export not implemented yet"}`))
 }
 
 // fsNodeView is the full per-node object returned by subresource /fsnodes:
