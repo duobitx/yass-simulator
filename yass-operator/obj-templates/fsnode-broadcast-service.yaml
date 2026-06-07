@@ -11,7 +11,7 @@ spec:
   clusterIP: None
   publishNotReadyAddresses: true
   selector:
-    yass-experiment: "{{ .experimentName }}"
+    yass-experiment: "{{ .Values.experimentName }}"
   ports:
     - name: recruit
       protocol: UDP
