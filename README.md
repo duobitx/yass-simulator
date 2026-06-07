@@ -12,6 +12,23 @@ Monorepo with the two components that together implement the YASS simulator:
 - A single experiment may declare at most **1024 FsNodes** (satellites + ground stations combined).
 - For larger experiments — many FsNodes, and/or several experiments running in parallel — the cluster **control plane (API server + etcd), not the worker nodes, is usually the first bottleneck**. Every FsNode is a Pod and the simulation drives a high rate of API operations (status updates, fault-event churn, pod lifecycle), so make sure the control-plane nodes are sized accordingly and limit how many experiments run at once. An undersized control plane can become unresponsive and stall or fail otherwise-healthy runs even when the workers are nearly idle.
 
+## FsNode broadcast (`fsnode-broadcast` service)
+
+Alongside the per-experiment infrastructure services (`messaging`, `experiment-executor`,
+`mqtt2prom`, …), the operator creates a headless Service **`fsnode-broadcast`** in every
+experiment namespace (template `yass-operator/obj-templates/fsnode-broadcast-service.yaml`,
+selector `yass-experiment: <experiment>`). Being headless, its DNS name resolves to **every
+FsNode pod IP**, so any component running on an FsNode can use it as a broadcast channel.
+
+To broadcast, send a UDP datagram to each IP the name resolves to, on a port inside the
+`world-controller`'s tc-managed range (**9000–9999**). tc then **drops the datagram for peers that
+are not currently in line-of-sight** and delivers it only to current LOS neighbours — reproducing a
+physical RF broadcast (only nodes in range hear it) without needing multicast. The short name
+`fsnode-broadcast` resolves in-namespace, so no FQDN is needed.
+
+This is a general-purpose facility — any component may use it. For example, the EDFS replication
+protocol uses it (UDP port 9101) to recruit nearby FsNodes to pin a file.
+
 ## Build
 
 ```shell

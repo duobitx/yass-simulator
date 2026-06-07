@@ -213,6 +213,7 @@ func (r *Reconciler) createOrUpdateExperiment(recon *reconciliationStatus, ctx c
 	}{
 		{"messaging-statefulSet.yaml", "messaging", "", &appsv1.StatefulSet{}, modAddExperimentAnnotation(experiment.Name)},
 		{"messaging-service.yaml", "messaging", "", &v1.Service{}, nil},
+		{"fsnode-broadcast-service.yaml", "fsnode-broadcast", "", &v1.Service{}, nil},
 		{"experiment-executor-statefulSet.yaml", "experiment-executor", "", &appsv1.StatefulSet{}, modAddExperimentAnnotation(experiment.Name)},
 		{"experiment-executor-service.yaml", "experiment-executor", "", &v1.Service{}, nil},
 		{"events-webapp-deployment.yaml", "events-webapp", "", &appsv1.Deployment{}, modAddExperimentAnnotation(experiment.Name)},

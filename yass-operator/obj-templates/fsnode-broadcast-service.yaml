@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fsnode-broadcast
+spec:
+  # Headless: the DNS name resolves to EVERY FsNode pod IP, so an edfs-engine can
+  # UDP-send a recruit packet to all of them. The world-controller's tc then drops
+  # packets to non-LOS peers, delivering only to current LOS neighbours — the
+  # broadcast's physical locality without multicast. UDP 9101 sits inside the
+  # tc-managed 9000-9999 range so the LOS gating applies.
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    yass-experiment: "{{ .experimentName }}"
+  ports:
+    - name: recruit
+      protocol: UDP
+      port: 9101
+      targetPort: 9101
