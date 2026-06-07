@@ -13,8 +13,10 @@ package resources
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -104,10 +106,15 @@ func (p *Publisher) Snapshot(ctx context.Context, periodSeconds float64) *proto.
 func (p *Publisher) collectVolumes() []*proto.VolumeUsage {
 	out := make([]*proto.VolumeUsage, 0, len(p.volumes))
 	for _, v := range p.volumes {
-		used, total, ok := statfs(v.MountPath)
+		total, ok := fsTotalBytes(v.MountPath)
 		if !ok {
-			continue
+			continue // mount missing → omit this volume
 		}
+		// Used = sum of the volume's own file sizes (du), NOT statfs of the host
+		// filesystem: the mount shares the worker's disk with every other pod, so
+		// statfs reported the whole node and was identical across volumes and large
+		// even on idle FsNodes. A du-style sum reflects this FsNode's actual data.
+		used := dirUsedBytes(v.MountPath)
 		capacity := total
 		if v.HardLimited && p.hwSpec != nil && p.hwSpec.DiskSpace != nil {
 			capacity = uint64(p.hwSpec.DiskSpace.Value())
@@ -123,19 +130,32 @@ func (p *Publisher) collectVolumes() []*proto.VolumeUsage {
 	return out
 }
 
-// statfs returns bytes-used and total bytes on the filesystem backing
-// mountPath. Returns ok=false if the path is not accessible.
-func statfs(mountPath string) (used, total uint64, ok bool) {
+// fsTotalBytes returns the total capacity of the filesystem backing mountPath
+// (the default capacity for non-hard-limited volumes). ok=false if the path is
+// not accessible — used to omit volumes whose mount is missing.
+func fsTotalBytes(mountPath string) (total uint64, ok bool) {
 	var stat syscall.Statfs_t
 	if err := syscall.Statfs(mountPath, &stat); err != nil {
-		return 0, 0, false
+		return 0, false
 	}
-	total = stat.Blocks * uint64(stat.Bsize)
-	avail := stat.Bavail * uint64(stat.Bsize)
-	if total < avail {
-		return 0, total, true
-	}
-	return total - avail, total, true
+	return stat.Blocks * uint64(stat.Bsize), true
+}
+
+// dirUsedBytes returns the total size of all regular files under root — a
+// du-style sum of the volume's own contents. Unreadable entries are skipped so
+// a transient error never aborts the whole walk.
+func dirUsedBytes(root string) uint64 {
+	var total uint64
+	_ = filepath.WalkDir(root, func(_ string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return nil
+		}
+		if info, ierr := d.Info(); ierr == nil && info.Mode().IsRegular() {
+			total += uint64(info.Size())
+		}
+		return nil
+	})
+	return total
 }
 
 type containerAcc struct {
