@@ -106,6 +106,9 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitRet c
 			if err != nil {
 				return ctrl.Result{}, err
 			}
+			// Best-effort: free this experiment's observability data (Loki +
+			// Prometheus). Never blocks deletion if they are absent/unreachable.
+			r.deleteExperimentData(ctx, &experiment)
 			controllerutil.RemoveFinalizer(&experiment, removeFsNodesFinalizer)
 			if err := r.Update(ctx, &experiment); err != nil {
 				return ctrl.Result{RequeueAfter: 1 * time.Second}, err
