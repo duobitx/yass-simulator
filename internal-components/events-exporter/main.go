@@ -100,6 +100,9 @@ func main() {
 	}
 	slog.Info("fetched", "entries", len(entries))
 
+	entries = dedupEntries(entries)
+	slog.Info("deduped", "entries", len(entries))
+
 	sheets := groupIntoSheets(entries)
 
 	f, err := os.Create(outPath)
@@ -126,6 +129,45 @@ func main() {
 		os.Exit(7)
 	}
 	slog.Info("written", "path", outPath, "sheets", len(sheets), "format", *format)
+}
+
+// dedupEntries drops duplicate log lines that several metrics-bridge exporter pods
+// push for the SAME event: Loki keeps one stream per pod/instance, so an identical
+// event arrives once per pusher. We key on the event's identity labels — excluding the
+// volatile pod/instance/scrape stream labels — plus the line body, keeping the first.
+// (Copies whose body differs slightly, e.g. a per-pod deliverySeconds, are collapsed
+// downstream by the report on (name,source,target).)
+func dedupEntries(in []lokiquery.Entry) []lokiquery.Entry {
+	volatile := map[string]bool{
+		"pod": true, "instance": true, "job": true,
+		"namespace": true, "exported_namespace": true, "filename": true, "stream": true,
+	}
+	seen := make(map[string]struct{}, len(in))
+	out := make([]lokiquery.Entry, 0, len(in))
+	for _, e := range in {
+		keys := make([]string, 0, len(e.Labels))
+		for k := range e.Labels {
+			if !volatile[k] {
+				keys = append(keys, k)
+			}
+		}
+		sort.Strings(keys)
+		var b strings.Builder
+		for _, k := range keys {
+			b.WriteString(k)
+			b.WriteByte('=')
+			b.WriteString(e.Labels[k])
+			b.WriteByte('\x01')
+		}
+		b.WriteString(e.Line)
+		key := b.String()
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, e)
+	}
+	return out
 }
 
 func buildSelector(experiment, engine, runID string) string {
