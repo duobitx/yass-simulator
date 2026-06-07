@@ -41,6 +41,8 @@ type Metrics struct {
 	EdfsBlocksPresent       *prometheus.GaugeVec
 	EdfsBlocksTotal         *prometheus.GaugeVec
 	EdfsReplicaCompleteness *prometheus.GaugeVec
+	EdfsPinIntentCount      *prometheus.GaugeVec
+	EdfsReplicaCount        *prometheus.GaugeVec
 }
 
 func deliveryBuckets() []float64 {
@@ -116,6 +118,12 @@ func New(reg prometheus.Registerer) *Metrics {
 		EdfsReplicaCompleteness: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{Name: "yass_edfs_replica_completeness", Help: "0..1 fraction of CID's blocks present on fsNode. 1.0 = full replica."},
 			[]string{"cid", "fsNode"}),
+		EdfsPinIntentCount: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{Name: "yass_edfs_pin_intent_count", Help: "Number of distinct fsNodes that DECLARED intent to pin CID (even before any bytes)."},
+			[]string{"cid"}),
+		EdfsReplicaCount: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{Name: "yass_edfs_replica_count", Help: "Number of distinct fsNodes that hold a COMPLETE copy of CID (ack-on-complete)."},
+			[]string{"cid"}),
 	}
 	reg.MustRegister(
 		m.FileProducedTotal, m.FileProducedBytesTotal,
@@ -129,6 +137,7 @@ func New(reg prometheus.Registerer) *Metrics {
 		m.HardwareEventActive, m.HardwareEventDroppedTotal,
 		m.LosActive,
 		m.EdfsBlocksPresent, m.EdfsBlocksTotal, m.EdfsReplicaCompleteness,
+		m.EdfsPinIntentCount, m.EdfsReplicaCount,
 	)
 	return m
 }

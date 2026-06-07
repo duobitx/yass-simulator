@@ -71,6 +71,13 @@ type Bridge struct {
 	// exportOnce ensures the post-experiment export runs at most once even
 	// if the executor publishes the "ended" lifecycle event more than once.
 	exportOnce sync.Once
+
+	// edfsReplMu guards the per-CID distinct-node sets behind the EDFS
+	// replication counters (declared intent vs complete copies). Each gauge is
+	// re-set to the set size on every message so it reads as a real fsNode count.
+	edfsReplMu     sync.Mutex
+	pinIntentNodes map[string]map[string]struct{} // cid -> nodes that declared intent
+	replicaNodes   map[string]map[string]struct{} // cid -> nodes with a complete copy
 }
 
 // exportTimeout bounds the events-exporter subprocess so a hung export does
@@ -86,13 +93,41 @@ func New(cfg *config.Config, m *metrics.Metrics, loki *lokipush.Pusher, events k
 		events = k8sevents.Noop()
 	}
 	return &Bridge{
-		cfg:     cfg,
-		m:       m,
-		tracker: state.NewTracker(cfg.DeliveryDeadline, cfg.PendingPutsMaxSize),
-		ips:     state.NewIPMap(),
-		loki:    loki,
-		events:  events,
+		cfg:            cfg,
+		m:              m,
+		tracker:        state.NewTracker(cfg.DeliveryDeadline, cfg.PendingPutsMaxSize),
+		ips:            state.NewIPMap(),
+		loki:           loki,
+		events:         events,
+		pinIntentNodes: map[string]map[string]struct{}{},
+		replicaNodes:   map[string]map[string]struct{}{},
 	}
+}
+
+// edfsReplicaAckLike is the shared {CID, Node} shape of both the pin-intent and
+// replica-ack messages.
+type edfsReplicaAckLike struct {
+	CID  string
+	Node string
+}
+
+// onEdfsReplCount adds node to the per-CID set `set` and updates `gauge` to the
+// new distinct-node count — a real count of fsNodes, not a block fraction.
+func (b *Bridge) onEdfsReplCount(set map[string]map[string]struct{}, gauge *prometheus.GaugeVec, data []byte) {
+	var msg edfsReplicaAckLike
+	if err := json.Unmarshal(data, &msg); err != nil || msg.CID == "" || msg.Node == "" {
+		return
+	}
+	b.edfsReplMu.Lock()
+	nodes := set[msg.CID]
+	if nodes == nil {
+		nodes = map[string]struct{}{}
+		set[msg.CID] = nodes
+	}
+	nodes[msg.Node] = struct{}{}
+	n := len(nodes)
+	b.edfsReplMu.Unlock()
+	gauge.WithLabelValues(msg.CID).Set(float64(n))
 }
 
 // baseLabels are the run-identifying labels attached to every Loki entry.
@@ -185,6 +220,10 @@ func (b *Bridge) Handle(_ context.Context, topic string, _ bool, data []byte) {
 		b.onEdfsCids(topic, data)
 	case strings.HasPrefix(topic, "edfs-peers/") && !strings.HasSuffix(topic, "_"):
 		b.onEdfsPeers(data)
+	case strings.HasPrefix(topic, "edfs-pin-intent/") && !strings.HasSuffix(topic, "_"):
+		b.onEdfsReplCount(b.pinIntentNodes, b.m.EdfsPinIntentCount, data)
+	case strings.HasPrefix(topic, "edfs-replica-ack/") && !strings.HasSuffix(topic, "_"):
+		b.onEdfsReplCount(b.replicaNodes, b.m.EdfsReplicaCount, data)
 	case strings.HasPrefix(topic, "block-recv/") && !strings.HasSuffix(topic, "_"):
 		b.onBlockRecv(topic, data)
 	case topic == "updates/_time_":

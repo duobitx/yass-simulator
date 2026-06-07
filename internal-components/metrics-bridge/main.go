@@ -54,7 +54,7 @@ func main() {
 
 	// One subscription per topic-prefix the bridge cares about. Wildcards
 	// keep MQTT routing cheap on the broker side.
-	for _, topic := range []string{"crud-events", "+/resources", "total-network-stats/+", "online-states/+", "experiment-lifecycle", "hardware-events/+", "los/+", "edfs-cids/+", "edfs-peers/+", "block-recv/+", "updates/_time_"} {
+	for _, topic := range []string{"crud-events", "+/resources", "total-network-stats/+", "online-states/+", "experiment-lifecycle", "hardware-events/+", "los/+", "edfs-cids/+", "edfs-peers/+", "edfs-pin-intent/+", "edfs-replica-ack/+", "block-recv/+", "updates/_time_"} {
 		if err := facade.Subscribe(topic, br.Handle); err != nil {
 			goutils.ExitOnError(fmt.Errorf("subscribe %s: %w", topic, err), 4)
 		}
