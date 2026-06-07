@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -77,6 +78,11 @@ type appType struct {
 	// Hardware-event injection is gated on it so faults never fire during startup.
 	started     chan struct{}
 	startedOnce sync.Once
+
+	// destroyed is set by the hwevents Manager when a Destroy event fires. While
+	// set, agentVerdict reports a terminal non-errored phase, because Destroy is
+	// the one fault where the agent's exit code / sentinel must be ignored.
+	destroyed atomic.Bool
 }
 
 // signalStarted marks the experiment as started (first sim update received).
@@ -186,6 +192,12 @@ const agentContainerName = "agent"
 // The sentinel always wins over the exit code (an .ok agent that later exits
 // non-zero is still a success). text is the optional reason for the event.
 func (a *appType) agentVerdict(ctx context.Context, dir string) (phase yassv1.FsNodePhase, text string, decided bool) {
+	// Destroy is the one fault where the agent's exit code / sentinel is
+	// irrelevant: a SIGKILLed agent must NOT mark the node (and thus the whole
+	// experiment) Errored. Report a terminal, non-errored phase instead.
+	if a.destroyed.Load() {
+		return yassv1.FsNodePhaseMissionCompleted, "node destroyed by hardware event", true
+	}
 	if b, err := os.ReadFile(dir + "/agent.exit.ok"); err == nil {
 		return yassv1.FsNodePhaseMissionCompleted, strings.TrimSpace(string(b)), true
 	}
@@ -491,6 +503,7 @@ func main() {
 				return resPublisher.PIDsByContainerNames(ctx, names)
 			},
 			PublishOffln: func() error { return app.publishOnlineState(false) },
+			OnDestroy:    func() { app.destroyed.Store(true) },
 		})
 		// Gate fault injection on the experiment actually starting (first sim
 		// update). Otherwise DiskFailure/DiskFull etc. could fire during pod

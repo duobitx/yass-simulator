@@ -68,6 +68,7 @@ type Manager struct {
 	getPeerIPs   func() []string
 	killTargets  func() []int // returns PIDs of engine + agent processes
 	publishOffln func() error // signal "offline" on Destroy
+	onDestroy    func()       // mark the node destroyed so a SIGKILLed agent is not read as Errored
 
 	mu        sync.Mutex
 	expStart  time.Time // wall-clock at t=0
@@ -106,6 +107,7 @@ type Config struct {
 	GetPeerIPs   func() []string
 	KillTargets  func() []int
 	PublishOffln func() error
+	OnDestroy    func()
 }
 
 func New(cfg Config) *Manager {
@@ -120,6 +122,7 @@ func New(cfg Config) *Manager {
 		getPeerIPs:   cfg.GetPeerIPs,
 		killTargets:  cfg.KillTargets,
 		publishOffln: cfg.PublishOffln,
+		onDestroy:    cfg.OnDestroy,
 		active:       map[yassv1.HardwareEventType]*activeFault{},
 		schedState:   make([]*eventSchedState, len(cfg.Events)),
 	}
@@ -504,6 +507,13 @@ func UnmountAllErrorFS() {
 }
 
 func (m *Manager) destroy(ctx context.Context) error {
+	// Signal destruction BEFORE the SIGKILL so the world-controller's agent-
+	// verdict loop already sees the node as destroyed by the time the agent
+	// container terminates — Destroy is the one fault where the agent's exit
+	// code / sentinel is irrelevant and must NOT yield an Errored phase.
+	if m.onDestroy != nil {
+		m.onDestroy()
+	}
 	pids := []int{}
 	if m.killTargets != nil {
 		pids = m.killTargets()
