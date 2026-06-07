@@ -111,9 +111,12 @@ type edfsReplicaAckLike struct {
 	Node string
 }
 
-// onEdfsReplCount adds node to the per-CID set `set` and updates `gauge` to the
-// new distinct-node count — a real count of fsNodes, not a block fraction.
-func (b *Bridge) onEdfsReplCount(set map[string]map[string]struct{}, gauge *prometheus.GaugeVec, data []byte) {
+// onEdfsReplCount adds node to the per-CID set `set`, updates `gauge` to the new
+// distinct-node count (a real fsNode count, not a block fraction), and — the FIRST
+// time a (node, cid) pair is seen — emits a per-node timestamped event of `kind`
+// (e.g. "edfs_recruit"/"edfs_replica") so the export records "fsNode X recruited/
+// completed at time T".
+func (b *Bridge) onEdfsReplCount(set map[string]map[string]struct{}, gauge *prometheus.GaugeVec, kind, eventType string, data []byte) {
 	var msg edfsReplicaAckLike
 	if err := json.Unmarshal(data, &msg); err != nil || msg.CID == "" || msg.Node == "" {
 		return
@@ -124,10 +127,14 @@ func (b *Bridge) onEdfsReplCount(set map[string]map[string]struct{}, gauge *prom
 		nodes = map[string]struct{}{}
 		set[msg.CID] = nodes
 	}
+	_, seen := nodes[msg.Node]
 	nodes[msg.Node] = struct{}{}
 	n := len(nodes)
 	b.edfsReplMu.Unlock()
 	gauge.WithLabelValues(msg.CID).Set(float64(n))
+	if !seen {
+		b.pushEvent(kind, msg.Node, eventType, time.Now(), map[string]any{"cid": msg.CID})
+	}
 }
 
 // baseLabels are the run-identifying labels attached to every Loki entry.
@@ -221,9 +228,9 @@ func (b *Bridge) Handle(_ context.Context, topic string, _ bool, data []byte) {
 	case strings.HasPrefix(topic, "edfs-peers/") && !strings.HasSuffix(topic, "_"):
 		b.onEdfsPeers(data)
 	case strings.HasPrefix(topic, "edfs-pin-intent/") && !strings.HasSuffix(topic, "_"):
-		b.onEdfsReplCount(b.pinIntentNodes, b.m.EdfsPinIntentCount, data)
+		b.onEdfsReplCount(b.pinIntentNodes, b.m.EdfsPinIntentCount, "edfs_recruit", "RECRUITED", data)
 	case strings.HasPrefix(topic, "edfs-replica-ack/") && !strings.HasSuffix(topic, "_"):
-		b.onEdfsReplCount(b.replicaNodes, b.m.EdfsReplicaCount, data)
+		b.onEdfsReplCount(b.replicaNodes, b.m.EdfsReplicaCount, "edfs_replica", "COMPLETE", data)
 	case strings.HasPrefix(topic, "block-recv/") && !strings.HasSuffix(topic, "_"):
 		b.onBlockRecv(topic, data)
 	case topic == "updates/_time_":
