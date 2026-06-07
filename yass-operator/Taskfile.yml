@@ -1,12 +1,12 @@
 version: '3'
 
 vars:
-  VERSION:
+  TAG:
     sh: |
       v=$(git describe --tags --exact-match 2>/dev/null || true)
       if [ -n "$v" ]; then echo "${v#v}";
       elif s=$(git rev-parse --short=8 HEAD 2>/dev/null); then echo "${s}";
-      else echo latest; fi
+      else date '+%Y%m%dt%H%M%S'; fi
   IMG: 'ghcr.io/duobitx/yass-operator'
 
 tasks:
@@ -29,9 +29,9 @@ tasks:
       - make docker-build IMG={{.IMG}}
       - make docker-push IMG={{.IMG}}
       - 'echo "📦 pushed {{.IMG}}"'
-      - docker tag {{.IMG}} {{.IMG}}:{{.VERSION}}
-      - make docker-push IMG={{.IMG}}:{{.VERSION}}
-      - 'echo "📦 pushed {{.IMG}}:{{.VERSION}}"'
+      - docker tag {{.IMG}} {{.IMG}}:{{.TAG}}
+      - make docker-push IMG={{.IMG}}:{{.TAG}}
+      - 'echo "📦 pushed {{.IMG}}:{{.TAG}}"'
 
   help:
     desc: Display Makefile help
