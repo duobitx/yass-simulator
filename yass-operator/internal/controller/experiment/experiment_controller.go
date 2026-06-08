@@ -108,6 +108,13 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitRet c
 		}
 		return ctrl.Result{}, nil
 	}
+	// Skip reconciling into a namespace that is being deleted;
+	if terminating, nsErr := controller.NamespaceTerminating(ctx, r.Client, experiment.Namespace); nsErr != nil {
+		return ctrl.Result{}, nsErr
+	} else if terminating {
+		return ctrl.Result{}, nil
+	}
+
 	logger.Info(fmt.Sprintf("req %+v, experiment.status: %+v", req, experiment.Status))
 
 	// Add finalizer if not present

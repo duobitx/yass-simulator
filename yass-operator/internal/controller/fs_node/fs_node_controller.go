@@ -112,6 +112,12 @@ func (r *FsNodeReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctr
 		}
 		return ctrl.Result{}, nil
 	}
+	// Stop reconciling a node whose namespace is being torn down: creating its
+	if terminating, nsErr := controller.NamespaceTerminating(ctx, r.Client, fsNode.Namespace); nsErr != nil {
+		return ctrl.Result{}, nsErr
+	} else if terminating {
+		return ctrl.Result{}, nil
+	}
 
 	if fsNode.Spec.NodeType == "" {
 		fsNode.Spec.NodeType = yassv1.FsNodeTypeSatellite
