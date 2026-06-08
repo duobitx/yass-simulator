@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -29,7 +31,16 @@ import (
 const (
 	experimentEndTopic       = "experiment/end-request"
 	experimentLifecycleTopic = "experiment-lifecycle"
+	crudEventsTopic          = "crud-events"
 )
+
+// crudEventMsg is the subset of the fs-engine-wrapper NotifyEvent (capitalised
+// Go keys) the executor needs to judge completion off the crud-events stream.
+type crudEventMsg struct {
+	Name       string `json:"Name"`
+	FsNodeName string `json:"FsNodeName"`
+	Type       string `json:"Type"`
+}
 
 type AppType struct {
 	mainCtx             context.Context
@@ -43,6 +54,25 @@ type AppType struct {
 	experimentStartedAt atomic.Pointer[time.Time]
 	experimentTime      atomic.Pointer[time.Time]
 	starting            atomic.Bool
+
+	// Server-side completion. The executor decides Success from the authoritative
+	// `crud-events` stream (the same one metrics-bridge consumes), instead of
+	// relying only on a ground-station agent's best-effort `end-request` broadcast.
+	// terminators are the broadcast ground stations (SUCCESS_BROADCAST=true in the
+	// ExperimentDefinition); the rule mirrors the agent's SUCCESS_AFTER_FILES.
+	terminators    map[string]completionRule
+	produced       map[string]struct{}
+	receivedByNode map[string]map[string]struct{}
+	completionMu   sync.Mutex
+	completed      atomic.Bool
+}
+
+// completionRule is the per-terminator success condition lifted from the GS
+// behaviour's SUCCESS_AFTER_FILES env: a fixed count N, or `all` (the node must
+// hold every produced file).
+type completionRule struct {
+	countAll bool
+	n        int
 }
 
 func (t *AppType) handleOnlineUpdate(_ context.Context, data []byte) error {
@@ -108,6 +138,8 @@ func NewApp(ctx context.Context, facade com.Facade) (*AppType, error) {
 		nodeTypes:         map[string]yassv1.FsNodeType{},
 		nodesLock:         sync.Mutex{},
 		namespace:         goutils.Env("NAMESPACE", ""),
+		produced:          map[string]struct{}{},
+		receivedByNode:    map[string]map[string]struct{}{},
 	}
 
 	if err := app.refreshNodeTypes(ctx); err != nil {
@@ -176,6 +208,41 @@ func (t *AppType) Start(ctxParent context.Context) error {
 		t.starting.Store(false)
 		return errors.Wrapf(err, "cannot subscribe to %s", experimentEndTopic)
 	}
+
+	// Server-side completion: end the run as Success from the authoritative
+	// crud-events stream, independent of the GS agent's best-effort end-request
+	// broadcast. Only active when the def marks broadcast terminators; otherwise
+	// this is a no-op and the run ends on maxDuration / the agent broadcast.
+	t.terminators = t.loadCompletionTerminators(experimentCtx)
+	if len(t.terminators) > 0 {
+		err = t.facade.Subscribe(crudEventsTopic, func(sCtx context.Context, topic string, retained bool, data []byte) {
+			if t.completed.Load() {
+				return
+			}
+			e := &crudEventMsg{}
+			if err := json.Unmarshal(data, e); err != nil {
+				slog.Default().Warn("cannot unmarshal content from topic", "topic", crudEventsTopic, "error", err)
+				return
+			}
+			done, comment := t.recordCrudForCompletion(e)
+			if !done || !t.completed.CompareAndSwap(false, true) {
+				return
+			}
+			slog.Default().Info("server-side completion reached", "comment", comment)
+			// Persist Success BEFORE cancelling: cancellation stops the geocalc
+			// loop, so this is the only chance to record the terminal state.
+			if err := t.setExperimentTerminalState(yassv1.ExperimentStateSuccess); err != nil {
+				slog.Default().Error("cannot write experiment terminal state", "state", yassv1.ExperimentStateSuccess, "error", err)
+			}
+			cancel(NewExperimentEndErrorWithComment(ExperimentEndDueToScenarioSuccess, comment))
+		})
+		if err != nil {
+			t.starting.Store(false)
+			return errors.Wrapf(err, "cannot subscribe to %s", crudEventsTopic)
+		}
+		slog.Default().Info("server-side completion enabled", "terminators", len(t.terminators))
+	}
+
 	var experimentEndAt time.Time // experiment time
 	dataCh, errCh := geocalc.RunGeoCalc(experimentCtx, 5*time.Second)
 	go func() {
@@ -471,6 +538,99 @@ func (t *AppType) isGroundStation(name string) bool {
 	nt, ok := t.nodeTypes[name]
 	t.nodesLock.Unlock()
 	return ok && nt == yassv1.FsNodeTypeGroundStation
+}
+
+// loadCompletionTerminators reads the experiment's ExperimentDefinition and
+// returns one completionRule per ground station that the generators marked as a
+// run terminator (`SUCCESS_BROADCAST=true`), keyed by FsNode name. The rule is
+// lifted from the same `SUCCESS_AFTER_FILES` env the receive-only agent uses, so
+// server-side completion is byte-for-byte the condition the agent would apply —
+// just authoritative. Returns nil (server-side completion disabled) when the def
+// is unreadable or marks no broadcast terminators.
+func (t *AppType) loadCompletionTerminators(ctx context.Context) map[string]completionRule {
+	def := &yassv1.ExperimentDefinition{}
+	key := client.ObjectKey{Namespace: t.namespace, Name: t.ExperimentDefData.Name}
+	if err := t.k8sClient.Get(ctx, key, def); err != nil {
+		slog.Default().Warn("cannot load ExperimentDefinition; server-side completion disabled", "name", key, "error", err)
+		return nil
+	}
+	rules := map[string]completionRule{}
+	for i := range def.Spec.Behaviours {
+		b := &def.Spec.Behaviours[i]
+		if !envTrue(b.Agent.Envs["SUCCESS_BROADCAST"]) {
+			continue
+		}
+		raw := strings.TrimSpace(strings.ToLower(b.Agent.Envs["SUCCESS_AFTER_FILES"]))
+		if raw == "all" {
+			rules[b.FsNodeName] = completionRule{countAll: true}
+			continue
+		}
+		n := 1
+		if v, err := strconv.Atoi(raw); err == nil && v > 1 {
+			n = v
+		}
+		rules[b.FsNodeName] = completionRule{n: n}
+	}
+	if len(rules) == 0 {
+		return nil
+	}
+	return rules
+}
+
+// recordCrudForCompletion folds one crud-event into the completion tracker and
+// reports whether a terminator's condition is now met. PUT grows the produced
+// set; RECEIVED at a terminator grows that node's received set. A fixed-count
+// rule fires once the node holds N files; an `all` rule fires once the node
+// holds every produced file.
+func (t *AppType) recordCrudForCompletion(e *crudEventMsg) (bool, string) {
+	if e.Name == "" {
+		return false, ""
+	}
+	t.completionMu.Lock()
+	defer t.completionMu.Unlock()
+	switch e.Type {
+	case "PUT":
+		t.produced[e.Name] = struct{}{}
+	case "RECEIVED":
+		rule, isTerminator := t.terminators[e.FsNodeName]
+		if !isTerminator {
+			return false, ""
+		}
+		recv := t.receivedByNode[e.FsNodeName]
+		if recv == nil {
+			recv = map[string]struct{}{}
+			t.receivedByNode[e.FsNodeName] = recv
+		}
+		recv[e.Name] = struct{}{}
+		if rule.countAll {
+			if len(t.produced) > 0 && subset(t.produced, recv) {
+				return true, fmt.Sprintf("%s holds all %d produced file(s)", e.FsNodeName, len(t.produced))
+			}
+			return false, ""
+		}
+		if len(recv) >= rule.n {
+			return true, fmt.Sprintf("%s received %d/%d file(s)", e.FsNodeName, len(recv), rule.n)
+		}
+	}
+	return false, ""
+}
+
+func envTrue(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "yes", "on", "y", "t":
+		return true
+	}
+	return false
+}
+
+// subset reports whether every key of want is present in have.
+func subset(want, have map[string]struct{}) bool {
+	for k := range want {
+		if _, ok := have[k]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 // Terrestrial GS-GS links bypass line-of-sight filtering done by geo_calc;
