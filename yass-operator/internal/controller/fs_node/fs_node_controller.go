@@ -50,6 +50,8 @@ const (
 	sharedVolumeName                = "fs-node-shared-volume"
 	removeFsNodeComponentsFinalizer = "fsnode-controller/cleanup"
 	agentContainerName              = "agent"
+
+	gracefulPODDeletionTime = 5
 )
 
 var engineOpenPorts = map[int]v1.Protocol{
@@ -222,6 +224,10 @@ func (r *FsNodeReconciler) removeFsNode(ctx context.Context, req ctrl.Request) e
 	}
 	if err != nil {
 		return err
+	}
+
+	if !pod.DeletionTimestamp.IsZero() {
+		return r.Delete(ctx, pod, client.GracePeriodSeconds(gracefulPODDeletionTime))
 	}
 	return r.Delete(ctx, pod)
 }
