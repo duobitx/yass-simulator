@@ -488,7 +488,11 @@ func (r *Reconciler) updateStatusConditionForExperimentObject(recon *reconciliat
 			ready = x.Status.AvailableReplicas > 0
 			newReason = goutils.BoolToStr(ready, fmt.Sprintf("Replicas_%d", x.Status.AvailableReplicas), "notReadyAtLeastOneReplicaIsRequired")
 		case *yassv1.FsNode:
-			ready = x.Status.Ready
+			// A node that reached a terminal phase has finished its mission; going
+			// not-ready afterwards (e.g. an intentional Destroy in UC4) is not a
+			// component failure. A genuine Errored node is still caught by
+			// evaluateExperimentOutcome's phase aggregation.
+			ready = x.Status.Ready || x.Status.Phase.IsTerminal()
 		default:
 			ready = true
 		}
