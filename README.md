@@ -7,6 +7,11 @@ Monorepo with the two components that together implement the YASS simulator:
 
 `internal-components` and `yass-operator` share Go types via the `go.work` file at this level.
 
+## Documentation
+
+- [`docs/INSTALLATION.md`](./docs/INSTALLATION.md) — prerequisites (cluster / KinD, kubectl) and installing the operator, cert-manager and the observability stack on a clean cluster.
+- [`docs/USER-GUIDE.md`](./docs/USER-GUIDE.md) — the custom resources and how they relate, writing/running/monitoring experiments, FsNode and Experiment state machines, downloading Parquet results, and writing your own agent or engine.
+
 ## Limits
 
 - A single experiment may declare at most **1024 FsNodes** (satellites + ground stations combined).
