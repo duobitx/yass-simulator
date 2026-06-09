@@ -17,10 +17,9 @@ tasks:
       - task: push
 
   build:
-    desc: Generate manifests, installer YAML, and helm chart
+    desc: Generate manifests and installer YAML
     cmds:
       - make build-installer IMG={{.IMG}}
-      - make helm-chart IMG={{.IMG}}
 
   push:
     desc: Build & push Docker image

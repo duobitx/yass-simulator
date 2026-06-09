@@ -6,8 +6,6 @@ cliVersion: 4.9.0
 domain: int.esa
 layout:
 - go.kubebuilder.io/v4
-plugins:
-  helm.kubebuilder.io/v1-alpha: {}
 projectName: yass
 repo: github.com/duobitx/yass-simulator/yass-operator
 resources:
