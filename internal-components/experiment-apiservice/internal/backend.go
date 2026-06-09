@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -85,9 +86,59 @@ func proxyTo(w http.ResponseWriter, req *http.Request, base, path string, flush 
 	rp.ServeHTTP(w, req)
 }
 
-// handleTime — live experiment time from the executor (subresource /time).
-func (b *Backend) handleTime(_ context.Context, ns, _ string, w http.ResponseWriter, req *http.Request) {
-	proxyTo(w, req, executorBase(ns), "/time", false)
+// timePayload mirrors the executor's GET /time response, so the CR-status
+// fallback is byte-compatible with the live endpoint.
+type timePayload struct {
+	Ongoing        bool   `json:"ongoing"`
+	ExperimentTime string `json:"experimentTime,omitempty"`
+}
+
+// handleTime — experiment time for subresource /time. Prefers the live value
+// from the experiment-executor; when the executor is unreachable (e.g. after
+// evictResourcesAfter has freed the experiment's compute) it falls back to the
+// last time recorded on the Experiment CR status, so /time keeps answering for
+// terminated experiments.
+func (b *Backend) handleTime(ctx context.Context, ns, name string, w http.ResponseWriter, _ *http.Request) {
+	if body, ok := fetchExecutorTime(ctx, ns); ok {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+		return
+	}
+	exp := &yassv1.Experiment{}
+	if err := b.client.Get(ctx, client.ObjectKey{Namespace: ns, Name: name}, exp); err != nil {
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	payload := timePayload{Ongoing: exp.Status.ExperimentState == yassv1.ExperimentStateOngoing}
+	if t := exp.Status.ExperimentTime; !t.IsZero() {
+		payload.ExperimentTime = t.UTC().Format(time.RFC3339)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+// fetchExecutorTime returns the executor's raw GET /time body, or ok=false if
+// the executor is unreachable or does not answer 200.
+func fetchExecutorTime(ctx context.Context, ns string) ([]byte, bool) {
+	reqCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, executorBase(ns)+"/time", nil)
+	if err != nil {
+		return nil, false
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, false
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusOK {
+		return nil, false
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, false
+	}
+	return body, true
 }
 
 // handleEvents — SSE stream from events-webapp (subresource /events).
