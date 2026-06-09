@@ -7,9 +7,13 @@ import (
 
 	"github.com/m-szalik/goutils"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	openapinamer "k8s.io/apiserver/pkg/endpoints/openapi"
 	"k8s.io/apiserver/pkg/registry/rest"
 	genericserver "k8s.io/apiserver/pkg/server"
 	genericoptions "k8s.io/apiserver/pkg/server/options"
+	"k8s.io/apiserver/pkg/util/compatibility"
+	openapicommon "k8s.io/kube-openapi/pkg/common"
+	"k8s.io/kube-openapi/pkg/validation/spec"
 )
 
 // Options configures the aggregated API server.
@@ -38,6 +42,40 @@ func Run(ctx context.Context, opts *Options) error {
 	}
 
 	cfg := genericserver.NewRecommendedConfig(Codecs)
+	// apiserver v0.34 no longer defaults EffectiveVersion in NewConfig; Complete()
+	// dereferences it, so set it from the build version explicitly.
+	cfg.EffectiveVersion = compatibility.DefaultBuildEffectiveVersion()
+
+	// InstallAPIGroup walks the served resources and looks up an OpenAPI model
+	// (by canonical Go type name) for each. There are no generated openapi
+	// definitions for this facade, so synthesize a minimal `{type: object}`
+	// schema for every type registered in the Scheme — enough to satisfy the
+	// model walk without code-gen.
+	namer := openapinamer.NewDefinitionNamer(Scheme)
+	emptyDefs := func(openapicommon.ReferenceCallback) map[string]openapicommon.OpenAPIDefinition {
+		defs := map[string]openapicommon.OpenAPIDefinition{}
+		objectDef := openapicommon.OpenAPIDefinition{
+			Schema: spec.Schema{SchemaProps: spec.SchemaProps{Type: []string{"object"}}},
+		}
+		for _, t := range Scheme.AllKnownTypes() {
+			if t.PkgPath() == "" {
+				continue
+			}
+			defs[t.PkgPath()+"."+t.Name()] = objectDef
+		}
+		return defs
+	}
+	cfg.OpenAPIConfig = genericserver.DefaultOpenAPIConfig(emptyDefs, namer)
+	cfg.OpenAPIConfig.Info.Title = "experiment-apiservice"
+	cfg.OpenAPIConfig.Info.Version = "v1"
+	cfg.OpenAPIV3Config = genericserver.DefaultOpenAPIV3Config(emptyDefs, namer)
+	cfg.OpenAPIV3Config.Info.Title = "experiment-apiservice"
+	cfg.OpenAPIV3Config.Info.Version = "v1"
+	// Don't serve the aggregated /openapi document: building the root spec needs
+	// the full generated model set (version.Info, discovery types, ...) we
+	// deliberately don't carry. The SSA type converter still uses the configs
+	// above for the served Experiment resource.
+	cfg.SkipOpenAPIInstallation = true
 
 	secure := genericoptions.NewSecureServingOptions().WithLoopback()
 	secure.BindPort = opts.SecurePort

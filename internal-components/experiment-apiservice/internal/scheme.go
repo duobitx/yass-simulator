@@ -35,6 +35,10 @@ var (
 func init() {
 	Scheme.AddKnownTypes(GroupVersion, &yassv1.Experiment{}, &yassv1.ExperimentList{})
 	metav1.AddToGroupVersion(Scheme, GroupVersion)
+	// The apiserver decodes request options (ListOptions/GetOptions/...) against
+	// the meta internal version (empty group, "v1"); register them there too or
+	// resource installation fails with `no kind "ListOptions" registered`.
+	metav1.AddToGroupVersion(Scheme, schema.GroupVersion{Version: "v1"})
 }
 
 func groupResource() schema.GroupResource {
