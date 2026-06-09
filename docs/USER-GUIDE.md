@@ -341,6 +341,19 @@ kubectl get --raw "$URL/time"    | jq .
 kubectl get --raw "$URL/fsnodes" | jq .
 ```
 
+**With the web UI.** While the experiment is running, the operator creates a
+`yass-web-ui` service **in the experiment's namespace** that serves a live
+visualisation of the world (node positions, line-of-sight links and per-node
+state). Port-forward it and open it in a browser:
+
+```bash
+kubectl -n my-experiment port-forward svc/yass-web-ui 8080:80
+# -> http://localhost:8080
+```
+
+The web UI is per-experiment and only useful while the run's Pods exist, so reach
+it before the run ends or before `evictResourcesAfter` reclaims the Pods.
+
 **With Grafana** (port-forward from `yass-system`, login `admin` / `yass-admin`):
 
 ```bash
