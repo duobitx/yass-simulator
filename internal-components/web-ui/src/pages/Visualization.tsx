@@ -190,13 +190,6 @@ const Visualization = () => {
       <div className="flex-1 flex overflow-hidden">
         {/* Sidebar controls */}
         <aside className="w-72 border-r border-border bg-card/50 p-4 flex flex-col gap-6 hidden lg:flex overflow-y-auto flex-shrink-0">
-          <div className="p-3 rounded-lg bg-primary/10 border border-primary/20">
-            <p className="text-xs font-medium text-primary">Cesium Globe View</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Visualization powered by CesiumJS. Use the scene mode picker to switch between 3D, 2D, and Columbus views.
-            </p>
-          </div>
-
           {/* Ground Infrastructure */}
           <div className="space-y-4">
             <h3 className="text-sm font-semibold flex items-center gap-2">
@@ -293,8 +286,17 @@ const Visualization = () => {
                 <p>• Scroll to zoom</p>
               </div>
             </div>
-            <p className="hidden text-[10px] text-muted-foreground text-center">
-              Created by duobit.pl for ESA.
+            <p className="text-[10px] text-muted-foreground text-center">
+              Developed by{" "}
+              <a
+                href="https://duobit.pl"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-primary"
+              >
+                duobit.pl
+              </a>{" "}
+              for ESA.
             </p>
           </div>
         </aside>
