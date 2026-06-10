@@ -40,11 +40,15 @@ spec:
               value: ":9090"
           resources:
             requests:
-              cpu: "50m"
-              memory: "64Mi"
+              cpu: "100m"
+              memory: "256Mi"
             limits:
-              cpu: "500m"
-              memory: "512Mi"
+              # Large rosters (~200 nodes): mqtt2prom subscribes to every node's
+              # metric stream (plus the edfstracer per-block flood) and aggregates
+              # to /metrics. At 512Mi/500m it OOMs/throttles and restarts, which
+              # flips the metrics condition and Errors an already-running experiment.
+              cpu: "2"
+              memory: "2Gi"
           readinessProbe:
             httpGet:
               path: /metrics

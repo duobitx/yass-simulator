@@ -44,10 +44,13 @@ spec:
               mountPath: /var/yass-observability/exports
           resources:
             requests:
-              cpu: "50m"
+              cpu: "100m"
               memory: "256Mi"
             limits:
-              cpu: "500m"
+              # CPU 2 (not 500m): at large rosters the per-block edfstracer stream
+              # from ~200 nodes CPU-throttles the bridge at 500m, its readiness
+              # probe times out -> MetricsBridge notReady -> Errors a running run.
+              cpu: "2"
               # 2Gi (not 256Mi): with EDFS the edfstracer plugin publishes per-block
               # provenance (block-recv/<node>) on MQTT — thousands of messages for a
               # large file (a 2G file is ~8k blocks). At 256Mi metrics-bridge is
