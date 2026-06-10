@@ -5,6 +5,7 @@ go 1.25.7
 require (
 	github.com/duobitx/yass-simulator/internal-components/go-common v0.0.0-20251214230811-f06efdbb16cf
 	github.com/duobitx/yass-simulator/yass-operator v0.0.0-00010101000000-000000000000
+	github.com/eclipse/paho.mqtt.golang v1.5.1
 	github.com/gorilla/mux v1.8.1
 	github.com/m-szalik/com-facade v0.0.0-20260419000112-a6e0e334d5ca
 	github.com/m-szalik/goutils v0.4.0
@@ -20,7 +21,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/eclipse/paho.mqtt.golang v1.5.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.13.0 // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect

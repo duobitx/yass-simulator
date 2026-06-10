@@ -16,6 +16,7 @@ import (
 	"github.com/gorilla/mux"
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	pahomqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/m-szalik/com-facade/mqtt"
 	"github.com/m-szalik/goutils"
 )
@@ -27,7 +28,11 @@ func main() {
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer cancel()
 	facade := mqtt.NewFacade(ctx, fmt.Sprintf("%s-%d", consts.AppName, rand.Int()),
-		mqtt.WithHostPort("tcp://"+goutils.Env("MESSAGING_BROKER_HOST_PORT", "messaging:1883")))
+		mqtt.WithHostPort("tcp://"+goutils.Env("MESSAGING_BROKER_HOST_PORT", "messaging:1883")),
+		mqtt.WithMQTTOptions(func(o *pahomqtt.ClientOptions) {
+			o.SetKeepAlive(60 * time.Second)
+			o.SetPingTimeout(20 * time.Second)
+		}))
 	err := facade.Connect()
 	goutils.ExitOnError(err, 2)
 	app, err := internal.NewApp(ctx, facade)

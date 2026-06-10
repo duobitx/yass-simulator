@@ -327,6 +327,21 @@ func (t *AppType) Start(ctxParent context.Context) error {
 	return nil
 }
 
+// publishTimeout bounds a single MQTT publish. A QoS-0 message that is in flight
+// when the broker connection drops leaves a paho token that never completes (the
+// message is discarded on disconnect), so a publish on the uncancellable mainCtx
+// would block the single geocalc consumer loop forever — freezing experiment
+// time and the maxDuration timeout with it. The timeout abandons such a stalled
+// publish so the loop keeps advancing; the next tick re-publishes the retained
+// state once the broker is back.
+const publishTimeout = 3 * time.Second
+
+func (t *AppType) publish(topic string, qos byte, retained bool, payload any) error {
+	ctx, cancel := context.WithTimeout(t.mainCtx, publishTimeout)
+	defer cancel()
+	return t.facade.Publish(ctx, topic, qos, retained, payload)
+}
+
 // publishLifecycle emits a single event onto the experiment-lifecycle MQTT
 // topic. The metrics-bridge subscribes and pushes it to Loki — this is how
 // experiment start/end transitions show up in the events table and the .ods
@@ -356,7 +371,7 @@ func (t *AppType) publishLifecycle(state, reason, comment string) {
 	if comment != "" {
 		body["comment"] = comment
 	}
-	if err := t.facade.Publish(t.mainCtx, experimentLifecycleTopic, 0, false, body); err != nil {
+	if err := t.publish(experimentLifecycleTopic, 0, false, body); err != nil {
 		slog.Default().Warn("cannot publish lifecycle event", "state", state, "error", err)
 	}
 }
@@ -366,7 +381,7 @@ func (t *AppType) sendTimeUpdate(now time.Time, ongoing bool) error {
 		Ongoing: ongoing,
 		Now:     now.UnixMilli(),
 	}
-	return t.facade.Publish(t.mainCtx, "updates/_time_", 0, true, obj)
+	return t.publish("updates/_time_", 0, true, obj)
 }
 
 func (t *AppType) experimentTimedOutUpdateExperimentResource() error {
@@ -402,6 +417,13 @@ func (t *AppType) setExperimentTerminalState(state yassv1.ExperimentState) error
 }
 
 func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GlobalGeoCalcUpdate) error {
+	// When the broker connection is down (e.g. mid-reconnect after it was
+	// overwhelmed at large rosters), skip this tick's per-node publishes instead
+	// of blocking on each one. Experiment time still advances and updates resume
+	// once the broker is back, rather than wedging the whole loop.
+	if !t.facade.IsConnected() {
+		return nil
+	}
 	nowMillis := upd.CurrentTime.UnixMilli()
 	jeh := goutils.JoinErrorHelper{}
 	t.augmentGroundStationLinks(upd.FsNodeInfos)
@@ -457,7 +479,7 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GlobalGeoCalcU
 			}
 		}()
 
-		err := t.facade.Publish(t.mainCtx, fmt.Sprintf("updates/%s", data.Name), 0, true, gr)
+		err := t.publish(fmt.Sprintf("updates/%s", data.Name), 0, true, gr)
 		jeh.Append(err)
 
 		// Sibling publish for observability — `los/<src>` carries just the
@@ -476,7 +498,7 @@ func (t *AppType) handleGeoUpdate(_ context.Context, upd *geocalc.GlobalGeoCalcU
 			"updatedUnixMillis": nowMillis,
 			"peers":             losPeers,
 		}
-		err = t.facade.Publish(t.mainCtx, fmt.Sprintf("los/%s", data.Name), 0, true, losMsg)
+		err = t.publish(fmt.Sprintf("los/%s", data.Name), 0, true, losMsg)
 		jeh.Append(err)
 	}
 	return jeh.AsError()

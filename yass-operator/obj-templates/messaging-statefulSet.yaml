@@ -32,6 +32,17 @@ spec:
               port: 1883
             initialDelaySeconds: 5
             periodSeconds: 10
+          # Guarantee CPU for the broker. With no request it ran BestEffort and
+          # was starved under large rosters (~200 world-controllers), so it
+          # stopped answering MQTT keepalive pings and clients disconnected. The
+          # request keeps it schedulable with headroom; the limit lets it burst.
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "128Mi"
+            limits:
+              cpu: "2"
+              memory: "512Mi"
 #          volumeMounts:
 #            - mountPath: /mosquitto/data
 #              name: data
