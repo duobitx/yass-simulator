@@ -1,0 +1,106 @@
+name: Release
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GO_VERSION: '1.25'
+  GOPRIVATE: github.com/duobitx/*,github.com/ESA-PhiLab/*
+  REGISTRY: ghcr.io
+
+jobs:
+  release-internal-components:
+    name: IC - Release (${{ github.ref_name }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Login to Docker image registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef  # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git for private Go modules
+        run: |
+          git config --global url."https://${{ secrets.GH_REPO_READ_TOKEN }}@github.com/duobitx/".insteadOf "https://github.com/duobitx/"
+
+      - name: Setup Go
+        uses: actions/setup-go@4dc6199c7b1a012772edbd06daecab0f50c9053c  # v6.1.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Install protoc
+        uses: arduino/setup-protoc@c65c819552d16ad3c9b72d9dfd5ba5237b9c906b  # v3.0.0
+        with:
+          version: '25.x'
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Task
+        uses: arduino/setup-task@b91d5d2c96a56797b48ac1e0e89220bf64044611  # v2.0.0
+        with:
+          version: 3.x
+
+      # The Taskfile derives TAG from `git describe --tags --exact-match`, stripping
+      # the leading `v` (v1.0.1 -> 1.0.1), then builds & pushes :TAG and :latest.
+      - name: Build & push internal-components
+        working-directory: internal-components
+        run: task
+
+  release-yass-operator:
+    name: Operator - Release (${{ github.ref_name }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: duobitx/yass-operator
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8  # v6.0.1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435  # v3.11.1
+
+      - name: Login to Docker image registry
+        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef  # v3.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get Docker metadata
+        id: meta
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051  # v5.10.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=sha
+
+      # meta.outputs.version is the semver tag without the leading `v` (1.0.1),
+      # used both as the image tag and as the baked internal-components version.
+      - name: Build and push Docker image
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83  # v6.18.0
+        with:
+          context: yass-operator
+          push: true
+          build-args: |
+            INTERNAL_COMPONENTS_VERSION=${{ steps.meta.outputs.version }}
+          tags: ${{ steps.meta.outputs.tags }}
+          annotations: ${{ steps.meta.outputs.annotations }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=yass-operator
+          cache-to: type=gha,mode=max,scope=yass-operator

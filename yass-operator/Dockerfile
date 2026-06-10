@@ -29,4 +29,9 @@ COPY --from=builder /workspace/manager .
 ADD obj-templates ./obj-templates
 USER 65532:65532
 
+# Default internal-components image version baked into the image at build time.
+# Overridable by the INTERNAL_COMPONENTS_VERSION env on the Deployment (which wins).
+ARG INTERNAL_COMPONENTS_VERSION=latest
+ENV INTERNAL_COMPONENTS_VERSION=${INTERNAL_COMPONENTS_VERSION}
+
 ENTRYPOINT ["/manager"]
