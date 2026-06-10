@@ -955,6 +955,25 @@ const CesiumScene = ({
       return ((v << s) | (v >>> (16 - s))) & 0xffff;
     };
 
+    // Earth-occlusion test. The sim reports in-range pairs by distance, not by
+    // visibility, so two nodes on opposite sides of the planet still show up in
+    // networkParams; a straight line between them crosses the globe. Hide an
+    // idle LOS line when the segment between its endpoints passes through the
+    // Earth (i.e. there is no real line of sight). Positions are geocentric
+    // ECEF metres, so the Earth centre is the origin.
+    const EARTH_LOS_RADIUS = 6_371_000 * 0.99; // mean radius, small margin
+    const EARTH_LOS_RADIUS_SQ = EARTH_LOS_RADIUS * EARTH_LOS_RADIUS;
+    const hasLineOfSight = (a: Cartesian3, b: Cartesian3): boolean => {
+      const abx = b.x - a.x, aby = b.y - a.y, abz = b.z - a.z;
+      const ab2 = abx * abx + aby * aby + abz * abz;
+      if (ab2 === 0) return true;
+      // Parameter of the closest point on segment AB to the origin.
+      const t = -(a.x * abx + a.y * aby + a.z * abz) / ab2;
+      if (t <= 0 || t >= 1) return true; // closest approach is an endpoint → clear
+      const cx = a.x + t * abx, cy = a.y + t * aby, cz = a.z + t * abz;
+      return cx * cx + cy * cy + cz * cz >= EARTH_LOS_RADIUS_SQ;
+    };
+
     const addPair = (pairKey: string, sourceName: string, peerName: string, bucketIdx: number): PairEntities => {
       const { color: hex, width: baseWidth } = BUCKETS[bucketIdx];
       const idleColor = Color.fromCssColorString(hex).withAlpha(LINE_ALPHA);
@@ -978,15 +997,25 @@ const CesiumScene = ({
       };
 
       const endpointBuf: [Cartesian3, Cartesian3] = [new Cartesian3(), new Cartesian3()];
+      const losBuf: [Cartesian3, Cartesian3] = [new Cartesian3(), new Cartesian3()];
 
       const polyline = viewer.entities.add({
         id: `vis-${pairKey}`,
-        // By default render the line only when an actual transfer is in
-        // progress — LOS visibility alone would suggest active flow on every
-        // reachable peer. When showConnections is on, also render idle LOS
-        // links (faint, static) so connectivity is visible without transfer.
-        show: new CallbackProperty(() => showConnectionsRef.current || transferState.has(pairKey), false),
         polyline: {
+          // Render an active transfer always; render an idle LOS link only when
+          // showConnections is on AND the two nodes actually see each other
+          // (segment clear of the Earth). The sim's in-range pairs are
+          // distance-based, so without the LOS check far-side pairs draw lines
+          // straight across the globe.
+          // NOTE: Entity.show is a plain boolean (not a Property), so this
+          // callback lives on the polyline graphics where show IS a Property
+          // and is re-evaluated every frame.
+          show: new CallbackProperty(() => {
+            if (transferState.has(pairKey)) return true;
+            if (!showConnectionsRef.current) return false;
+            const e = endpoints(losBuf);
+            return !e || hasLineOfSight(e[0], e[1]);
+          }, false),
           positions: new CallbackProperty(() => endpoints(endpointBuf) ?? [ZERO, ZERO], false),
           arcType: ArcType.NONE,
           width: new CallbackProperty(() => {
