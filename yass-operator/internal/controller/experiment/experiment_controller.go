@@ -156,7 +156,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitRet c
 	// Once resources have been evicted (see Spec.EvictResourcesAfter) the
 	// experiment is a kept-but-emptied shell: do not recreate its workloads or
 	// FsNodes, leave the (terminal) status as-is.
-	if resourcesEvicted(&experiment) {
+	if experiment.ResourcesEvicted() {
 		return ctrl.Result{}, nil
 	}
 	err = r.createOrUpdateExperiment(recon, ctx, req, &experiment)
@@ -659,16 +659,7 @@ const (
 	// the experiment's compute resources are evicted. It is stamped once, when the
 	// experiment first reaches a terminal state with Spec.EvictResourcesAfter set.
 	evictResourcesAtAnnotation = "experiment-controller/evict-resources-at"
-	// resourcesEvictedAnnotation marks that the eviction has happened, so the
-	// reconciler neither recreates the workloads nor evicts again.
-	resourcesEvictedAnnotation = "experiment-controller/resources-evicted"
 )
-
-// resourcesEvicted reports whether the experiment's compute resources have
-// already been evicted (see Spec.EvictResourcesAfter).
-func resourcesEvicted(exp *yassv1.Experiment) bool {
-	return exp.Annotations[resourcesEvictedAnnotation] == "true"
-}
 
 func isTerminalExperimentState(s yassv1.ExperimentState) bool {
 	switch s {
@@ -688,7 +679,7 @@ func (r *Reconciler) maybeEvictResources(ctx context.Context, experiment *yassv1
 	if experiment.Spec.EvictResourcesAfter == nil || experiment.Spec.EvictResourcesAfter.Duration <= 0 {
 		return 0, nil
 	}
-	if !isTerminalExperimentState(experiment.Status.ExperimentState) || resourcesEvicted(experiment) {
+	if !isTerminalExperimentState(experiment.Status.ExperimentState) || experiment.ResourcesEvicted() {
 		return 0, nil
 	}
 
@@ -718,7 +709,7 @@ func (r *Reconciler) maybeEvictResources(ctx context.Context, experiment *yassv1
 	if err != nil {
 		return 10 * time.Second, errors.Wrap(err, "cannot evict experiment resources")
 	}
-	if err := r.setExperimentAnnotation(ctx, experiment, resourcesEvictedAnnotation, "true"); err != nil {
+	if err := r.setExperimentAnnotation(ctx, experiment, yassv1.ResourcesEvictedAnnotation, "true"); err != nil {
 		return 0, err
 	}
 	r.recorder.Eventf(experiment, v1.EventTypeNormal, "ResourcesEvicted",

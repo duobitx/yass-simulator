@@ -20,6 +20,10 @@ import (
 	yassv1 "github.com/duobitx/yass-simulator/yass-operator/api/v1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 var _ = Describe("Experiment Webhook", func() {
@@ -59,27 +63,73 @@ var _ = Describe("Experiment Webhook", func() {
 		// })
 	})
 
-	Context("When creating or updating Experiment under Validating Webhook", func() {
-		// TODO (user): Add logic for validating webhooks
-		// Example:
-		// It("Should deny creation if a required field is missing", func() {
-		//     By("simulating an invalid creation scenario")
-		//     obj.SomeRequiredField = ""
-		//     Expect(validator.ValidateCreate(ctx, obj)).Error().To(HaveOccurred())
-		// })
-		//
-		// It("Should admit creation if all required fields are present", func() {
-		//     By("simulating an invalid creation scenario")
-		//     obj.SomeRequiredField = "valid_value"
-		//     Expect(validator.ValidateCreate(ctx, obj)).To(BeNil())
-		// })
-		//
-		// It("Should validate updates correctly", func() {
-		//     By("simulating a valid update scenario")
-		//     oldObj.SomeRequiredField = "updated_value"
-		//     obj.SomeRequiredField = "updated_value"
-		//     Expect(validator.ValidateUpdate(ctx, oldObj, obj)).To(BeNil())
-		// })
+	Context("single-experiment-per-namespace guard on ValidateCreate", func() {
+		newExp := func(name, ns string, mutate func(*yassv1.Experiment)) *yassv1.Experiment {
+			e := &yassv1.Experiment{ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: ns}}
+			if mutate != nil {
+				mutate(e)
+			}
+			return e
+		}
+		withSiblings := func(objs ...client.Object) ExperimentCustomValidator {
+			sch := runtime.NewScheme()
+			Expect(yassv1.AddToScheme(sch)).To(Succeed())
+			c := fake.NewClientBuilder().WithScheme(sch).WithObjects(objs...).Build()
+			return ExperimentCustomValidator{Client: c}
+		}
+
+		It("admits the first experiment in an empty namespace", func() {
+			v := withSiblings()
+			_, err := v.ValidateCreate(ctx, newExp("first", "ns1", nil))
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("rejects a second experiment while a sibling still has running resources", func() {
+			running := newExp("running", "ns1", func(e *yassv1.Experiment) {
+				e.Status.ExperimentState = yassv1.ExperimentStateOngoing
+			})
+			v := withSiblings(running)
+			_, err := v.ValidateCreate(ctx, newExp("second", "ns1", nil))
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("single experiment per namespace"))
+		})
+
+		It("admits when the sibling's resources have already been evicted", func() {
+			evicted := newExp("old", "ns1", func(e *yassv1.Experiment) {
+				e.Status.ExperimentState = yassv1.ExperimentStateSuccess
+				e.Annotations = map[string]string{yassv1.ResourcesEvictedAnnotation: "true"}
+			})
+			v := withSiblings(evicted)
+			_, err := v.ValidateCreate(ctx, newExp("fresh", "ns1", nil))
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("admits when the sibling is being deleted", func() {
+			now := metav1.Now()
+			deleting := newExp("old", "ns1", func(e *yassv1.Experiment) {
+				e.Status.ExperimentState = yassv1.ExperimentStateOngoing
+				e.DeletionTimestamp = &now
+				e.Finalizers = []string{"yass/test-finalizer"}
+			})
+			v := withSiblings(deleting)
+			_, err := v.ValidateCreate(ctx, newExp("fresh", "ns1", nil))
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("ignores running experiments in other namespaces", func() {
+			elsewhere := newExp("running", "ns2", func(e *yassv1.Experiment) {
+				e.Status.ExperimentState = yassv1.ExperimentStateOngoing
+			})
+			v := withSiblings(elsewhere)
+			_, err := v.ValidateCreate(ctx, newExp("here", "ns1", nil))
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("skips the check entirely when no client is configured", func() {
+			v := ExperimentCustomValidator{}
+			_, err := v.ValidateCreate(ctx, newExp("any", "ns1", nil))
+			Expect(err).NotTo(HaveOccurred())
+		})
 	})
 
 })

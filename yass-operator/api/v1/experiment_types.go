@@ -9,6 +9,20 @@ func init() {
 	SchemeBuilder.Register(&Experiment{}, &ExperimentList{})
 }
 
+// ResourcesEvictedAnnotation, when set to "true", marks that the experiment's
+// compute resources (the experiment-executor, the messaging/mosquitto broker,
+// FsNode pods and the shared engine/observability workloads) have been evicted
+// — see [ExperimentSpec.EvictResourcesAfter]. The reconciler then neither
+// recreates nor re-evicts them, and the experiment no longer occupies the
+// namespace's singleton workloads.
+const ResourcesEvictedAnnotation = "experiment-controller/resources-evicted"
+
+// ResourcesEvicted reports whether this experiment's compute resources have
+// already been evicted (see [ExperimentSpec.EvictResourcesAfter]).
+func (e *Experiment) ResourcesEvicted() bool {
+	return e.Annotations[ResourcesEvictedAnnotation] == "true"
+}
+
 // ExperimentState is the top-level lifecycle phase reported by the
 // experiment-executor on [ExperimentStatus.ExperimentState]. The state machine is
 // strictly forward-moving:

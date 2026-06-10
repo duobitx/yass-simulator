@@ -23,6 +23,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -36,7 +37,7 @@ var experimentlog = logf.Log.WithName("experiment-resource")
 // SetupExperimentWebhookWithManager registers the webhook for Experiment in the manager.
 func SetupExperimentWebhookWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewWebhookManagedBy(mgr).For(&yassv1.Experiment{}).
-		WithValidator(&ExperimentCustomValidator{}).
+		WithValidator(&ExperimentCustomValidator{Client: mgr.GetClient()}).
 		WithDefaulter(&ExperimentCustomDefaulter{}).
 		Complete()
 }
@@ -84,7 +85,9 @@ func (d *ExperimentCustomDefaulter) Default(_ context.Context, obj runtime.Objec
 // NOTE: The +kubebuilder:object:generate=false marker prevents controller-gen from generating DeepCopy methods,
 // as this struct is used only for temporary operations and does not need to be deeply copied.
 type ExperimentCustomValidator struct {
-	// TODO(user): Add more fields as needed for validation
+	// Client lists sibling experiments to enforce the single-experiment-per-namespace
+	// invariant. May be nil in unit tests, in which case the invariant is not checked.
+	Client client.Client
 }
 
 var _ webhook.CustomValidator = &ExperimentCustomValidator{}
@@ -96,7 +99,43 @@ func (v *ExperimentCustomValidator) ValidateCreate(ctx context.Context, obj runt
 		return nil, fmt.Errorf("expected a Experiment object but got %T", obj)
 	}
 	experimentlog.Info("Validation for Experiment upon creation", "name", experiment.GetName())
+	if err := v.validateSingleExperimentPerNamespace(ctx, experiment); err != nil {
+		return nil, err
+	}
 	return v.validateModification(ctx, obj)
+}
+
+// validateSingleExperimentPerNamespace rejects creating a second experiment in a
+// namespace that already hosts a running one. Each experiment materialises the
+// namespace's singleton workloads — the experiment-executor and the
+// messaging/mosquitto broker — so two experiments in one namespace collide;
+// YASS therefore supports a single experiment per namespace.
+//
+// A sibling counts as running while it still owns those resources: it is not
+// being deleted and its resources have not been evicted (see
+// Spec.EvictResourcesAfter). A terminal-but-not-yet-evicted experiment still
+// holds them, so it still blocks; a sibling under deletion does not (it is
+// releasing the namespace, e.g. on a delete+recreate re-run).
+func (v *ExperimentCustomValidator) validateSingleExperimentPerNamespace(ctx context.Context, experiment *yassv1.Experiment) error {
+	if v.Client == nil {
+		return nil
+	}
+	var siblings yassv1.ExperimentList
+	if err := v.Client.List(ctx, &siblings, client.InNamespace(experiment.Namespace)); err != nil {
+		return fmt.Errorf("cannot verify single-experiment-per-namespace invariant: %w", err)
+	}
+	for i := range siblings.Items {
+		s := &siblings.Items[i]
+		if s.Name == experiment.Name {
+			continue
+		}
+		if s.DeletionTimestamp == nil && !s.ResourcesEvicted() {
+			return fmt.Errorf(
+				"namespace %q already runs experiment %q (state %q); YASS supports a single experiment per namespace — delete it or wait for its resources to be evicted before creating %q",
+				experiment.Namespace, s.Name, s.Status.ExperimentState, experiment.Name)
+		}
+	}
+	return nil
 }
 
 // ValidateUpdate implements webhook.CustomValidator so a webhook will be registered for the type Experiment.
