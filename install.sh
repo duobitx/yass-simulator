@@ -110,6 +110,4 @@ cat <<EOF
   kubectl ${KUBECONFIG_ARG:+--kubeconfig $KUBECONFIG_ARG} -n ${NAMESPACE} get pods
   kubectl ${KUBECONFIG_ARG:+--kubeconfig $KUBECONFIG_ARG} get crds | grep int.esa.yass
 
-Grafana:    kubectl -n ${NAMESPACE} port-forward svc/grafana 3000:3000
-Prometheus: kubectl -n ${NAMESPACE} port-forward svc/prometheus 9090:9090
 EOF
