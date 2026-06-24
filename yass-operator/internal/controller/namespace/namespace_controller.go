@@ -114,39 +114,48 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (exitResul
 			}
 		}
 	}()
-	// copy docker secret
+	// copy docker secret - optional, images may be public
+	hasDockerSecret := false
 	var dockerSecret v1.Secret
 	err = r.Get(ctx, client.ObjectKey{Namespace: r.SourceNamespace, Name: dockerSecretName}, &dockerSecret)
-	if err != nil {
-		r.condition(reconState, conditionTypeSecret, v1.ConditionFalse, "NotFound", err.Error())
+	switch {
+	case apierrors.IsNotFound(err):
+		r.condition(reconState, conditionTypeSecret, v1.ConditionTrue, "Skipped", fmt.Sprintf("Secret %s not present in %s - assuming public images", dockerSecretName, r.SourceNamespace))
+		logger.Info("docker secret not found - skipping copy, assuming public images", "sourceNamespace", r.SourceNamespace)
+	case err != nil:
+		r.condition(reconState, conditionTypeSecret, v1.ConditionFalse, "Error", err.Error())
 		return ctrl.Result{RequeueAfter: 1 * time.Minute}, fmt.Errorf("cannot get secret from %s/%s:: %w", r.SourceNamespace, dockerSecretName, err)
+	default:
+		dockerSecretCopy := dockerSecret.DeepCopy()
+		dockerSecretCopy.Namespace = nsName
+		dockerSecretCopy.ResourceVersion = ""
+		opResult, copyErr := controllerutil.CreateOrUpdate(ctx, r.Client, dockerSecretCopy, nil)
+		if copyErr != nil {
+			r.condition(reconState, conditionTypeSecret, v1.ConditionFalse, "CannotCopy", copyErr.Error())
+			return ctrl.Result{}, copyErr
+		}
+		hasDockerSecret = true
+		r.condition(reconState, conditionTypeSecret, v1.ConditionTrue, "Created", fmt.Sprintf("Secret %s created", dockerSecretName))
+		logger.Info("docker secret created", "opResult", opResult)
 	}
-	dockerSecretCopy := dockerSecret.DeepCopy()
-	dockerSecretCopy.Namespace = nsName
-	dockerSecretCopy.ResourceVersion = ""
-	opResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, dockerSecretCopy, nil)
-	if err != nil {
-		r.condition(reconState, conditionTypeSecret, v1.ConditionFalse, "CannotCopy", err.Error())
-		return ctrl.Result{}, err
-	}
-	r.condition(reconState, conditionTypeSecret, v1.ConditionTrue, "Created", fmt.Sprintf("Secret %s created", dockerSecretName))
-	logger.Info("docker secret created", "opResult", opResult)
 
-	// create service account
+	// create service account - attach the pull secret only when it exists
 	sa := &v1.ServiceAccount{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      saName,
 			Namespace: nsName,
 		},
-		ImagePullSecrets: []v1.LocalObjectReference{{Name: dockerSecretName}},
 	}
-	opResult, err = controllerutil.CreateOrUpdate(ctx, r.Client, sa, nil)
+	if hasDockerSecret {
+		sa.ImagePullSecrets = []v1.LocalObjectReference{{Name: dockerSecretName}}
+	}
+	saResult, err := controllerutil.CreateOrUpdate(ctx, r.Client, sa, nil)
 	if err != nil {
 		r.condition(reconState, conditionTypeServiceAccount, v1.ConditionFalse, "CannotCreate", err.Error())
 		return ctrl.Result{}, err
 	}
 	r.condition(reconState, conditionTypeServiceAccount, v1.ConditionTrue, "Created", fmt.Sprintf("ServiceAccount %s created", saName))
-	logger.Info("service account created", "opResult", opResult, "sa", saName)
+	logger.Info("service account created", "opResult", saResult, "sa", saName)
 
 	// update cluster role binding - add new sa
 	var crb rbacv1.ClusterRoleBinding
