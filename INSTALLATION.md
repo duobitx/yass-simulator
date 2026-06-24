@@ -49,7 +49,7 @@ kubectl cluster-info --context kind-yass
 A ready-made config is kept in the repository as `kind-cluster.yaml`
 (`kind create cluster --config kind-cluster.yaml`). A single-node KinD cluster is
 fine for small runs (the
-[`networking-demo`](../../yass-experiments/experiments/networking-demo) example) but
+[`networking-demo`](../yass-experiments/experiments/networking-demo) example) but
 **not** for large constellations or many parallel experiments — use a real
 multi-node cluster for those.
 

@@ -45,10 +45,10 @@ hardware faults and resource limits. Typical uses:
 
 ## Documentation
 
-- [Installation guide](./docs/INSTALLATION.md) — prerequisites (cluster / KinD,
+- [Installation guide](./INSTALLATION.md) — prerequisites (cluster / KinD,
   kubectl) and installing the operator, cert-manager and the observability stack on
   a clean cluster.
-- [User guide (manual)](./docs/USER-GUIDE.md) — the custom resources and how they
+- [User guide (manual)](./USER-GUIDE.md) — the custom resources and how they
   relate, writing/running/monitoring experiments, FsNode and Experiment state
   machines, downloading Parquet results, and writing your own agent or engine.
 

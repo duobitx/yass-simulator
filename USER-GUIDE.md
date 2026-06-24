@@ -540,7 +540,7 @@ line-of-sight. It is the simplest end-to-end run in the repo and fits on a singl
 KinD cluster.
 
 Files (in
-[`yass-experiments/experiments/networking-demo`](../../yass-experiments/experiments/networking-demo)):
+[`yass-experiments/experiments/networking-demo`](../yass-experiments/experiments/networking-demo)):
 
 **`00_namespace.yaml`**
 
@@ -556,7 +556,7 @@ metadata:
 **Hardware profiles** — the layout references two profiles by name, `sentinel-2`
 (satellites) and `ground-station-hwdef` (ground station). These come from the shared
 catalogue
-[`experiments/_common_/hardware_specs.yaml`](../../yass-experiments/experiments/_common_/hardware_specs.yaml).
+[`experiments/_common_/hardware_specs.yaml`](../yass-experiments/experiments/_common_/hardware_specs.yaml).
 Apply that catalogue once per cluster (it is reused by every experiment). The profiles
 look like:
 
