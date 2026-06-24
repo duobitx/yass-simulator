@@ -2,7 +2,7 @@ version: '3'
 
 vars:
     IMAGE_NAME: 'ghcr.io/duobitx/yass-eclipse-mosquitto'
-    TAG: 'v1'
+    TAG: 'v1.1'
     DOCKER: 'docker'
 
 silent: true
