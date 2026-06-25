@@ -1062,13 +1062,16 @@ const CesiumScene = ({
       }
       const now = Date.now();
 
-      // World-controller's egress (sent) counter is reported as the AGGREGATE
-      // root HTB byte count, so every peer entry has the same value — useless
-      // for per-pair detection. The ingress (recv) counter is per source-IP
-      // and reliable. We key everything off recv only.
-      //
-      // Phase 1: compute per-(source, peer) recv-delta bytes/sec.
+      // Per-(source, peer) ingress (recv) bytes/sec, plus per-source aggregate
+      // egress (sent) bytes/sec. The world-controller's per-peer `sent` is the
+      // aggregate root-HTB egress (identical across a source's peers), so it is
+      // one figure per source, not per pair. The per-peer `recv` (ingress) is
+      // reliable on satellites but reads 0 on ground stations on some builds —
+      // so recv alone misses sat→GS uploads entirely. We therefore also detect
+      // an upload from the SENDER's (working) egress and attribute it to the peer
+      // the sender exchanges the most ingress (ACK) traffic with.
       const recvBps = new Map<string, Map<string, number>>(); // source → peer → bytes/sec
+      const sentBps = new Map<string, number>();              // source → bytes/sec (aggregate egress)
       for (const source of Object.keys(usage)) {
         const ev = usage[source];
         if (!ev.peers || ev.peers.length === 0) continue;
@@ -1082,6 +1085,7 @@ const CesiumScene = ({
           perPeer = new Map();
           recvBps.set(source, perPeer);
         }
+        let sourceSentBps = 0;
         for (const p of ev.peers) {
           const peerName = p.peerFsNode;
           if (!peerName) continue;
@@ -1093,12 +1097,39 @@ const CesiumScene = ({
           // Counter reset (LOS loss → removeIPProfile) yields current < prev.
           const recv = p.totalBytesReceived >= prev.recv ? p.totalBytesReceived - prev.recv : 0;
           perPeer.set(peerName, recv / dt);
+          const sent = p.totalBytesSent >= prev.sent ? p.totalBytesSent - prev.sent : 0;
+          if (sent / dt > sourceSentBps) sourceSentBps = sent / dt;
         }
+        sentBps.set(source, sourceSentBps);
       }
 
-      // Phase 2: per pair, take max(recv@A, recv@B). The side with the LARGER
-      // recv is the receiver of bulk data; the other side is the sender.
       const next = new Map<string, { bps: number; senderFsNode: string }>();
+      const consider = (pairKey: string, bps: number, senderFsNode: string) => {
+        if (bps < MIN_BPS) return;
+        const prev = next.get(pairKey);
+        if (!prev || bps > prev.bps) next.set(pairKey, { bps, senderFsNode });
+      };
+
+      // Egress-driven: a source actively uploading. Bulk uploads terminate at a
+      // ground station, so prefer the GS peer it exchanges the most ingress
+      // (ACK) traffic with — the GS's ACKs make it the top GS ingress peer even
+      // when the GS's own ingress counter reads 0. Fall back to the overall top
+      // ingress peer only when no ground station is in range.
+      for (const [source, sBps] of sentBps) {
+        const perPeer = recvBps.get(source);
+        if (!perPeer) continue;
+        let gsTarget: string | null = null, gsBest = -1;
+        let anyTarget: string | null = null, anyBest = -1;
+        for (const [peer, r] of perPeer) {
+          if (gsIds.has(source) && gsIds.has(peer)) continue;
+          if (r > anyBest) { anyBest = r; anyTarget = peer; }
+          if (gsIds.has(peer) && r > gsBest) { gsBest = r; gsTarget = peer; }
+        }
+        const target = gsTarget ?? anyTarget;
+        if (target) consider([source, target].sort().join("|"), sBps * 8, source);
+      }
+
+      // Recv-driven: kept for builds where ingress works, and for sat↔sat links.
       const visited = new Set<string>();
       for (const [source, perPeer] of recvBps) {
         for (const [peer, recvAtSource] of perPeer) {
@@ -1106,15 +1137,10 @@ const CesiumScene = ({
           const pairKey = [source, peer].sort().join("|");
           if (visited.has(pairKey)) continue;
           visited.add(pairKey);
-
           const recvAtPeer = recvBps.get(peer)?.get(source) ?? 0;
-          const maxRecv = Math.max(recvAtSource, recvAtPeer);
-          const bps = maxRecv * 8;
-          if (bps < MIN_BPS) continue;
-
           // Receiver = side with larger recv. Sender = the other one.
           const senderFsNode = recvAtSource > recvAtPeer ? peer : source;
-          next.set(pairKey, { bps, senderFsNode });
+          consider(pairKey, Math.max(recvAtSource, recvAtPeer) * 8, senderFsNode);
         }
       }
 
